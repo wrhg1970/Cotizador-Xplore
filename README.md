@@ -51,6 +51,7 @@ pnpm install
 pnpm db:up                    # PostgreSQL 16 en infra/docker-compose.yml
 pnpm --filter @ee/db migrate:deploy
 pnpm build
+pnpm --filter @ee/db seed     # crea la primera oficina y el SYSTEM_ADMIN (variables SEED_* en .env)
 pnpm test                     # unitarias + integración (requiere DATABASE_URL)
 pnpm --filter @ee/api dev     # API en http://localhost:4000/api/v1 (OpenAPI: /api/docs)
 pnpm --filter @ee/web dev     # Web en http://localhost:3000
