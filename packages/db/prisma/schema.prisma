@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+/// PRD.md §5
+enum Role {
+  ADVISOR
+  QUOTER
+  APPROVER
+  OFFICE_ADMIN
+  SYSTEM_ADMIN
+  AUDITOR
+}
+
+model User {
+  id          String           @id @default(uuid()) @db.Uuid
+  email       String           @unique
+  googleSub   String?          @unique @map("google_sub")
+  name        String
+  status      UserStatus       @default(INVITED)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  officeRoles UserOfficeRole[]
+
+  @@map("users")
+}
+
+model Office {
+  id        String           @id @default(uuid()) @db.Uuid
+  code      String           @unique
+  name      String
+  active    Boolean          @default(true)
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  userRoles UserOfficeRole[]
+
+  @@map("offices")
+}
+
+model UserOfficeRole {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  officeId  String   @map("office_id") @db.Uuid
+  role      Role
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  office    Office   @relation(fields: [officeId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, officeId, role])
+  @@index([officeId])
+  @@map("user_office_roles")
+}
+
+/// Append-only: a DB trigger rejects UPDATE/DELETE (see migration).
+model AuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  actorUserId   String?  @map("actor_user_id") @db.Uuid
+  action        String
+  entityType    String   @map("entity_type")
+  entityId      String   @map("entity_id")
+  correlationId String   @map("correlation_id")
+  diff          Json?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("audit_logs")
+}
