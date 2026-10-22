@@ -26,12 +26,17 @@ import { canViewQuotes, canWorkQuotes, type RequestRef } from '../requests/reque
 import { ZodPipe } from '../zod.pipe.js';
 
 type Tx = Prisma.TransactionClient;
-type FullVersion = QuoteVersion & { lines: QuoteLine[]; fxRates: QuoteFxRate[] };
+type FullVersion = QuoteVersion & {
+  lines: QuoteLine[];
+  fxRates: QuoteFxRate[];
+  scenario: { name: string; requestId: string };
+};
 
 const uuid = new ParseUUIDPipe({ version: '4' });
 const full = {
   lines: { orderBy: { position: 'asc' } },
   fxRates: { orderBy: { fromCurrency: 'asc' } },
+  scenario: { select: { name: true, requestId: true } },
 } as const;
 const EDITABLE = ['DRAFT', 'RETURNED'] as const;
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
@@ -75,6 +80,8 @@ function toDto(v: FullVersion) {
   return {
     id: v.id,
     scenarioId: v.scenarioId,
+    scenarioName: v.scenario.name,
+    requestId: v.scenario.requestId,
     number: v.number,
     status: v.status,
     rowVersion: v.rowVersion,
@@ -287,7 +294,7 @@ export class QuotesController {
   async get(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
     const v = await this.prisma.quoteVersion.findUnique({
       where: { id },
-      include: { ...full, scenario: { select: { requestId: true } } },
+      include: full,
     });
     if (!v) throw new NotFoundException('Cotización no encontrada');
     await this.request(this.prisma, v.scenario.requestId, user);

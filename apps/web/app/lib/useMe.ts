@@ -16,3 +16,11 @@ export const isOfficeAdmin = (me: Me | null, officeId: string) =>
   !!me?.roles.some(
     (r) => r.role === 'SYSTEM_ADMIN' || (r.officeId === officeId && r.role === 'OFFICE_ADMIN'),
   );
+
+/** Mirrors the API: internal costs are visible to the quoting side of the office only. */
+export const canSeeQuotes = (me: Me | null, officeId: string) =>
+  !!me?.roles.some(
+    (r) =>
+      r.role === 'SYSTEM_ADMIN' ||
+      (r.officeId === officeId && ['QUOTER', 'APPROVER', 'OFFICE_ADMIN', 'AUDITOR'].includes(r.role)),
+  );

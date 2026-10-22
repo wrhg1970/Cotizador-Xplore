@@ -12,7 +12,8 @@ import {
   STATUS_LABEL,
   type TravelRequestDto,
 } from '../../lib/types';
-import { isOfficeAdmin, useMe } from '../../lib/useMe';
+import { canSeeQuotes, isOfficeAdmin, useMe } from '../../lib/useMe';
+import { Scenarios } from '../Scenarios';
 
 interface Timeline {
   events: { action: string; actor: { id: string; name: string } | null; at: string }[];
@@ -218,6 +219,13 @@ export default function RequestDetailPage() {
           </>
         )}
       </section>
+
+      {r.status !== 'DRAFT' && canSeeQuotes(me, r.office.id) && (
+        <Scenarios
+          requestId={r.id}
+          canWork={r.status === 'QUOTING' && (admin || me?.id === r.assignee?.id)}
+        />
+      )}
 
       <section aria-labelledby="comentarios">
         <h2 id="comentarios">Comentarios</h2>
