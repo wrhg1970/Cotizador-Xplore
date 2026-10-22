@@ -1,4 +1,4 @@
-import type { Budget, RequestStatus } from '@ee/contracts';
+import type { Budget, CurrencyCode, LineCategory, QuoteVersionStatus, RequestStatus } from '@ee/contracts';
 
 export interface Me {
   id: string;
@@ -54,6 +54,80 @@ export const ACTION_LABEL: Record<string, string> = {
   'request.assigned': 'Asignó cotizador',
   'request.cancelled': 'Canceló la solicitud',
   'request.commented': 'Comentó',
+  'quote.scenario.created': 'Creó un escenario',
+  'quote.scenario.duplicated': 'Duplicó un escenario',
+};
+
+export interface QuoteLineDto {
+  category: LineCategory;
+  description: string;
+  quantity: string;
+  unitCost: string;
+  currency: CurrencyCode;
+  lineTotal?: string;
+  internalOnly: boolean;
+  costSource?: string | null;
+}
+
+export interface FxRateDto {
+  fromCurrency: CurrencyCode;
+  rate: string;
+  rateDate: string;
+  source: string;
+}
+
+export interface QuoteDto {
+  id: string;
+  scenarioId: string;
+  scenarioName: string;
+  requestId: string;
+  number: number;
+  status: QuoteVersionStatus;
+  rowVersion: number;
+  saleCurrency: CurrencyCode;
+  targetMarginRate: string;
+  participants: number;
+  chaperones: number;
+  staff: number;
+  validUntil: string | null;
+  assumptions: string | null;
+  lines: QuoteLineDto[];
+  fxRates: (FxRateDto & { toCurrency: CurrencyCode })[];
+  totals: Record<
+    | 'directPerParticipant'
+    | 'sharedPerParticipant'
+    | 'costPerParticipant'
+    | 'marginPerParticipant'
+    | 'pricePerParticipant'
+    | 'groupPrice'
+    | 'groupMargin',
+    string
+  > | null;
+  warnings: { code: string; message: string }[];
+}
+
+export interface ScenarioDto {
+  id: string;
+  name: string;
+  versions: { id: string; number: number; status: QuoteVersionStatus }[];
+  latest: QuoteDto;
+}
+
+export const QUOTE_STATUS_LABEL: Record<QuoteVersionStatus, string> = {
+  DRAFT: 'Borrador',
+  IN_REVIEW: 'En revisión',
+  RETURNED: 'Devuelta',
+  APPROVED: 'Aprobada',
+  SENT: 'Enviada',
+  SUPERSEDED: 'Reemplazada',
+};
+
+export const CATEGORY_LABEL: Record<LineCategory, string> = {
+  PER_PARTICIPANT: 'Por estudiante',
+  PER_CHAPERONE: 'Por chaperón de la escuela',
+  PER_STAFF: 'Por chaperón EE',
+  PER_GROUP: 'Fijo del grupo',
+  CONTINGENCY: 'Fondo de emergencia',
 };
 
 const dateFmt = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeZone: 'UTC' });

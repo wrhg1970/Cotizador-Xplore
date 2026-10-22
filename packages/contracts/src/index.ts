@@ -148,3 +148,82 @@ export const ListRequestsQuery = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).default(25),
 });
 export type ListRequestsQuery = z.infer<typeof ListRequestsQuery>;
+
+export const QuoteVersionStatus = z.enum([
+  'DRAFT',
+  'IN_REVIEW',
+  'RETURNED',
+  'APPROVED',
+  'SENT',
+  'SUPERSEDED',
+]);
+export type QuoteVersionStatus = z.infer<typeof QuoteVersionStatus>;
+
+/** Per student, per client chaperone, per EE staff, fixed for the group, emergency fund. */
+export const LineCategory = z.enum([
+  'PER_PARTICIPANT',
+  'PER_CHAPERONE',
+  'PER_STAFF',
+  'PER_GROUP',
+  'CONTINGENCY',
+]);
+export type LineCategory = z.infer<typeof LineCategory>;
+
+const NonNegative = DecimalString.refine((a) => !a.startsWith('-'), 'No puede ser negativo');
+const groupCounts = {
+  participants: requestFields.participants,
+  chaperones: requestFields.chaperones,
+  staff: requestFields.staff,
+};
+
+/** Counts default to the request's on the server, so they are optional here. */
+export const CreateScenario = z.strictObject({
+  name: ShortText(150),
+  saleCurrency: CurrencyCode,
+  ...z.object(groupCounts).partial().shape,
+});
+export type CreateScenario = z.infer<typeof CreateScenario>;
+
+export const DuplicateScenario = z.strictObject({ name: ShortText(150) });
+
+export const QuoteLineInput = z.strictObject({
+  category: LineCategory,
+  description: ShortText(300),
+  quantity: NonNegative,
+  unitCost: NonNegative,
+  currency: CurrencyCode,
+  internalOnly: z.boolean().default(false),
+  costSource: OptionalText(300),
+});
+export type QuoteLineInput = z.infer<typeof QuoteLineInput>;
+
+/** Units of the sale currency per 1 `fromCurrency`, frozen with its date and source (FORMULAS.md §11). */
+export const FxRateInput = z.strictObject({
+  fromCurrency: CurrencyCode,
+  rate: DecimalString.refine((r) => Number(r) > 0, 'El tipo de cambio debe ser mayor que cero'),
+  rateDate: IsoDate,
+  source: ShortText(150),
+});
+export type FxRateInput = z.infer<typeof FxRateInput>;
+
+/** Draft edit. `lines` and `fxRates`, when present, replace the whole set (order = position). */
+export const UpdateQuote = z
+  .strictObject({
+    ...z.object(groupCounts).partial().shape,
+    saleCurrency: CurrencyCode.optional(),
+    /** Margin over sale price, 0 ≤ rate < 1 (Finance's "% Comisión"). */
+    targetMarginRate: DecimalString.refine(
+      (r) => Number(r) >= 0 && Number(r) < 1,
+      'El margen debe estar entre 0 y 1',
+    ).optional(),
+    validUntil: IsoDate.nullable().optional(),
+    assumptions: OptionalText(4000).nullable(),
+    lines: z.array(QuoteLineInput).max(500).optional(),
+    fxRates: z.array(FxRateInput).max(10).optional(),
+    rowVersion: z.number().int().min(1),
+  })
+  .refine((q) => new Set(q.fxRates?.map((f) => f.fromCurrency)).size === (q.fxRates?.length ?? 0), {
+    message: 'Un solo tipo de cambio por moneda',
+    path: ['fxRates'],
+  });
+export type UpdateQuote = z.infer<typeof UpdateQuote>;

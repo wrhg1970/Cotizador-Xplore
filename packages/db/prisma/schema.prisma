@@ -36,6 +36,9 @@ model User {
   requested   TravelRequest[]  @relation("requester")
   assigned    TravelRequest[]  @relation("assignee")
   comments    RequestComment[]
+  scenarios   QuoteScenario[]
+  versions    QuoteVersion[]
+  fxRates     QuoteFxRate[]
 
   @@map("users")
 }
@@ -152,6 +155,7 @@ model TravelRequest {
   requester      User             @relation("requester", fields: [requesterId], references: [id], onDelete: Restrict)
   assignee       User?            @relation("assignee", fields: [assigneeId], references: [id], onDelete: Restrict)
   comments       RequestComment[]
+  scenarios      QuoteScenario[]
 
   @@index([officeId, status, createdAt])
   @@index([assigneeId, status])
@@ -170,4 +174,103 @@ model RequestComment {
 
   @@index([requestId, createdAt])
   @@map("request_comments")
+}
+
+/// Quote version lifecycle; approval/sending transitions arrive in Sprint 4.
+enum QuoteVersionStatus {
+  DRAFT
+  IN_REVIEW
+  RETURNED
+  APPROVED
+  SENT
+  SUPERSEDED
+}
+
+/// FORMULAS.md line categories; how each multiplies is defined by the formula set, not here.
+/// Pilot categories from Finance's sheet; chaperones = client's, staff = EE's.
+enum LineCategory {
+  PER_PARTICIPANT
+  PER_CHAPERONE
+  PER_STAFF
+  PER_GROUP
+  CONTINGENCY
+}
+
+model QuoteScenario {
+  id          String         @id @default(uuid()) @db.Uuid
+  requestId   String         @map("request_id") @db.Uuid
+  name        String
+  createdById String         @map("created_by_id") @db.Uuid
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  request     TravelRequest  @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  createdBy   User           @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  versions    QuoteVersion[]
+
+  @@index([requestId])
+  @@map("quote_scenarios")
+}
+
+/// A version is the unit that gets calculated, approved and sent; group sizes live here so siblings never interfere (US-031).
+model QuoteVersion {
+  id               String             @id @default(uuid()) @db.Uuid
+  scenarioId       String             @map("scenario_id") @db.Uuid
+  number           Int
+  status           QuoteVersionStatus @default(DRAFT)
+  saleCurrency     String             @map("sale_currency") @db.Char(3)
+  /// Margin over sale price (Finance's "% Comisión"): price = cost / (1 - rate).
+  targetMarginRate Decimal            @default(0) @map("target_margin_rate") @db.Decimal(7, 6)
+  participants     Int
+  chaperones       Int
+  staff            Int
+  validUntil       DateTime?          @map("valid_until") @db.Date
+  assumptions      String?
+  /// Optimistic concurrency token for edits.
+  rowVersion       Int                @default(1) @map("row_version")
+  createdById      String             @map("created_by_id") @db.Uuid
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  scenario         QuoteScenario      @relation(fields: [scenarioId], references: [id], onDelete: Restrict)
+  createdBy        User               @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  lines            QuoteLine[]
+  fxRates          QuoteFxRate[]
+
+  @@unique([scenarioId, number])
+  @@map("quote_versions")
+}
+
+model QuoteLine {
+  id           String       @id @default(uuid()) @db.Uuid
+  versionId    String       @map("version_id") @db.Uuid
+  position     Int
+  category     LineCategory
+  description  String
+  quantity     Decimal      @db.Decimal(18, 4)
+  unitCost     Decimal      @map("unit_cost") @db.Decimal(18, 4)
+  currency     String       @db.Char(3)
+  /// Never shown on the client PDF (US-035).
+  internalOnly Boolean      @default(false) @map("internal_only")
+  costSource   String?      @map("cost_source")
+  version      QuoteVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId, position])
+  @@map("quote_lines")
+}
+
+/// FX rate frozen per version with date, source and who captured it (CLAUDE.md, US-055).
+model QuoteFxRate {
+  id           String       @id @default(uuid()) @db.Uuid
+  versionId    String       @map("version_id") @db.Uuid
+  fromCurrency String       @map("from_currency") @db.Char(3)
+  toCurrency   String       @map("to_currency") @db.Char(3)
+  /// Units of toCurrency per 1 fromCurrency.
+  rate         Decimal      @db.Decimal(20, 10)
+  rateDate     DateTime     @map("rate_date") @db.Date
+  source       String
+  capturedById String       @map("captured_by_id") @db.Uuid
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  version      QuoteVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  capturedBy   User         @relation(fields: [capturedById], references: [id], onDelete: Restrict)
+
+  @@unique([versionId, fromCurrency])
+  @@map("quote_fx_rates")
 }
