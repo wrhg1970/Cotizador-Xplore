@@ -238,3 +238,15 @@ export const ReviewQuote = z.strictObject({
   comment: OptionalText(2000),
 });
 export const ReturnQuote = z.strictObject({ rowVersion: z.number().int().min(1), comment: ShortText(2000) });
+
+export const DeliveryChannel = z.enum(['EMAIL', 'WHATSAPP', 'IN_PERSON', 'OTHER']);
+export type DeliveryChannel = z.infer<typeof DeliveryChannel>;
+
+/** Manual send of an authorized version: who got it, how and when (DATABASE.md ProposalDelivery). */
+export const SendQuote = z.strictObject({
+  rowVersion: z.number().int().min(1),
+  recipients: ShortText(500),
+  channel: DeliveryChannel,
+  sentOn: IsoDate,
+  notes: OptionalText(2000),
+});

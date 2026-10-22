@@ -1,6 +1,7 @@
 import type {
   Budget,
   CurrencyCode,
+  DeliveryChannel,
   LineCategory,
   QuoteVersionStatus,
   RequestStatus,
@@ -116,10 +117,24 @@ export interface QuoteDto {
     | null;
   warnings: { code: string; message: string }[];
   reviews: { decision: 'APPROVED' | 'RETURNED'; reviewer: string; comment: string | null; at: string }[];
+  deliveries: {
+    recipients: string;
+    channel: DeliveryChannel;
+    sentOn: string;
+    notes: string | null;
+    sentBy: string;
+  }[];
   createdById?: string;
 }
 
 export const isAuthorized = (s: QuoteVersionStatus) => s === 'APPROVED' || s === 'SENT';
+export const CHANNEL_LABEL: Record<DeliveryChannel, string> = {
+  EMAIL: 'Correo',
+  WHATSAPP: 'WhatsApp',
+  IN_PERSON: 'En persona',
+  OTHER: 'Otro',
+};
+
 export const PENDING_LEGEND = 'VIAJE CON AUTORIZACIÓN PENDIENTE';
 
 export interface ScenarioDto {

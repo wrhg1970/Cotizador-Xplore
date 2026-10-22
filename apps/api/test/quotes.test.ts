@@ -1,3 +1,4 @@
+import ExcelJS from 'exceljs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loginAs, makeApp, makeOffice, makeUser, prisma } from './helpers.js';
 
@@ -262,6 +263,11 @@ describe('scenarios (US-029, US-030, US-031)', () => {
 });
 
 describe('authorization (US-071..076)', () => {
+  const delivery = {
+    recipients: 'direccion@colegio.example',
+    channel: 'EMAIL',
+    sentOn: '2026-10-22',
+  };
   const act = (cookie: string, id: string, action: string, body: object) =>
     api().post(`/api/v1/quotes/${id}/${action}`).set('Cookie', cookie).send(body);
 
@@ -284,7 +290,7 @@ describe('authorization (US-071..076)', () => {
 
   it('quoter submits, approver authorizes, quoter sends; request becomes SENT', async () => {
     const v = await readyVersion();
-    await act(c.quoter, v.id, 'send', { rowVersion: v.rowVersion }).expect(403); // not authorized yet
+    await act(c.quoter, v.id, 'send', { ...delivery, rowVersion: v.rowVersion }).expect(403); // not authorized yet
     const s = await act(c.quoter, v.id, 'submit', { rowVersion: v.rowVersion }).expect(201);
     expect(s.body.status).toBe('IN_REVIEW');
     // No edits while in review.
@@ -300,8 +306,42 @@ describe('authorization (US-071..076)', () => {
     );
     expect(a.body.status).toBe('APPROVED');
     expect(a.body.reviews).toEqual([expect.objectContaining({ decision: 'APPROVED', comment: 'OK' })]);
-    const sent = await act(c.quoter, v.id, 'send', { rowVersion: a.body.rowVersion }).expect(201);
+    const sent = await act(c.quoter, v.id, 'send', { ...delivery, rowVersion: a.body.rowVersion }).expect(
+      201,
+    );
     expect(sent.body.status).toBe('SENT');
+    expect(sent.body.deliveries).toEqual([
+      expect.objectContaining({
+        channel: 'EMAIL',
+        recipients: 'direccion@colegio.example',
+        sentOn: '2026-10-22',
+      }),
+    ]);
+    const log = await prisma.auditLog.findFirstOrThrow({ where: { entityId: v.id, action: 'quote.sent' } });
+    expect(JSON.stringify(log.diff)).not.toContain('colegio'); // contact data stays out of the log
+
+    const xlsx = await api()
+      .get(`/api/v1/quotes/${v.id}/export.xlsx`)
+      .set('Cookie', c.approver)
+      .buffer(true)
+      .parse((res, done) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (d: Buffer) => chunks.push(d));
+        res.on('end', () => done(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+    expect(xlsx.headers['content-type']).toContain('spreadsheetml');
+    expect(xlsx.headers['content-disposition']).toMatch(/filename="?EE-\d{4}-\w{6}-Opcion_1-v1\.xlsx/);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(xlsx.body as ExcelJS.Buffer);
+    const rows = wb
+      .getWorksheet('Cotización')!
+      .getSheetValues()
+      .map((r) => (Array.isArray(r) ? r.slice(1) : []));
+    expect(rows).toContainEqual(['Precio final por estudiante', 5129, 'EUR']);
+    expect(rows).toContainEqual(['Por estudiante', 'Precio neto', 1, 3900, 'EUR', 3900, 'No', '']);
+    expect(rows).toContainEqual(['Por chaperón EE', 'Viáticos 16 días', 16, 50, 'EUR', 1600, 'No', '']);
+    await api().get(`/api/v1/quotes/${v.id}/export.xlsx`).set('Cookie', c.advisor).expect(404);
     expect((await prisma.travelRequest.findUniqueOrThrow({ where: { id: requestId } })).status).toBe('SENT');
     await expect(prisma.quoteReview.deleteMany({ where: { versionId: v.id } })).rejects.toThrow(
       /append-only/,
@@ -331,7 +371,7 @@ describe('authorization (US-071..076)', () => {
     const a = await act(c.approver, v.id, 'approve', { rowVersion: s.body.rowVersion }).expect(201);
     // Simulate a change behind the API's back.
     await prisma.quoteVersion.update({ where: { id: v.id }, data: { participants: 11 } });
-    const res = await act(c.quoter, v.id, 'send', { rowVersion: a.body.rowVersion }).expect(409);
+    const res = await act(c.quoter, v.id, 'send', { ...delivery, rowVersion: a.body.rowVersion }).expect(409);
     expect(res.body.code).toBe('APPROVAL_STALE');
   });
 

@@ -7,6 +7,8 @@ import { CurrencyCode, LineCategory } from '@ee/contracts';
 import { api, errorText } from '../../lib/api';
 import {
   CATEGORY_LABEL,
+  CHANNEL_LABEL,
+  fmtDate,
   fmtDateTime,
   isAuthorized,
   PENDING_LEGEND,
@@ -196,10 +198,61 @@ export default function QuoteEditorPage() {
               </button>
             </>
           )}
-          {works && q.status === 'APPROVED' && (
-            <button onClick={() => void act('send')}>Marcar como enviada al cliente</button>
-          )}
+          {/* Plain link: same-origin download carries the session cookie. */}
+          <a className="button secondary" href={`/api/v1/quotes/${q.id}/export.xlsx`}>
+            Descargar Excel interno
+          </a>
         </div>
+        {works && q.status === 'APPROVED' && (
+          <form
+            className="row"
+            style={{ marginTop: 8 }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget);
+              void act('send', {
+                recipients: String(f.get('recipients')).trim(),
+                channel: f.get('channel'),
+                sentOn: f.get('sentOn'),
+                notes: String(f.get('notes') ?? '').trim() || undefined,
+              });
+            }}
+          >
+            <label>
+              Enviada a
+              <input name="recipients" required maxLength={500} placeholder="correo o nombre del contacto" />
+            </label>
+            <label>
+              Medio
+              <select name="channel" defaultValue="EMAIL">
+                {Object.entries(CHANNEL_LABEL).map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Fecha de envío
+              <input name="sentOn" type="date" required defaultValue={today()} />
+            </label>
+            <label>
+              Notas
+              <input name="notes" maxLength={2000} />
+            </label>
+            <button>Registrar envío al cliente</button>
+          </form>
+        )}
+        {q.deliveries.length > 0 && (
+          <ul>
+            {q.deliveries.map((d, i) => (
+              <li key={i}>
+                Enviada el {fmtDate(d.sentOn)} por {CHANNEL_LABEL[d.channel]} a {d.recipients} · {d.sentBy}
+                {d.notes && <span className="muted"> · {d.notes}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
         {q.reviews.length > 0 && (
           <ol className="timeline">
             {q.reviews.map((r, i) => (

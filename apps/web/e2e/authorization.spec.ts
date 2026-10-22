@@ -99,4 +99,15 @@ test('admin grants "Autorizar viaje"; legend shows until the trip is authorized'
   await adv.reload();
   await expect(adv.getByRole('heading', { name: 'Italia Spring Break 2027' })).toBeVisible();
   await expect(adv.getByText('VIAJE CON AUTORIZACIÓN PENDIENTE')).toHaveCount(0);
+
+  // Quoter downloads the internal Excel and records the send.
+  await quo.reload();
+  const download = quo.waitForEvent('download');
+  await quo.getByRole('link', { name: 'Descargar Excel interno' }).click();
+  expect((await download).suggestedFilename()).toMatch(/\.xlsx$/);
+  await quo.getByLabel('Enviada a').fill('direccion@colegio.example');
+  await quo.getByLabel('Medio').selectOption({ label: 'WhatsApp' });
+  await quo.getByRole('button', { name: 'Registrar envío al cliente' }).click();
+  await expect(quo.locator('.badge')).toHaveText('Enviada');
+  await expect(quo.getByText(/por WhatsApp a direccion@colegio\.example · Quique/)).toBeVisible();
 });
