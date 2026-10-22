@@ -62,11 +62,25 @@ const ShortText = (max: number) => z.string().trim().min(1).max(max);
 const OptionalText = (max: number) => z.string().trim().max(max).optional();
 
 const regionNames = new Intl.DisplayNames(['es'], { type: 'region' });
-/** ISO 3166-1 alpha-2 known to ICU; unknown codes are echoed back unchanged by DisplayNames. */
-export const CountryCode = z
-  .string()
-  .regex(/^[A-Z]{2}$/)
-  .refine((c) => regionNames.of(c) !== c, 'País no reconocido');
+// Non-country ICU regions (EU, UN, pseudo-locales…); XK (Kosovo) is kept on purpose.
+const NOT_COUNTRIES = new Set(['EU', 'EZ', 'UN', 'QO', 'XA', 'XB', 'ZZ']);
+
+/** ISO 3166-1 alpha-2 country in ICU, excluding aliases like UK→GB (unknown codes echo back from DisplayNames). */
+export const isCountryCode = (c: string): boolean =>
+  /^[A-Z]{2}$/.test(c) &&
+  !NOT_COUNTRIES.has(c) &&
+  regionNames.of(c) !== c &&
+  new Intl.Locale(`und-${c}`).region === c;
+
+/** Countries with Spanish names, sorted; computed once. */
+export const COUNTRIES: readonly { code: string; name: string }[] = Array.from({ length: 26 * 26 }, (_, i) =>
+  String.fromCharCode(65 + Math.floor(i / 26), 65 + (i % 26)),
+)
+  .filter(isCountryCode)
+  .map((code) => ({ code, name: regionNames.of(code)! }))
+  .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+
+export const CountryCode = z.string().refine(isCountryCode, 'País no reconocido');
 
 export const BudgetBasis = z.enum(['TOTAL', 'PER_PARTICIPANT']);
 export const Budget = z.strictObject({

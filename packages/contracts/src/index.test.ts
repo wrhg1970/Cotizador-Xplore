@@ -56,6 +56,8 @@ describe('request contracts', () => {
     expect(bad({ chaperones: -1 })).toBe(false);
     expect(bad({ countryCode: 'XX' })).toBe(false);
     expect(bad({ countryCode: 'gb' })).toBe(false);
+    expect(bad({ countryCode: 'UK' })).toBe(false);
+    expect(bad({ countryCode: 'EU' })).toBe(false);
     expect(bad({ budget: { amount: '-1', currency: 'GBP', basis: 'TOTAL' } })).toBe(false);
     expect(bad({ budget: { amount: '100', currency: 'GBP' } })).toBe(false);
     expect(bad({ requesterId: valid.officeId })).toBe(false);

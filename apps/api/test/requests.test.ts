@@ -278,6 +278,9 @@ describe('catalogs', () => {
     const countries = await api().get('/api/v1/catalogs/countries').set('Cookie', c.advisor).expect(200);
     expect(countries.body).toContainEqual({ code: 'GB', name: 'Reino Unido' });
     expect(countries.body).toContainEqual({ code: 'MX', name: 'México' });
+    const codes = countries.body.map((x: { code: string }) => x.code);
+    expect(codes).not.toContain('UK');
+    expect(codes).not.toContain('EU');
     const currencies = await api().get('/api/v1/catalogs/currencies').set('Cookie', c.advisor).expect(200);
     expect(currencies.body).toContain('MXN');
   });
