@@ -24,22 +24,23 @@ enum Role {
 }
 
 model User {
-  id          String           @id @default(uuid()) @db.Uuid
-  email       String           @unique
-  googleSub   String?          @unique @map("google_sub")
+  id          String             @id @default(uuid()) @db.Uuid
+  email       String             @unique
+  googleSub   String?            @unique @map("google_sub")
   name        String
-  status      UserStatus       @default(INVITED)
-  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  status      UserStatus         @default(INVITED)
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
   officeRoles UserOfficeRole[]
   sessions    Session[]
-  requested   TravelRequest[]  @relation("requester")
-  assigned    TravelRequest[]  @relation("assignee")
+  requested   TravelRequest[]    @relation("requester")
+  assigned    TravelRequest[]    @relation("assignee")
   comments    RequestComment[]
   scenarios   QuoteScenario[]
   versions    QuoteVersion[]
   fxRates     QuoteFxRate[]
   reviews     QuoteReview[]
+  deliveries  ProposalDelivery[]
 
   @@map("users")
 }
@@ -237,6 +238,7 @@ model QuoteVersion {
   lines            QuoteLine[]
   fxRates          QuoteFxRate[]
   reviews          QuoteReview[]
+  deliveries       ProposalDelivery[]
 
   @@unique([scenarioId, number])
   @@map("quote_versions")
@@ -298,4 +300,28 @@ model QuoteReview {
 
   @@index([versionId, createdAt])
   @@map("quote_reviews")
+}
+
+enum DeliveryChannel {
+  EMAIL
+  WHATSAPP
+  IN_PERSON
+  OTHER
+}
+
+/// Manual send of an approved version to the client (DATABASE.md ProposalDelivery).
+model ProposalDelivery {
+  id         String          @id @default(uuid()) @db.Uuid
+  versionId  String          @map("version_id") @db.Uuid
+  sentById   String          @map("sent_by_id") @db.Uuid
+  recipients String
+  channel    DeliveryChannel
+  sentOn     DateTime        @map("sent_on") @db.Date
+  notes      String?
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  version    QuoteVersion    @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  sentBy     User            @relation(fields: [sentById], references: [id], onDelete: Restrict)
+
+  @@index([versionId])
+  @@map("proposal_deliveries")
 }

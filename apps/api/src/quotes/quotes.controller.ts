@@ -12,12 +12,21 @@ import {
   Patch,
   Post,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { Request } from 'express';
-import { CreateScenario, DuplicateScenario, ReturnQuote, ReviewQuote, UpdateQuote } from '@ee/contracts';
+import type { Request, Response } from 'express';
+import {
+  CreateScenario,
+  DuplicateScenario,
+  ReturnQuote,
+  ReviewQuote,
+  SendQuote,
+  UpdateQuote,
+} from '@ee/contracts';
 import {
   Prisma,
   type PrismaClient,
+  type ProposalDelivery,
   type QuoteFxRate,
   type QuoteLine,
   type QuoteReview,
@@ -32,6 +41,7 @@ import { PRISMA } from '../prisma.service.js';
 import { hasOfficeRole } from '../auth/authz.js';
 import { canView, canViewQuotes, canWorkQuotes, type RequestRef } from '../requests/request-policy.js';
 import { ZodPipe } from '../zod.pipe.js';
+import { quoteWorkbook } from './quote-xlsx.js';
 
 type Tx = Prisma.TransactionClient;
 type FullVersion = QuoteVersion & {
@@ -39,6 +49,7 @@ type FullVersion = QuoteVersion & {
   fxRates: QuoteFxRate[];
   scenario: { name: string; requestId: string };
   reviews: (QuoteReview & { reviewer: { name: string } })[];
+  deliveries: (ProposalDelivery & { sentBy: { name: string } })[];
 };
 
 const uuid = new ParseUUIDPipe({ version: '4' });
@@ -47,6 +58,7 @@ const full = {
   fxRates: { orderBy: { fromCurrency: 'asc' } },
   scenario: { select: { name: true, requestId: true } },
   reviews: { orderBy: { createdAt: 'asc' }, include: { reviewer: { select: { name: true } } } },
+  deliveries: { orderBy: { createdAt: 'asc' }, include: { sentBy: { select: { name: true } } } },
 } as const;
 const EDITABLE = ['DRAFT', 'RETURNED'] as const;
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
@@ -56,6 +68,12 @@ const conflict = () =>
     code: 'VERSION_CONFLICT',
     message: 'La cotización cambió; recarga e inténtalo de nuevo',
   });
+
+const asciiName = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w.-]+/g, '_');
 
 const money = (x: Dec) => roundMoney(x, 2).toFixed(2);
 
@@ -82,6 +100,8 @@ function calculate(v: FullVersion) {
     groupMargin: money(r.groupMargin),
     pricePerParticipantMxn: r.pricePerParticipantMxn && money(r.pricePerParticipantMxn),
     groupMarginMxn: r.groupMarginMxn && money(r.groupMarginMxn),
+    /** Per line, in sale currency and already multiplied by headcount where it applies. */
+    lineTotals: r.lineTotals.map(money),
   };
 }
 
@@ -103,6 +123,8 @@ function snapshotHash(v: FullVersion) {
   } = toDto(v);
   return calculationHash({ ...rest, lines: lines.map(({ id: _l, ...l }) => l) });
 }
+
+export type QuoteDto = ReturnType<typeof toDto>;
 
 function toDto(v: FullVersion) {
   const rated = new Set(v.fxRates.map((f) => f.fromCurrency));
@@ -147,6 +169,13 @@ function toDto(v: FullVersion) {
     warnings: missingFx.map((c) => ({
       code: 'MISSING_FX',
       message: `Falta tipo de cambio ${c} → ${v.saleCurrency}`,
+    })),
+    deliveries: v.deliveries.map((d) => ({
+      recipients: d.recipients,
+      channel: d.channel,
+      sentOn: day(d.sentOn),
+      notes: d.notes,
+      sentBy: d.sentBy.name,
     })),
     reviews: v.reviews.map((r) => ({
       decision: r.decision,
@@ -403,6 +432,21 @@ export class QuotesController {
     return toDto(v);
   }
 
+  /** PRD: internal XLSX with concepts, quantities, currency, cost, price, margin. Never for clients. */
+  @Get('quotes/:id/export.xlsx')
+  async exportXlsx(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string, @Res() res: Response) {
+    const v = await this.prisma.quoteVersion.findUnique({ where: { id }, include: full });
+    if (!v) throw new NotFoundException('Cotización no encontrada');
+    await this.request(this.prisma, v.scenario.requestId, user);
+    const r = await this.prisma.travelRequest.findUniqueOrThrow({ where: { id: v.scenario.requestId } });
+    const file = await quoteWorkbook(toDto(v), { folio: r.folio, groupName: r.groupName });
+    res
+      .type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      // ASCII-only name: accents and spaces break the download name in some browsers and on Windows.
+      .attachment(`${r.folio}-${asciiName(v.scenario.name)}-v${v.number}.xlsx`)
+      .send(file);
+  }
+
   /** Draft edit with optimistic lock; `lines`/`fxRates` replace the whole set (US-031, US-055). */
   @Patch('quotes/:id')
   async update(
@@ -555,7 +599,7 @@ export class QuotesController {
     @CurrentUser() user: AuthUser,
     @Req() req: Request,
     @Param('id', uuid) id: string,
-    @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
+    @Body(new ZodPipe(SendQuote)) body: z.infer<typeof SendQuote>,
   ) {
     return this.review(user, req, id, body.rowVersion, 'quote.sent', (v, r, tx) => {
       if (!(r.assigneeId === user.id || hasOfficeRole(user, r.officeId, ['OFFICE_ADMIN'])))
@@ -570,11 +614,22 @@ export class QuotesController {
         });
       return {
         status: 'SENT',
-        after: () =>
-          tx.travelRequest.updateMany({
+        after: async () => {
+          await tx.proposalDelivery.create({
+            data: {
+              versionId: v.id,
+              sentById: user.id,
+              recipients: body.recipients,
+              channel: body.channel,
+              sentOn: toDate(body.sentOn),
+              notes: body.notes,
+            },
+          });
+          await tx.travelRequest.updateMany({
             where: { id: r.id, status: 'QUOTING' },
             data: { status: 'SENT', version: { increment: 1 } },
-          }),
+          });
+        },
       };
     });
   }
