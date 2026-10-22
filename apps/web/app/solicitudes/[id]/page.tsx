@@ -13,6 +13,7 @@ import {
   type TravelRequestDto,
 } from '../../lib/types';
 import { canSeeQuotes, isOfficeAdmin, useMe } from '../../lib/useMe';
+import { Proposals } from '../Proposals';
 import { Scenarios } from '../Scenarios';
 
 interface Timeline {
@@ -220,6 +221,7 @@ export default function RequestDetailPage() {
         )}
       </section>
 
+      {r.status !== 'DRAFT' && !canSeeQuotes(me, r.office.id) && <Proposals requestId={r.id} />}
       {r.status !== 'DRAFT' && canSeeQuotes(me, r.office.id) && (
         <Scenarios
           requestId={r.id}

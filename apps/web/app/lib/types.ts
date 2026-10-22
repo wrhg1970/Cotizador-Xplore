@@ -1,4 +1,11 @@
-import type { Budget, CurrencyCode, LineCategory, QuoteVersionStatus, RequestStatus } from '@ee/contracts';
+import type {
+  Budget,
+  CurrencyCode,
+  LineCategory,
+  QuoteVersionStatus,
+  RequestStatus,
+  RoleName,
+} from '@ee/contracts';
 
 export interface Me {
   id: string;
@@ -59,6 +66,7 @@ export const ACTION_LABEL: Record<string, string> = {
 };
 
 export interface QuoteLineDto {
+  id?: string;
   category: LineCategory;
   description: string;
   quantity: string;
@@ -107,7 +115,12 @@ export interface QuoteDto {
       > & { pricePerParticipantMxn: string | null; groupMarginMxn: string | null })
     | null;
   warnings: { code: string; message: string }[];
+  reviews: { decision: 'APPROVED' | 'RETURNED'; reviewer: string; comment: string | null; at: string }[];
+  createdById?: string;
 }
+
+export const isAuthorized = (s: QuoteVersionStatus) => s === 'APPROVED' || s === 'SENT';
+export const PENDING_LEGEND = 'VIAJE CON AUTORIZACIÓN PENDIENTE';
 
 export interface ScenarioDto {
   id: string;
@@ -137,3 +150,13 @@ const dateFmt = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeZone
 const dateTimeFmt = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
 export const fmtDate = (iso: string | null) => (iso ? dateFmt.format(new Date(`${iso}T00:00:00Z`)) : '—');
 export const fmtDateTime = (iso: string) => dateTimeFmt.format(new Date(iso));
+
+/** Privileges as people call them; APPROVER is "Autorizar viaje". */
+export const ROLE_LABEL: Record<RoleName, string> = {
+  ADVISOR: 'Asesor (crea solicitudes)',
+  QUOTER: 'Cotizador',
+  APPROVER: 'Autorizar viaje',
+  OFFICE_ADMIN: 'Coordinador de oficina',
+  SYSTEM_ADMIN: 'Administrador del sistema',
+  AUDITOR: 'Auditor (solo lectura)',
+};

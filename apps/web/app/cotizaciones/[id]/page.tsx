@@ -7,6 +7,9 @@ import { CurrencyCode, LineCategory } from '@ee/contracts';
 import { api, errorText } from '../../lib/api';
 import {
   CATEGORY_LABEL,
+  fmtDateTime,
+  isAuthorized,
+  PENDING_LEGEND,
   QUOTE_STATUS_LABEL,
   type FxRateDto,
   type QuoteDto,
@@ -71,37 +74,65 @@ export default function QuoteEditorPage() {
   // Allowances count both travel days: return − departure + 1 (Finance, 2026-10-22).
   const tripDays = req ? (Date.parse(req.returnDate) - Date.parse(req.departureDate)) / 86_400_000 + 1 : null;
 
-  async function save() {
+  const isAdmin = !!req && isOfficeAdmin(me, req.office.id);
+  const works = !!req && (isAdmin || me?.id === req.assignee?.id);
+  const approver =
+    !!req &&
+    !!me?.roles.some(
+      (r) => r.role === 'SYSTEM_ADMIN' || (r.officeId === req.office.id && r.role === 'APPROVER'),
+    ) &&
+    me.id !== req.assignee?.id;
+
+  /** Approval steps (US-071..074); submitting saves pending edits first. */
+  async function act(action: string, body: object = {}) {
+    if (!q) return;
+    setError(null);
+    try {
+      const saved = action === 'submit' && editable ? await save() : q;
+      if (!saved) return;
+      load(
+        await api<QuoteDto>(`/quotes/${q.id}/${action}`, {
+          method: 'POST',
+          body: { ...body, rowVersion: saved.rowVersion },
+        }),
+      );
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }
+
+  async function save(): Promise<QuoteDto | undefined> {
     if (!draft || !q) return;
     setSaving(true);
     setError(null);
     try {
-      load(
-        await api<QuoteDto>(`/quotes/${q.id}`, {
-          method: 'PATCH',
-          body: {
-            rowVersion: q.rowVersion,
-            saleCurrency: draft.saleCurrency,
-            targetMarginRate: fromPct(marginPct),
-            mxnRate: draft.mxnRate?.trim() || null,
-            participants: draft.participants,
-            chaperones: draft.chaperones,
-            staff: draft.staff,
-            validUntil: draft.validUntil || null,
-            assumptions: draft.assumptions ?? '',
-            lines: draft.lines.map(({ lineTotal: _t, ...l }) => ({
-              ...l,
-              costSource: l.costSource ?? undefined,
-            })),
-            fxRates: draft.fxRates.map(({ fromCurrency, rate, rateDate, source }) => ({
-              fromCurrency,
-              rate,
-              rateDate,
-              source,
-            })),
-          },
-        }),
-      );
+      const saved = await api<QuoteDto>(`/quotes/${q.id}`, {
+        method: 'PATCH',
+        body: {
+          rowVersion: q.rowVersion,
+          saleCurrency: draft.saleCurrency,
+          targetMarginRate: fromPct(marginPct),
+          mxnRate: draft.mxnRate?.trim() || null,
+          participants: draft.participants,
+          chaperones: draft.chaperones,
+          staff: draft.staff,
+          validUntil: draft.validUntil || null,
+          assumptions: draft.assumptions ?? '',
+          // Server-only fields would fail strict validation.
+          lines: draft.lines.map(({ id: _id, lineTotal: _t, ...l }) => ({
+            ...l,
+            costSource: l.costSource ?? undefined,
+          })),
+          fxRates: draft.fxRates.map(({ fromCurrency, rate, rateDate, source }) => ({
+            fromCurrency,
+            rate,
+            rateDate,
+            source,
+          })),
+        },
+      });
+      load(saved);
+      return saved;
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -133,6 +164,54 @@ export default function QuoteEditorPage() {
           {w.message}
         </p>
       ))}
+
+      {!isAuthorized(q.status) && (
+        <p className="legend" role="status">
+          {PENDING_LEGEND}
+        </p>
+      )}
+
+      <section className="card" aria-labelledby="autorizacion">
+        <h2 id="autorizacion" style={{ marginTop: 0 }}>
+          Autorización
+        </h2>
+        <div className="row">
+          <Link className="button secondary" href={`/cotizaciones/${q.id}/propuesta`}>
+            Ver propuesta para compartir
+          </Link>
+          {works && ['DRAFT', 'RETURNED'].includes(q.status) && (
+            <button onClick={() => void act('submit')}>Enviar a autorización</button>
+          )}
+          {approver && q.status === 'IN_REVIEW' && (
+            <>
+              <button onClick={() => void act('approve')}>Autorizar viaje</button>
+              <button
+                className="danger"
+                onClick={() => {
+                  const comment = window.prompt('Motivo de la devolución (obligatorio):')?.trim();
+                  if (comment) void act('return', { comment });
+                }}
+              >
+                Devolver con comentarios
+              </button>
+            </>
+          )}
+          {works && q.status === 'APPROVED' && (
+            <button onClick={() => void act('send')}>Marcar como enviada al cliente</button>
+          )}
+        </div>
+        {q.reviews.length > 0 && (
+          <ol className="timeline">
+            {q.reviews.map((r, i) => (
+              <li key={i}>
+                {r.decision === 'APPROVED' ? 'Autorizó' : 'Devolvió'} · {r.reviewer}{' '}
+                <span className="muted">{fmtDateTime(r.at)}</span>
+                {r.comment && <p style={{ margin: '4px 0 0' }}>{r.comment}</p>}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
 
       <section className="card" aria-labelledby="resumen">
         <h2 id="resumen" style={{ marginTop: 0 }}>
