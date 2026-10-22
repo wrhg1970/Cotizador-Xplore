@@ -6,7 +6,7 @@ export type Dec = InstanceType<typeof D>;
 
 export class QuoteEngineError extends Error {
   constructor(
-    readonly code: 'DIVISION_BY_ZERO' | 'RATE_OUT_OF_RANGE' | 'INVALID_AMOUNT',
+    readonly code: 'DIVISION_BY_ZERO' | 'RATE_OUT_OF_RANGE' | 'INVALID_AMOUNT' | 'MISSING_FX',
     message: string,
   ) {
     super(message);

@@ -10,6 +10,7 @@ import { HealthController } from './health.controller.js';
 import { PrismaShutdown, prismaProvider } from './prisma.service.js';
 import { CatalogsController } from './catalogs.controller.js';
 import { OfficeQuotersController, RequestsController } from './requests/requests.controller.js';
+import { QuotesController } from './quotes/quotes.controller.js';
 import { UsersController } from './users/users.controller.js';
 
 @Module({})
@@ -41,6 +42,7 @@ export class AppModule {
         RequestsController,
         OfficeQuotersController,
         CatalogsController,
+        QuotesController,
       ],
       providers: [
         { provide: ENV, useValue: env },

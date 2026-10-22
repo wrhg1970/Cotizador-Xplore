@@ -37,3 +37,11 @@ export const canAssign = (u: AuthUser, r: RequestRef): boolean =>
 
 export const canCancel = (u: AuthUser, r: RequestRef): boolean =>
   !CLOSED.includes(r.status) && isOfficeAdmin(u, r);
+
+/** Quotes carry internal costs: only the quoting side of the office sees them (US-070, PRD §PDF). */
+export const canViewQuotes = (u: AuthUser, r: RequestRef): boolean =>
+  r.status !== 'DRAFT' && hasOfficeRole(u, r.officeId, ['QUOTER', 'APPROVER', 'OFFICE_ADMIN', 'AUDITOR']);
+
+/** Scenarios are built while the request is being quoted, by its assignee or the office admin. */
+export const canWorkQuotes = (u: AuthUser, r: RequestRef): boolean =>
+  r.status === 'QUOTING' && isMember(u, r) && (r.assigneeId === u.id || isOfficeAdmin(u, r));
