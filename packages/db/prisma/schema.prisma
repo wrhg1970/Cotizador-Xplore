@@ -219,6 +219,8 @@ model QuoteVersion {
   saleCurrency     String             @map("sale_currency") @db.Char(3)
   /// Margin over sale price (Finance's "% Comisión"): price = cost / (1 - rate).
   targetMarginRate Decimal            @default(0) @map("target_margin_rate") @db.Decimal(7, 6)
+  /// MXN per 1 sale currency, only for the approximate peso figures shown to the client.
+  mxnRate          Decimal?           @map("mxn_rate") @db.Decimal(20, 10)
   participants     Int
   chaperones       Int
   staff            Int

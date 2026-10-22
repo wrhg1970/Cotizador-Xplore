@@ -216,6 +216,10 @@ export const UpdateQuote = z
       (r) => Number(r) >= 0 && Number(r) < 1,
       'El margen debe estar entre 0 y 1',
     ).optional(),
+    /** MXN per 1 sale currency for the approximate peso price; null clears it. */
+    mxnRate: DecimalString.refine((r) => Number(r) > 0, 'El tipo de cambio debe ser mayor que cero')
+      .nullable()
+      .optional(),
     validUntil: IsoDate.nullable().optional(),
     assumptions: OptionalText(4000).nullable(),
     lines: z.array(QuoteLineInput).max(500).optional(),

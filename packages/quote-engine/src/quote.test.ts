@@ -29,7 +29,7 @@ function option(o: {
       line('PER_PARTICIPANT', '1', '20'), // Promoción
       line('PER_PARTICIPANT', '1', '10'), // Costo envíos kits
       line('PER_PARTICIPANT', '1', '40'), // Operación
-      line('PER_STAFF', '16', '50'), // Viáticos: 50/día × 16 días
+      line('PER_STAFF', '16', '50'), // Viáticos: the sheet used 16 días; the rule is regreso − salida + 1 = 17
       line('PER_STAFF', '1', o.kit), // Kit del chaperón EE
       line('CONTINGENCY', '1', '150'), // Fondo de emergencia
     ],
@@ -93,16 +93,22 @@ const sheet = [
 describe('calculateQuote reproduces Finance sheet', () => {
   it.each(sheet)('option with $participants participants', (o) => {
     const r = calculateQuote(option(o));
-    const close = (a: InstanceType<typeof D>, b: string) =>
+    const close = (a: InstanceType<typeof D>, b: InstanceType<typeof D> | string) =>
       expect(a.minus(b).abs().lt('0.000001')).toBe(true);
     close(r.sharedPerParticipant, o.leader);
-    close(r.marginPerParticipant, o.commission);
-    close(r.pricePerParticipant, o.price);
+    close(r.costPerParticipant, new D(o.price).minus(o.commission));
+    // Finance rounds the sheet's price up to the next whole unit (confirmed by Will, 2026-10-22).
+    expect(r.pricePerParticipant.toString()).toBe(new D(o.price).ceil().toString());
+    close(r.marginPerParticipant, r.pricePerParticipant.minus(r.costPerParticipant));
   });
 
-  it('group margin is per-participant margin × participants (sheet "Margen Estimado")', () => {
-    const r = calculateQuote(option(sheet[0]!));
-    expect(r.groupMargin.minus('9230.487805').abs().lt('0.00001')).toBe(true);
+  it('rounds Opción 1 up to 5129 and gives the approximate peso figures', () => {
+    const r = calculateQuote({ ...option(sheet[0]!), mxnRate: dec('20.39') });
+    expect(r.pricePerParticipant.toString()).toBe('5129');
+    expect(r.groupMargin.toString()).toBe('9240'); // (5129 − 4205) × 10
+    expect(r.pricePerParticipantMxn!.toString()).toBe('104581'); // ceil(5129 × 20.39 = 104580.31)
+    expect(r.groupMarginMxn!.toString()).toBe('188403.6');
+    expect(calculateQuote(option(sheet[0]!)).pricePerParticipantMxn).toBeNull();
   });
 
   it('converts line currencies with the recorded rate and fails without one', () => {
