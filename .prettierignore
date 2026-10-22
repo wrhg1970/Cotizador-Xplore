@@ -2,3 +2,4 @@ docs/
 pnpm-lock.yaml
 **/generated/**
 *.md
+**/next-env.d.ts
