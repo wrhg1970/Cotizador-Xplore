@@ -8,6 +8,8 @@ import { SessionGuard } from './auth/session.guard.js';
 import { ENV, type Env } from './env.js';
 import { HealthController } from './health.controller.js';
 import { PrismaShutdown, prismaProvider } from './prisma.service.js';
+import { CatalogsController } from './catalogs.controller.js';
+import { OfficeQuotersController, RequestsController } from './requests/requests.controller.js';
 import { UsersController } from './users/users.controller.js';
 
 @Module({})
@@ -32,7 +34,14 @@ export class AppModule {
           skipIf: () => env.NODE_ENV === 'test',
         }),
       ],
-      controllers: [HealthController, AuthController, UsersController],
+      controllers: [
+        HealthController,
+        AuthController,
+        UsersController,
+        RequestsController,
+        OfficeQuotersController,
+        CatalogsController,
+      ],
       providers: [
         { provide: ENV, useValue: env },
         { provide: OIDC, useValue: oidc },

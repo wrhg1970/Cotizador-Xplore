@@ -33,6 +33,9 @@ model User {
   updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
   officeRoles UserOfficeRole[]
   sessions    Session[]
+  requested   TravelRequest[]  @relation("requester")
+  assigned    TravelRequest[]  @relation("assignee")
+  comments    RequestComment[]
 
   @@map("users")
 }
@@ -45,6 +48,7 @@ model Office {
   createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
   userRoles UserOfficeRole[]
+  requests  TravelRequest[]
 
   @@map("offices")
 }
@@ -91,4 +95,79 @@ model Session {
 
   @@index([userId])
   @@map("sessions")
+}
+
+/// Request lifecycle (analysis doc): quote-version states live on QuoteVersion later.
+enum RequestStatus {
+  DRAFT
+  SUBMITTED
+  QUOTING
+  SENT
+  WON
+  LOST
+  CANCELLED
+}
+
+enum BudgetBasis {
+  TOTAL
+  PER_PARTICIPANT
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+/// Checks (dates, counts, budget all-or-nothing) are enforced in the migration SQL too.
+model TravelRequest {
+  id             String           @id @default(uuid()) @db.Uuid
+  folio          String           @unique
+  officeId       String           @map("office_id") @db.Uuid
+  requesterId    String           @map("requester_id") @db.Uuid
+  assigneeId     String?          @map("assignee_id") @db.Uuid
+  status         RequestStatus    @default(DRAFT)
+  groupName      String           @map("group_name")
+  clientName     String?          @map("client_name")
+  program        String?
+  city           String
+  countryCode    String           @map("country_code") @db.Char(2)
+  departureDate  DateTime         @map("departure_date") @db.Date
+  returnDate     DateTime         @map("return_date") @db.Date
+  participants   Int
+  chaperones     Int              @default(0)
+  staff          Int              @default(0)
+  budgetAmount   Decimal?         @map("budget_amount") @db.Decimal(18, 4)
+  budgetCurrency String?          @map("budget_currency") @db.Char(3)
+  budgetBasis    BudgetBasis?     @map("budget_basis")
+  requirements   String?
+  priority       Priority         @default(NORMAL)
+  dueDate        DateTime?        @map("due_date") @db.Date
+  cancelReason   String?          @map("cancel_reason")
+  /// Optimistic concurrency (US-142).
+  version        Int              @default(1)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  office         Office           @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  requester      User             @relation("requester", fields: [requesterId], references: [id], onDelete: Restrict)
+  assignee       User?            @relation("assignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  comments       RequestComment[]
+
+  @@index([officeId, status, createdAt])
+  @@index([assigneeId, status])
+  @@index([requesterId])
+  @@map("travel_requests")
+}
+
+model RequestComment {
+  id        String        @id @default(uuid()) @db.Uuid
+  requestId String        @map("request_id") @db.Uuid
+  authorId  String        @map("author_id") @db.Uuid
+  body      String
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  request   TravelRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([requestId, createdAt])
+  @@map("request_comments")
 }

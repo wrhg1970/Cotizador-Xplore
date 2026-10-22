@@ -5,5 +5,10 @@ export default tseslint.config(
   { ignores: ['**/dist/**', '**/.next/**', '**/generated/**', '**/node_modules/**', '**/next-env.d.ts'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  { rules: { '@typescript-eslint/no-explicit-any': 'error' } },
+  {
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
+  },
 );
