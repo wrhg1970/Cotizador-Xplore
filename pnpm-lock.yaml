@@ -102,6 +102,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@ee/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       next:
         specifier: ^16.4.2
         version: 16.4.2(@playwright/test@1.64.1)(@types/node@22.20.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -112,6 +115,9 @@ importers:
         specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
     devDependencies:
+      '@ee/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@playwright/test':
         specifier: ^1.64.1
         version: 1.64.1
