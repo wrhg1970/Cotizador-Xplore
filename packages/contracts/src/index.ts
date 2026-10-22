@@ -231,3 +231,10 @@ export const UpdateQuote = z
     path: ['fxRates'],
   });
 export type UpdateQuote = z.infer<typeof UpdateQuote>;
+
+/** Approval actions carry the rowVersion the reviewer looked at (US-071, US-142). */
+export const ReviewQuote = z.strictObject({
+  rowVersion: z.number().int().min(1),
+  comment: OptionalText(2000),
+});
+export const ReturnQuote = z.strictObject({ rowVersion: z.number().int().min(1), comment: ShortText(2000) });

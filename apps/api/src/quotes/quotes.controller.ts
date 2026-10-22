@@ -14,15 +14,23 @@ import {
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { CreateScenario, DuplicateScenario, UpdateQuote } from '@ee/contracts';
-import { Prisma, type PrismaClient, type QuoteFxRate, type QuoteLine, type QuoteVersion } from '@ee/db';
-import { calculateQuote, D, roundMoney, type Dec } from '@ee/quote-engine';
+import { CreateScenario, DuplicateScenario, ReturnQuote, ReviewQuote, UpdateQuote } from '@ee/contracts';
+import {
+  Prisma,
+  type PrismaClient,
+  type QuoteFxRate,
+  type QuoteLine,
+  type QuoteReview,
+  type QuoteVersion,
+} from '@ee/db';
+import { calculateQuote, calculationHash, D, roundMoney, type Dec } from '@ee/quote-engine';
 import type { z } from 'zod';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
-import { canViewQuotes, canWorkQuotes, type RequestRef } from '../requests/request-policy.js';
+import { hasOfficeRole } from '../auth/authz.js';
+import { canView, canViewQuotes, canWorkQuotes, type RequestRef } from '../requests/request-policy.js';
 import { ZodPipe } from '../zod.pipe.js';
 
 type Tx = Prisma.TransactionClient;
@@ -30,6 +38,7 @@ type FullVersion = QuoteVersion & {
   lines: QuoteLine[];
   fxRates: QuoteFxRate[];
   scenario: { name: string; requestId: string };
+  reviews: (QuoteReview & { reviewer: { name: string } })[];
 };
 
 const uuid = new ParseUUIDPipe({ version: '4' });
@@ -37,6 +46,7 @@ const full = {
   lines: { orderBy: { position: 'asc' } },
   fxRates: { orderBy: { fromCurrency: 'asc' } },
   scenario: { select: { name: true, requestId: true } },
+  reviews: { orderBy: { createdAt: 'asc' }, include: { reviewer: { select: { name: true } } } },
 } as const;
 const EDITABLE = ['DRAFT', 'RETURNED'] as const;
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
@@ -73,6 +83,25 @@ function calculate(v: FullVersion) {
     pricePerParticipantMxn: r.pricePerParticipantMxn && money(r.pricePerParticipantMxn),
     groupMarginMxn: r.groupMarginMxn && money(r.groupMarginMxn),
   };
+}
+
+/** What an approval vouches for: every input and the resulting figures (US-071, US-075). */
+function snapshotHash(v: FullVersion) {
+  const {
+    id: _i,
+    scenarioId: _s,
+    scenarioName: _n,
+    requestId: _r,
+    status: _st,
+    rowVersion: _rv,
+    createdAt: _c,
+    updatedAt: _u,
+    reviews: _rw,
+    warnings: _w,
+    lines,
+    ...rest
+  } = toDto(v);
+  return calculationHash({ ...rest, lines: lines.map(({ id: _l, ...l }) => l) });
 }
 
 function toDto(v: FullVersion) {
@@ -118,6 +147,12 @@ function toDto(v: FullVersion) {
     warnings: missingFx.map((c) => ({
       code: 'MISSING_FX',
       message: `Falta tipo de cambio ${c} → ${v.saleCurrency}`,
+    })),
+    reviews: v.reviews.map((r) => ({
+      decision: r.decision,
+      reviewer: r.reviewer.name,
+      comment: r.comment,
+      at: r.createdAt.toISOString(),
     })),
     createdAt: v.createdAt.toISOString(),
     updatedAt: v.updatedAt.toISOString(),
@@ -295,6 +330,68 @@ export class QuotesController {
     });
   }
 
+  /** US-095: advisors compare proposals without seeing costs. */
+  @Get('requests/:id/proposals')
+  async proposals(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
+    const r = await this.prisma.travelRequest.findUnique({ where: { id } });
+    if (!r || !canView(user, r)) throw new NotFoundException('Solicitud no encontrada');
+    const scenarios = await this.prisma.quoteScenario.findMany({
+      where: { requestId: id },
+      include: { versions: { orderBy: { number: 'desc' }, take: 1, include: full } },
+      orderBy: { createdAt: 'asc' },
+    });
+    return scenarios.map((s) => {
+      const v = s.versions[0]!;
+      return {
+        versionId: v.id,
+        scenarioName: s.name,
+        number: v.number,
+        authorized: v.status === 'APPROVED' || v.status === 'SENT',
+        participants: v.participants,
+        saleCurrency: v.saleCurrency,
+        pricePerParticipant: toDto(v).totals?.pricePerParticipant ?? null,
+      };
+    });
+  }
+
+  /**
+   * What may be shared with the client: price, group, validity and included concepts, never costs
+   * or margin (PRD §PDF). Advisors can read it; `authorized` drives the pending legend.
+   */
+  @Get('quotes/:id/proposal')
+  async proposal(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
+    const v = await this.prisma.quoteVersion.findUnique({ where: { id }, include: full });
+    const r = v && (await this.prisma.travelRequest.findUnique({ where: { id: v.scenario.requestId } }));
+    if (!v || !r || !canView(user, r) || r.status === 'DRAFT')
+      throw new NotFoundException('Cotización no encontrada');
+    const { totals, validUntil, assumptions } = toDto(v);
+    return {
+      id: v.id,
+      number: v.number,
+      scenarioName: v.scenario.name,
+      authorized: v.status === 'APPROVED' || v.status === 'SENT',
+      request: {
+        id: r.id,
+        folio: r.folio,
+        groupName: r.groupName,
+        city: r.city,
+        countryCode: r.countryCode,
+        departureDate: day(r.departureDate),
+        returnDate: day(r.returnDate),
+      },
+      participants: v.participants,
+      chaperones: v.chaperones,
+      saleCurrency: v.saleCurrency,
+      pricePerParticipant: totals?.pricePerParticipant ?? null,
+      pricePerParticipantMxn: totals?.pricePerParticipantMxn ?? null,
+      validUntil,
+      assumptions,
+      includes: v.lines
+        .filter((l) => !l.internalOnly && l.category === 'PER_PARTICIPANT')
+        .map((l) => l.description),
+    };
+  }
+
   @Get('quotes/:id')
   async get(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
     const v = await this.prisma.quoteVersion.findUnique({
@@ -391,6 +488,153 @@ export class QuotesController {
           ...(fxRates
             ? { fxRates: fxRates.map((f) => ({ from: f.fromCurrency, rate: f.rate, source: f.source })) }
             : {}),
+        },
+      });
+      return toDto(await tx.quoteVersion.findUniqueOrThrow({ where: { id }, include: full }));
+    });
+  }
+
+  /** US-045, US-051: only a complete, priced version with a validity date goes to review. */
+  @Post('quotes/:id/submit')
+  submit(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
+  ) {
+    return this.review(user, req, id, body.rowVersion, 'quote.submitted_for_approval', (v, r) => {
+      this.assertWork(user, r);
+      if (!(EDITABLE as readonly string[]).includes(v.status))
+        throw new ForbiddenException('Solo se envían a autorización versiones en borrador o devueltas');
+      const dto = toDto(v);
+      const missing = [
+        !dto.lines.length && 'conceptos',
+        !dto.validUntil && 'vigencia',
+        !dto.totals && 'tipos de cambio',
+      ].filter(Boolean);
+      if (missing.length)
+        throw new BadRequestException({
+          code: 'INCOMPLETE_QUOTE',
+          message: `Falta completar: ${missing.join(', ')}`,
+        });
+      return { status: 'IN_REVIEW' };
+    });
+  }
+
+  /** US-071, US-073: an office approver who neither built nor quotes this version. */
+  @Post('quotes/:id/approve')
+  approve(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
+  ) {
+    return this.review(user, req, id, body.rowVersion, 'quote.approved', (v, r) => {
+      this.assertReviewer(user, v, r);
+      return { status: 'APPROVED', decision: 'APPROVED', comment: body.comment };
+    });
+  }
+
+  /** US-072: back to the quoter with a mandatory reason. */
+  @Post('quotes/:id/return')
+  returnForChanges(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(ReturnQuote)) body: z.infer<typeof ReturnQuote>,
+  ) {
+    return this.review(user, req, id, body.rowVersion, 'quote.rejected_for_changes', (v, r) => {
+      this.assertReviewer(user, v, r);
+      return { status: 'RETURNED', decision: 'RETURNED', comment: body.comment };
+    });
+  }
+
+  /** US-074, US-075: records the manual send; refused unless the approved calculation is unchanged. */
+  @Post('quotes/:id/send')
+  send(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
+  ) {
+    return this.review(user, req, id, body.rowVersion, 'quote.sent', (v, r, tx) => {
+      if (!(r.assigneeId === user.id || hasOfficeRole(user, r.officeId, ['OFFICE_ADMIN'])))
+        throw new ForbiddenException('Solo el cotizador asignado o el coordinador');
+      const approval = v.reviews.findLast((x) => x.decision === 'APPROVED');
+      if (v.status !== 'APPROVED' || !approval)
+        throw new ForbiddenException('No se puede enviar un viaje sin autorización');
+      if (approval.calculationHash !== snapshotHash(v))
+        throw new ConflictException({
+          code: 'APPROVAL_STALE',
+          message: 'La cotización cambió después de autorizarse; vuelve a enviarla a autorización',
+        });
+      return {
+        status: 'SENT',
+        after: () =>
+          tx.travelRequest.updateMany({
+            where: { id: r.id, status: 'QUOTING' },
+            data: { status: 'SENT', version: { increment: 1 } },
+          }),
+      };
+    });
+  }
+
+  private assertReviewer(user: AuthUser, v: FullVersion, r: RequestRef) {
+    if (!hasOfficeRole(user, r.officeId, ['APPROVER']))
+      throw new ForbiddenException('Necesitas el privilegio "Autorizar viaje"');
+    if (v.createdById === user.id || r.assigneeId === user.id)
+      throw new ForbiddenException('No puedes autorizar una cotización que tú preparaste');
+    if (v.status !== 'IN_REVIEW') throw new ForbiddenException('La versión no está en revisión');
+  }
+
+  private review(
+    user: AuthUser,
+    req: Request,
+    id: string,
+    rowVersion: number,
+    action: string,
+    decide: (
+      v: FullVersion,
+      r: RequestRef & { id: string },
+      tx: Tx,
+    ) => {
+      status: 'IN_REVIEW' | 'APPROVED' | 'RETURNED' | 'SENT';
+      decision?: 'APPROVED' | 'RETURNED';
+      comment?: string;
+      after?: () => Promise<unknown>;
+    },
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const v = await tx.quoteVersion.findUnique({ where: { id }, include: full });
+      if (!v) throw new NotFoundException('Cotización no encontrada');
+      const r = await this.request(tx, v.scenario.requestId, user);
+      const next = decide(v, r, tx);
+      if (v.rowVersion !== rowVersion) throw conflict();
+      const { count } = await tx.quoteVersion.updateMany({
+        where: { id, rowVersion },
+        data: { status: next.status, rowVersion: { increment: 1 } },
+      });
+      if (!count) throw conflict();
+      if (next.decision)
+        await tx.quoteReview.create({
+          data: {
+            versionId: id,
+            reviewerId: user.id,
+            decision: next.decision,
+            comment: next.comment,
+            calculationHash: snapshotHash(v),
+          },
+        });
+      await next.after?.();
+      await audit(tx, {
+        actorUserId: user.id,
+        action,
+        entityType: 'QuoteVersion',
+        entityId: id,
+        correlationId: req.correlationId,
+        diff: {
+          status: { from: v.status, to: next.status },
+          ...(next.comment ? { comment: next.comment } : {}),
         },
       });
       return toDto(await tx.quoteVersion.findUniqueOrThrow({ where: { id }, include: full }));

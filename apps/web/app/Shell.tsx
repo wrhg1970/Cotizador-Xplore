@@ -24,6 +24,9 @@ export function Shell({ children }: { children: ReactNode }) {
             <strong>Cotizador EE</strong>
             <Link href="/solicitudes">Solicitudes</Link>
             <Link href="/solicitudes?assignedToMe=true">Mis tareas</Link>
+            {me?.roles.some((r) => r.role === 'OFFICE_ADMIN' || r.role === 'SYSTEM_ADMIN') && (
+              <Link href="/usuarios">Usuarios</Link>
+            )}
           </nav>
           <div className="row">
             {me && <span className="muted">{me.name}</span>}

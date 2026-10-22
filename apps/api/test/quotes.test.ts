@@ -260,3 +260,92 @@ describe('scenarios (US-029, US-030, US-031)', () => {
       .expect(400);
   });
 });
+
+describe('authorization (US-071..076)', () => {
+  const act = (cookie: string, id: string, action: string, body: object) =>
+    api().post(`/api/v1/quotes/${id}/${action}`).set('Cookie', cookie).send(body);
+
+  async function readyVersion() {
+    const v = (await newScenario(c.quoter).expect(201)).body.latest;
+    const res = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ ...option1, validUntil: '2026-12-31', rowVersion: 1 })
+      .expect(200);
+    return res.body as { id: string; rowVersion: number };
+  }
+
+  it('refuses incomplete versions', async () => {
+    const v = (await newScenario(c.quoter).expect(201)).body.latest;
+    const res = await act(c.quoter, v.id, 'submit', { rowVersion: 1 }).expect(400);
+    expect(res.body.message).toContain('conceptos');
+    expect(res.body.message).toContain('vigencia');
+  });
+
+  it('quoter submits, approver authorizes, quoter sends; request becomes SENT', async () => {
+    const v = await readyVersion();
+    await act(c.quoter, v.id, 'send', { rowVersion: v.rowVersion }).expect(403); // not authorized yet
+    const s = await act(c.quoter, v.id, 'submit', { rowVersion: v.rowVersion }).expect(201);
+    expect(s.body.status).toBe('IN_REVIEW');
+    // No edits while in review.
+    await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ rowVersion: s.body.rowVersion })
+      .expect(403);
+    await act(c.quoter, v.id, 'approve', { rowVersion: s.body.rowVersion }).expect(403); // own work
+    await act(c.adminA, v.id, 'approve', { rowVersion: s.body.rowVersion }).expect(403); // no privilege
+    const a = await act(c.approver, v.id, 'approve', { rowVersion: s.body.rowVersion, comment: 'OK' }).expect(
+      201,
+    );
+    expect(a.body.status).toBe('APPROVED');
+    expect(a.body.reviews).toEqual([expect.objectContaining({ decision: 'APPROVED', comment: 'OK' })]);
+    const sent = await act(c.quoter, v.id, 'send', { rowVersion: a.body.rowVersion }).expect(201);
+    expect(sent.body.status).toBe('SENT');
+    expect((await prisma.travelRequest.findUniqueOrThrow({ where: { id: requestId } })).status).toBe('SENT');
+    await expect(prisma.quoteReview.deleteMany({ where: { versionId: v.id } })).rejects.toThrow(
+      /append-only/,
+    );
+  });
+
+  it('returns with a mandatory reason and the quoter can fix and resubmit', async () => {
+    await prisma.travelRequest.update({ where: { id: requestId }, data: { status: 'QUOTING' } });
+    const v = await readyVersion();
+    const s = await act(c.quoter, v.id, 'submit', { rowVersion: v.rowVersion }).expect(201);
+    await act(c.approver, v.id, 'return', { rowVersion: s.body.rowVersion }).expect(400);
+    const r = await act(c.approver, v.id, 'return', {
+      rowVersion: s.body.rowVersion,
+      comment: 'Revisa el margen',
+    }).expect(201);
+    expect(r.body.status).toBe('RETURNED');
+    await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ targetMarginRate: '0.2', rowVersion: r.body.rowVersion })
+      .expect(200);
+  });
+
+  it('refuses to send when the approved calculation changed (US-075)', async () => {
+    const v = await readyVersion();
+    const s = await act(c.quoter, v.id, 'submit', { rowVersion: v.rowVersion }).expect(201);
+    const a = await act(c.approver, v.id, 'approve', { rowVersion: s.body.rowVersion }).expect(201);
+    // Simulate a change behind the API's back.
+    await prisma.quoteVersion.update({ where: { id: v.id }, data: { participants: 11 } });
+    const res = await act(c.quoter, v.id, 'send', { rowVersion: a.body.rowVersion }).expect(409);
+    expect(res.body.code).toBe('APPROVAL_STALE');
+  });
+
+  it('advisors read the shareable proposal without costs, flagged until authorized', async () => {
+    const v = await readyVersion();
+    const p = await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', c.advisor).expect(200);
+    expect(p.body).toMatchObject({ authorized: false, pricePerParticipant: '5129.00', saleCurrency: 'EUR' });
+    expect(p.body.includes).toContain('Precio neto');
+    expect(JSON.stringify(p.body)).not.toMatch(/unitCost|margin|cost/i);
+    const list = await api()
+      .get(`/api/v1/requests/${requestId}/proposals`)
+      .set('Cookie', c.advisor)
+      .expect(200);
+    expect(list.body.some((x: { versionId: string }) => x.versionId === v.id)).toBe(true);
+    await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', c.adminB).expect(404);
+  });
+});

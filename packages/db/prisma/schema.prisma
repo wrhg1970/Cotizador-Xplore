@@ -39,6 +39,7 @@ model User {
   scenarios   QuoteScenario[]
   versions    QuoteVersion[]
   fxRates     QuoteFxRate[]
+  reviews     QuoteReview[]
 
   @@map("users")
 }
@@ -235,6 +236,7 @@ model QuoteVersion {
   createdBy        User               @relation(fields: [createdById], references: [id], onDelete: Restrict)
   lines            QuoteLine[]
   fxRates          QuoteFxRate[]
+  reviews          QuoteReview[]
 
   @@unique([scenarioId, number])
   @@map("quote_versions")
@@ -275,4 +277,25 @@ model QuoteFxRate {
 
   @@unique([versionId, fromCurrency])
   @@map("quote_fx_rates")
+}
+
+enum ReviewDecision {
+  APPROVED
+  RETURNED
+}
+
+/// Approval record (US-071..076): append-only, tied to the exact calculation it approved.
+model QuoteReview {
+  id              String         @id @default(uuid()) @db.Uuid
+  versionId       String         @map("version_id") @db.Uuid
+  reviewerId      String         @map("reviewer_id") @db.Uuid
+  decision        ReviewDecision
+  comment         String?
+  calculationHash String         @map("calculation_hash")
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  version         QuoteVersion   @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  reviewer        User           @relation(fields: [reviewerId], references: [id], onDelete: Restrict)
+
+  @@index([versionId, createdAt])
+  @@map("quote_reviews")
 }

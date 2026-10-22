@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { CurrencyCode } from '@ee/contracts';
 import { api, errorText } from '../lib/api';
-import { QUOTE_STATUS_LABEL, type ScenarioDto } from '../lib/types';
+import { isAuthorized, PENDING_LEGEND, QUOTE_STATUS_LABEL, type ScenarioDto } from '../lib/types';
 
 /** US-029/030/047: scenarios side by side, with create and duplicate for whoever quotes. */
 export function Scenarios({ requestId, canWork }: { requestId: string; canWork: boolean }) {
@@ -74,6 +74,7 @@ export function Scenarios({ requestId, canWork }: { requestId: string; canWork: 
                     </td>
                     <td>
                       v{v.number} · {QUOTE_STATUS_LABEL[v.status]}
+                      {!isAuthorized(v.status) && <div className="error">{PENDING_LEGEND}</div>}
                     </td>
                     <td>
                       {v.participants} est. · {v.chaperones} chap. · {v.staff} EE
