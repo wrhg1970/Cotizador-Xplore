@@ -16,7 +16,8 @@
     "lint": "eslint src test",
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed": "node --env-file-if-exists=../../.env dist/seed.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
