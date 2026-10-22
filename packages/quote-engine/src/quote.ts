@@ -18,6 +18,8 @@ export interface QuoteInput {
   lines: { category: Category; quantity: Dec; unitCost: Dec; currency: string }[];
   /** Units of saleCurrency per 1 unit of the key currency. */
   fxRates: Record<string, Dec>;
+  /** MXN per 1 saleCurrency, for the approximate peso figures only. */
+  mxnRate?: Dec | null;
 }
 
 const headcount = (q: QuoteInput, c: Category) =>
@@ -38,8 +40,10 @@ export function calculateQuote(q: QuoteInput) {
   const sharedTotal = sum((c) => c !== 'PER_PARTICIPANT');
   const sharedPerParticipant = safeDivide(sharedTotal, new D(q.participants));
   const costPerParticipant = directPerParticipant.plus(sharedPerParticipant);
-  const pricePerParticipant = priceFromTargetMargin(costPerParticipant, q.targetMarginRate);
+  // Finance rounds the price up to the next whole unit; the margin absorbs the difference.
+  const pricePerParticipant = priceFromTargetMargin(costPerParticipant, q.targetMarginRate).ceil();
   const marginPerParticipant = pricePerParticipant.minus(costPerParticipant);
+  const groupMargin = marginPerParticipant.mul(q.participants);
   return {
     lineTotals,
     directPerParticipant,
@@ -49,6 +53,8 @@ export function calculateQuote(q: QuoteInput) {
     marginPerParticipant,
     pricePerParticipant,
     groupPrice: pricePerParticipant.mul(q.participants),
-    groupMargin: marginPerParticipant.mul(q.participants),
+    groupMargin,
+    pricePerParticipantMxn: q.mxnRate ? pricePerParticipant.mul(q.mxnRate).ceil() : null,
+    groupMarginMxn: q.mxnRate ? groupMargin.mul(q.mxnRate) : null,
   };
 }

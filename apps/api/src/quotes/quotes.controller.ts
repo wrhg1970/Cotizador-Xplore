@@ -60,6 +60,7 @@ function calculate(v: FullVersion) {
       unitCost: new D(l.unitCost.toString()),
     })),
     fxRates: Object.fromEntries(v.fxRates.map((f) => [f.fromCurrency, new D(f.rate.toString())])),
+    mxnRate: v.mxnRate && v.saleCurrency !== 'MXN' ? new D(v.mxnRate.toString()) : null,
   });
   return {
     directPerParticipant: money(r.directPerParticipant),
@@ -69,6 +70,8 @@ function calculate(v: FullVersion) {
     pricePerParticipant: money(r.pricePerParticipant),
     groupPrice: money(r.groupPrice),
     groupMargin: money(r.groupMargin),
+    pricePerParticipantMxn: r.pricePerParticipantMxn && money(r.pricePerParticipantMxn),
+    groupMarginMxn: r.groupMarginMxn && money(r.groupMarginMxn),
   };
 }
 
@@ -87,6 +90,7 @@ function toDto(v: FullVersion) {
     rowVersion: v.rowVersion,
     saleCurrency: v.saleCurrency,
     targetMarginRate: v.targetMarginRate.toFixed(),
+    mxnRate: v.mxnRate?.toFixed() ?? null,
     participants: v.participants,
     chaperones: v.chaperones,
     staff: v.staff,
@@ -128,6 +132,7 @@ async function copyVersion(tx: Tx, src: FullVersion, scenarioId: string, number:
       number,
       saleCurrency: src.saleCurrency,
       targetMarginRate: src.targetMarginRate,
+      mxnRate: src.mxnRate,
       participants: src.participants,
       chaperones: src.chaperones,
       staff: src.staff,
@@ -334,12 +339,15 @@ export class QuotesController {
           message: 'No se captura tipo de cambio de la moneda de venta consigo misma',
         });
 
-      const { targetMarginRate, ...rest } = fields;
+      const { targetMarginRate, mxnRate, ...rest } = fields;
       const { count } = await tx.quoteVersion.updateMany({
         where: { id, rowVersion },
         data: {
           ...rest,
           ...(targetMarginRate ? { targetMarginRate: new Prisma.Decimal(targetMarginRate) } : {}),
+          ...(mxnRate !== undefined
+            ? { mxnRate: mxnRate === null ? null : new Prisma.Decimal(mxnRate) }
+            : {}),
           ...(validUntil !== undefined ? { validUntil: validUntil ? toDate(validUntil) : null } : {}),
           rowVersion: { increment: 1 },
         },

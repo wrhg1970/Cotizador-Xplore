@@ -49,14 +49,17 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
     await page.getByLabel(`Costo ${i + 1}`).fill(cost);
   }
   await page.getByLabel('Margen sobre venta (%)').fill('18');
+  await page.getByLabel('Tipo de cambio a MXN (aproximado)').fill('20.39');
+  await expect(page.getByText('este viaje: 17')).toBeVisible();
   await page.getByRole('button', { name: 'Guardar y calcular' }).click();
-  await expect(page.getByText('5128.05 EUR')).toBeVisible();
+  await expect(page.getByText('5129.00 EUR')).toBeVisible();
+  await expect(page.getByText('104581.00 MXN')).toBeVisible();
 
   await page.getByRole('link', { name: /Italia Spring Break 2027/ }).click();
   page.once('dialog', (d) => d.accept('Opción 2'));
   await page.getByRole('button', { name: 'Duplicar' }).click();
   await expect(page.getByRole('link', { name: 'Opción 2' })).toBeVisible();
-  await expect(page.getByRole('cell', { name: '5128.05 EUR' })).toHaveCount(2);
+  await expect(page.getByRole('cell', { name: '5129.00 EUR' })).toHaveCount(2);
 
   // Advisors never see internal costs.
   const advCtx = await browser.newContext();

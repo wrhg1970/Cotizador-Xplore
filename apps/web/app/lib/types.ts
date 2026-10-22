@@ -86,6 +86,7 @@ export interface QuoteDto {
   rowVersion: number;
   saleCurrency: CurrencyCode;
   targetMarginRate: string;
+  mxnRate: string | null;
   participants: number;
   chaperones: number;
   staff: number;
@@ -93,16 +94,18 @@ export interface QuoteDto {
   assumptions: string | null;
   lines: QuoteLineDto[];
   fxRates: (FxRateDto & { toCurrency: CurrencyCode })[];
-  totals: Record<
-    | 'directPerParticipant'
-    | 'sharedPerParticipant'
-    | 'costPerParticipant'
-    | 'marginPerParticipant'
-    | 'pricePerParticipant'
-    | 'groupPrice'
-    | 'groupMargin',
-    string
-  > | null;
+  totals:
+    | (Record<
+        | 'directPerParticipant'
+        | 'sharedPerParticipant'
+        | 'costPerParticipant'
+        | 'marginPerParticipant'
+        | 'pricePerParticipant'
+        | 'groupPrice'
+        | 'groupMargin',
+        string
+      > & { pricePerParticipantMxn: string | null; groupMarginMxn: string | null })
+    | null;
   warnings: { code: string; message: string }[];
 }
 

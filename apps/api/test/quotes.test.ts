@@ -62,7 +62,7 @@ const api = () => ctx.http();
 const newScenario = (cookie: string, body: object = { name: 'Opción 1', saleCurrency: 'EUR' }) =>
   api().post(`/api/v1/requests/${requestId}/scenarios`).set('Cookie', cookie).send(body);
 
-// Finance's sheet, "Opción 1": price 5128.05 EUR per student.
+// Finance's sheet, "Opción 1": 5128.05 EUR per student, rounded up to 5129.
 const option1 = {
   targetMarginRate: '0.18',
   lines: [
@@ -136,9 +136,19 @@ describe('scenarios (US-029, US-030, US-031)', () => {
     expect(res.body.totals).toMatchObject({
       sharedPerParticipant: '185.00',
       costPerParticipant: '4205.00',
-      marginPerParticipant: '923.05',
-      pricePerParticipant: '5128.05',
-      groupMargin: '9230.49',
+      marginPerParticipant: '924.00',
+      pricePerParticipant: '5129.00',
+      groupMargin: '9240.00',
+      pricePerParticipantMxn: null,
+    });
+    const mxn = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ mxnRate: '20.39', rowVersion: 2 })
+      .expect(200);
+    expect(mxn.body.totals).toMatchObject({
+      pricePerParticipantMxn: '104581.00',
+      groupMarginMxn: '188403.60',
     });
     // Stale rowVersion
     const stale = await api()
@@ -148,7 +158,7 @@ describe('scenarios (US-029, US-030, US-031)', () => {
       .expect(409);
     expect(stale.body.code).toBe('VERSION_CONFLICT');
     expect(await prisma.auditLog.count({ where: { entityId: v.id, action: 'quote.version.updated' } })).toBe(
-      1,
+      2,
     );
     // Approver may read costs, advisor may not.
     await api().get(`/api/v1/quotes/${v.id}`).set('Cookie', c.approver).expect(200);
@@ -215,7 +225,7 @@ describe('scenarios (US-029, US-030, US-031)', () => {
       .expect(200);
     const original = await api().get(`/api/v1/quotes/${s.latest.id}`).set('Cookie', c.quoter).expect(200);
     expect(original.body.participants).toBe(10);
-    expect(original.body.totals.pricePerParticipant).toBe('5128.05');
+    expect(original.body.totals.pricePerParticipant).toBe('5129.00');
 
     const list = await api()
       .get(`/api/v1/requests/${requestId}/scenarios`)

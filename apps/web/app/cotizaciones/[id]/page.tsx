@@ -68,6 +68,8 @@ export default function QuoteEditorPage() {
     set({ fxRates: draft.fxRates.map((f, j) => (j === i ? { ...f, ...patch } : f)) });
   const t = q.totals;
   const cur = q.saleCurrency;
+  // Allowances count both travel days: return − departure + 1 (Finance, 2026-10-22).
+  const tripDays = req ? (Date.parse(req.returnDate) - Date.parse(req.departureDate)) / 86_400_000 + 1 : null;
 
   async function save() {
     if (!draft || !q) return;
@@ -81,6 +83,7 @@ export default function QuoteEditorPage() {
             rowVersion: q.rowVersion,
             saleCurrency: draft.saleCurrency,
             targetMarginRate: fromPct(marginPct),
+            mxnRate: draft.mxnRate?.trim() || null,
             participants: draft.participants,
             chaperones: draft.chaperones,
             staff: draft.staff,
@@ -163,6 +166,14 @@ export default function QuoteEditorPage() {
             <dd>
               {t.groupMargin} {cur}
             </dd>
+            {t.pricePerParticipantMxn && (
+              <>
+                <dt>Aproximado en pesos por estudiante</dt>
+                <dd>{t.pricePerParticipantMxn} MXN</dd>
+                <dt>Margen del grupo en pesos</dt>
+                <dd>{t.groupMarginMxn} MXN</dd>
+              </>
+            )}
           </dl>
         ) : (
           <p className="muted">Sin totales hasta registrar los tipos de cambio que faltan.</p>
@@ -222,6 +233,17 @@ export default function QuoteEditorPage() {
                 onChange={(e) => setMarginPct(e.target.value)}
               />
             </label>
+            {draft.saleCurrency !== 'MXN' && (
+              <label>
+                Tipo de cambio a MXN (aproximado)
+                <input
+                  inputMode="decimal"
+                  value={draft.mxnRate ?? ''}
+                  placeholder="20.39"
+                  onChange={(e) => set({ mxnRate: e.target.value })}
+                />
+              </label>
+            )}
             <label>
               Vigencia
               <input
@@ -237,7 +259,9 @@ export default function QuoteEditorPage() {
           <h2 id="conceptos">Conceptos</h2>
           <p className="muted">
             Por estudiante se suma al precio de cada estudiante. Chaperones, fijos y fondo de emergencia se
-            reparten entre los estudiantes. En viáticos, la cantidad son los días.
+            reparten entre los estudiantes. En viáticos, la cantidad son los días
+            {tripDays ? ` (este viaje: ${tripDays}, contando salida y regreso)` : ''}. El precio final se
+            redondea hacia arriba al número entero.
           </p>
           <div className="table-wrap">
             <table>
