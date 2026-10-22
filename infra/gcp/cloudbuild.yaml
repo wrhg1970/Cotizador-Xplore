@@ -1,0 +1,15 @@
+# Construye un target del Dockerfile y lo sube a Artifact Registry.
+# Uso: gcloud builds submit --config infra/gcp/cloudbuild.yaml \
+#        --substitutions=_IMAGE=...,_TARGET=api,_API_ORIGIN=... .
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --target=${_TARGET}
+      - --build-arg=API_ORIGIN=${_API_ORIGIN}
+      - --tag=${_IMAGE}
+      - .
+images:
+  - ${_IMAGE}
+substitutions:
+  _API_ORIGIN: http://localhost:4000
