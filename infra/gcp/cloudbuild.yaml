@@ -13,3 +13,7 @@ images:
   - ${_IMAGE}
 substitutions:
   _API_ORIGIN: http://localhost:4000
+# pnpm install + build puede pasar de los 10 min por defecto en la máquina estándar.
+timeout: 1800s
+options:
+  machineType: E2_HIGHCPU_8

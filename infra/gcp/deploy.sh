@@ -63,7 +63,8 @@ if ! exists gcloud secrets describe cotizador-google-client-secret; then
   read -rsp "Client secret de Google OAuth (no se muestra): " GOOGLE_CLIENT_SECRET && echo
   printf '%s' "$GOOGLE_CLIENT_SECRET" | secret cotizador-google-client-secret
 fi
-for role in roles/secretmanager.secretAccessor roles/cloudsql.client; do
+# Cloud Build usa la misma cuenta de servicio en proyectos nuevos y ya no recibe permisos automáticos.
+for role in roles/secretmanager.secretAccessor roles/cloudsql.client roles/cloudbuild.builds.builder; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$RUNTIME_SA" \
     --role="$role" --condition=None >/dev/null
 done
