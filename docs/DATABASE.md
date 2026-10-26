@@ -8,6 +8,7 @@
 - `RequestComment`, `Attachment`, `ActivityEvent`.
 - `QuoteScenario`: escenario de una solicitud y descripción.
 - `QuoteVersion`: snapshot/versionado de datos y cálculo, moneda, FX, estado, totales, creador, hash.
+- `ConceptTemplate`: catálogo de rubros de la hoja EE (nombre, bloque/categoría, base, interno, cantidad = días del viaje, orden, activo). Los escenarios nuevos copian los rubros base con costo cero; cambiar el catálogo no toca cotizaciones existentes.
 - `QuoteLine`: concepto, cantidad, unidad, coste unitario, moneda, regla de reparto, flags de visibilidad.
 - `FormulaSet`, `FormulaRule`: reglas versionadas, vigencia y definición validada.
 - `Approval`: decisión, aprobador, fecha, comentarios y hash de versión aprobada.

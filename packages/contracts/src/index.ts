@@ -220,17 +220,50 @@ export const UpdateQuote = z
     mxnRate: DecimalString.refine((r) => Number(r) > 0, 'El tipo de cambio debe ser mayor que cero')
       .nullable()
       .optional(),
+    /** Typed final price per participant (whole units); the server derives the margin from it. */
+    targetPricePerParticipant: z
+      .string()
+      .regex(/^[1-9]\d{0,11}$/, 'El precio final debe ser un número entero mayor que cero')
+      .optional(),
     validUntil: IsoDate.nullable().optional(),
     assumptions: OptionalText(4000).nullable(),
     lines: z.array(QuoteLineInput).max(500).optional(),
     fxRates: z.array(FxRateInput).max(10).optional(),
     rowVersion: z.number().int().min(1),
   })
+  .refine((q) => !(q.targetMarginRate && q.targetPricePerParticipant), {
+    message: 'Captura el % de comisión o el precio final, no ambos',
+    path: ['targetPricePerParticipant'],
+  })
   .refine((q) => new Set(q.fxRates?.map((f) => f.fromCurrency)).size === (q.fxRates?.length ?? 0), {
     message: 'Un solo tipo de cambio por moneda',
     path: ['fxRates'],
   });
 export type UpdateQuote = z.infer<typeof UpdateQuote>;
+
+/** Admin-maintained concept ("rubro") of the EE sheet. */
+export const ConceptTemplateInput = z.strictObject({
+  label: ShortText(300),
+  category: LineCategory,
+  internalOnly: z.boolean().default(false),
+  isBase: z.boolean().default(false),
+  perTripDay: z.boolean().default(false),
+  position: z.number().int().min(0).max(10_000).default(0),
+});
+export type ConceptTemplateInput = z.infer<typeof ConceptTemplateInput>;
+
+export const UpdateConceptTemplate = z
+  .strictObject({
+    label: ShortText(300),
+    category: LineCategory,
+    internalOnly: z.boolean(),
+    isBase: z.boolean(),
+    perTripDay: z.boolean(),
+    position: z.number().int().min(0).max(10_000),
+    active: z.boolean(),
+  })
+  .partial();
+export type UpdateConceptTemplate = z.infer<typeof UpdateConceptTemplate>;
 
 /** Approval actions carry the rowVersion the reviewer looked at (US-071, US-142). */
 export const ReviewQuote = z.strictObject({

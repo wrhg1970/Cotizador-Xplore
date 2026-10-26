@@ -1,10 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { type FormEvent, Fragment, type ReactNode, useCallback, useEffect, useState } from 'react';
 import { CurrencyCode } from '@ee/contracts';
 import { api, errorText } from '../lib/api';
-import { isAuthorized, PENDING_LEGEND, QUOTE_STATUS_LABEL, type ScenarioDto } from '../lib/types';
+import {
+  isAuthorized,
+  PENDING_LEGEND,
+  QUOTE_STATUS_LABEL,
+  type QuoteDto,
+  type ScenarioDto,
+  SHEET_BLOCKS,
+} from '../lib/types';
 
 /** US-029/030/047: scenarios side by side, with create and duplicate for whoever quotes. */
 export function Scenarios({ requestId, canWork }: { requestId: string; canWork: boolean }) {
@@ -49,63 +56,7 @@ export function Scenarios({ requestId, canWork }: { requestId: string; canWork: 
         </p>
       )}
       {items?.length === 0 && <p className="muted">Aún no hay escenarios.</p>}
-      {!!items?.length && (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Escenario</th>
-                <th>Versión</th>
-                <th>Grupo</th>
-                <th>Coste / estudiante</th>
-                <th>Precio / estudiante</th>
-                <th>Margen del grupo</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((s) => {
-                const v = s.latest;
-                const t = v.totals;
-                return (
-                  <tr key={s.id}>
-                    <td>
-                      <Link href={`/cotizaciones/${v.id}`}>{s.name}</Link>
-                    </td>
-                    <td>
-                      v{v.number} · {QUOTE_STATUS_LABEL[v.status]}
-                      {!isAuthorized(v.status) && <div className="error">{PENDING_LEGEND}</div>}
-                    </td>
-                    <td>
-                      {v.participants} est. · {v.chaperones} chap. · {v.staff} EE
-                    </td>
-                    <td>{t ? `${t.costPerParticipant} ${v.saleCurrency}` : '—'}</td>
-                    <td>
-                      <strong>{t ? `${t.pricePerParticipant} ${v.saleCurrency}` : '—'}</strong>
-                    </td>
-                    <td>{t ? `${t.groupMargin} ${v.saleCurrency}` : (v.warnings[0]?.message ?? '—')}</td>
-                    <td>
-                      {canWork && (
-                        <button
-                          className="secondary"
-                          onClick={() => {
-                            const name = window
-                              .prompt('Nombre del nuevo escenario:', `${s.name} (copia)`)
-                              ?.trim();
-                            if (name) void run(`/scenarios/${s.id}/duplicate`, { name });
-                          }}
-                        >
-                          Duplicar
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {!!items?.length && <Comparison items={items} canWork={canWork} run={run} />}
       {canWork && (
         <form onSubmit={create} className="row" style={{ marginTop: 8 }}>
           <label>
@@ -124,5 +75,147 @@ export function Scenarios({ requestId, canWork }: { requestId: string; canWork: 
         </form>
       )}
     </section>
+  );
+}
+
+const pct = (rate: string) => `${Number((Number(rate) * 100).toFixed(2))}%`;
+
+/** Total of one concept in a version (sale currency, headcount applied); same-named lines add up. */
+function conceptTotal(v: QuoteDto, category: string, description: string) {
+  if (!v.totals) return '—';
+  const hits = v.lines.flatMap((l, i) =>
+    l.category === category && l.description === description ? [Number(v.totals!.lineTotals[i])] : [],
+  );
+  return hits.length ? hits.reduce((a, b) => a + b, 0).toFixed(2) : '—';
+}
+
+/** Opción 1, 2, 3… as columns with the EE sheet's rows aligned across them. */
+function Comparison({
+  items,
+  canWork,
+  run,
+}: {
+  items: ScenarioDto[];
+  canWork: boolean;
+  run: (path: string, body: object) => Promise<void>;
+}) {
+  const row = (label: string, cell: (v: QuoteDto) => ReactNode, strong = false) => (
+    <tr className={strong ? 'total strong' : undefined}>
+      <th scope="row">{label}</th>
+      {items.map((s) => (
+        <td key={s.id} className="num">
+          {cell(s.latest)}
+        </td>
+      ))}
+    </tr>
+  );
+  const money = (pick: (v: QuoteDto) => string | null | undefined) => (v: QuoteDto) => {
+    const x = pick(v);
+    return x ? `${x} ${v.saleCurrency}` : '—';
+  };
+  const concepts = SHEET_BLOCKS.map((b) => ({
+    ...b,
+    names: [
+      ...new Set(
+        items.flatMap((s) =>
+          s.latest.lines.filter((l) => l.category === b.category).map((l) => l.description),
+        ),
+      ),
+    ],
+  }));
+
+  return (
+    <div className="table-wrap">
+      <table className="compare">
+        <thead>
+          <tr>
+            <th />
+            {items.map((s) => (
+              <th key={s.id} scope="col" className="num">
+                <Link href={`/cotizaciones/${s.latest.id}`}>{s.name}</Link>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {row('Versión', (v) => (
+            <>
+              v{v.number} · {QUOTE_STATUS_LABEL[v.status]}
+              {!isAuthorized(v.status) && <div className="error">{PENDING_LEGEND}</div>}
+            </>
+          ))}
+          {row('Grupo', (v) => `${v.participants} est. · ${v.chaperones} chap. · ${v.staff} EE`)}
+          {concepts.map((b) =>
+            b.names.length ? (
+              <Fragment key={b.category}>
+                <tr>
+                  <th colSpan={items.length + 1}>{b.title}</th>
+                </tr>
+                {b.names.map((n) => (
+                  <Fragment key={n}>{row(n, (v) => conceptTotal(v, b.category, n))}</Fragment>
+                ))}
+              </Fragment>
+            ) : null,
+          )}
+          <tr>
+            <th colSpan={items.length + 1}>Resumen</th>
+          </tr>
+          {row(
+            'SubTotal 1',
+            money((v) => v.totals?.directPerParticipant),
+          )}
+          {row(
+            'Gastos del líder',
+            money((v) => v.sheet?.leaderPerParticipant),
+          )}
+          {row(
+            'Fijos del grupo ÷ estudiantes',
+            money((v) => v.sheet?.groupFixedPerParticipant),
+          )}
+          {row(
+            'SubTotal 2 (coste / estudiante)',
+            money((v) => v.totals?.costPerParticipant),
+          )}
+          {row('% Comisión', (v) => pct(v.targetMarginRate))}
+          {row(
+            'Comisión / estudiante',
+            money((v) => v.totals?.marginPerParticipant),
+          )}
+          {row(
+            'Precio / estudiante',
+            money((v) => v.totals?.pricePerParticipant),
+            true,
+          )}
+          {row('Estimado en pesos', (v) =>
+            v.totals?.pricePerParticipantMxn ? `${v.totals.pricePerParticipantMxn} MXN` : '—',
+          )}
+          {row(
+            'Total chaperones',
+            money((v) => v.sheet?.totalChaperones),
+          )}
+          {row('Margen del grupo', (v) =>
+            v.totals ? `${v.totals.groupMargin} ${v.saleCurrency}` : (v.warnings[0]?.message ?? '—'),
+          )}
+          {canWork && (
+            <tr>
+              <th />
+              {items.map((s) => (
+                <td key={s.id} className="num">
+                  <button
+                    className="secondary"
+                    onClick={() => {
+                      const name = window.prompt('Nombre del nuevo escenario:', `${s.name} (copia)`)?.trim();
+                      if (name) void run(`/scenarios/${s.id}/duplicate`, { name });
+                    }}
+                  >
+                    Duplicar
+                  </button>
+                </td>
+              ))}
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }

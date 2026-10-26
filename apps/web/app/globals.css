@@ -215,3 +215,33 @@ ol.timeline li {
     display: none;
   }
 }
+/* EE sheet: two blocks side by side, stacked on narrow screens. */
+.sheet {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  align-items: start;
+}
+.sheet td,
+.sheet th {
+  white-space: normal;
+}
+td.num,
+th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+tr.total th,
+tr.total td {
+  font-weight: 600;
+  border-top: 2px solid var(--border);
+}
+tr.total.strong th,
+tr.total.strong td {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+table.compare tbody th[scope='row'] {
+  font-weight: 400;
+  color: var(--muted);
+}

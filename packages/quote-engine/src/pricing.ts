@@ -22,6 +22,17 @@ export function priceFromTargetMargin(cost: Dec, targetMarginRate: Dec): Dec {
   return safeDivide(cost, new D(1).minus(targetMarginRate));
 }
 
+/**
+ * Inverse of #9 for a typed final price: the margin rate, truncated to `decimals`, so that
+ * cost / (1 − rate) never exceeds the price. Callers round the result up and check it hits the price.
+ */
+export function marginRateForPrice(cost: Dec, price: Dec, decimals = 6): Dec {
+  if (price.lte(0)) throw new QuoteEngineError('RATE_OUT_OF_RANGE', 'El precio debe ser mayor que cero');
+  const rate = new D(1).minus(cost.div(price)).toDecimalPlaces(decimals, D.ROUND_DOWN);
+  assertRate(rate, { maxExclusive: 1 });
+  return rate;
+}
+
 /** Gross margin over sale price, e.g. markup 20% → 16.67%. */
 export const grossMarginRate = (cost: Dec, salePrice: Dec): Dec =>
   safeDivide(salePrice.minus(cost), salePrice);

@@ -27,6 +27,7 @@ export function Shell({ children }: { children: ReactNode }) {
             {me?.roles.some((r) => r.role === 'OFFICE_ADMIN' || r.role === 'SYSTEM_ADMIN') && (
               <Link href="/usuarios">Usuarios</Link>
             )}
+            {me?.roles.some((r) => r.role === 'SYSTEM_ADMIN') && <Link href="/rubros">Rubros</Link>}
           </nav>
           <div className="row">
             {me && <span className="muted">{me.name}</span>}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { D, dec } from './money.js';
+import { marginRateForPrice } from './pricing.js';
 import { calculateQuote, type QuoteInput } from './quote.js';
 
 /** One tab of Finance's "ITALIA SPRING BREAK 2027" sheet, expressed as quote lines. */
@@ -124,5 +125,31 @@ describe('calculateQuote reproduces Finance sheet', () => {
     const q = { ...option(sheet[0]!), chaperones: 2 };
     q.lines.push({ category: 'PER_CHAPERONE', quantity: dec('1'), unitCost: dec('100'), currency: 'EUR' });
     expect(calculateQuote(q).sharedTotal.toString()).toBe('2050');
+  });
+
+  it('splits shared costs by category for the EE sheet', () => {
+    const q = { ...option(sheet[0]!), chaperones: 1 };
+    q.lines.push({ category: 'PER_CHAPERONE', quantity: dec('1'), unitCost: dec('100'), currency: 'EUR' });
+    q.lines.push({ category: 'PER_GROUP', quantity: dec('1'), unitCost: dec('300'), currency: 'EUR' });
+    const { byCategory: b, sharedTotal } = calculateQuote(q);
+    expect(b.PER_PARTICIPANT.toString()).toBe('4020'); // 3900 + 50 + 20 + 10 + 40
+    expect(b.PER_STAFF.toString()).toBe('1700'); // (16 × 50 + 50) × 2
+    expect(b.PER_CHAPERONE.toString()).toBe('100');
+    expect(b.CONTINGENCY.toString()).toBe('150');
+    expect(b.PER_GROUP.toString()).toBe('300');
+    expect(sharedTotal.toString()).toBe('2250');
+  });
+
+  it('a typed final price yields a margin that rounds back to exactly that price', () => {
+    const q = option(sheet[0]!);
+    const cost = calculateQuote(q).costPerParticipant; // 4205
+    for (const price of ['4205', '5000', '5150', '6000', '9999']) {
+      const rate = marginRateForPrice(cost, dec(price));
+      expect(calculateQuote({ ...q, targetMarginRate: rate }).pricePerParticipant.toString()).toBe(price);
+    }
+    expect(marginRateForPrice(cost, dec('5000')).toString()).toBe('0.159'); // 1 − 4205/5000
+    expect(() => marginRateForPrice(cost, dec('4000'))).toThrow(/fuera de rango/); // below cost
+    expect(() => marginRateForPrice(dec('0'), dec('100'))).toThrow(/fuera de rango/); // rate would be 1
+    expect(() => marginRateForPrice(cost, dec('0'))).toThrow(/mayor que cero/);
   });
 });

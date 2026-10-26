@@ -112,8 +112,19 @@ describe('scenarios (US-029, US-030, US-031)', () => {
       chaperones: 0,
       staff: 2,
       saleCurrency: 'EUR',
-      lines: [],
     });
+    // Starts with the EE sheet's base concepts at zero; allowances count the trip's 17 days.
+    const lines = res.body.latest.lines as { description: string; category: string; quantity: string }[];
+    expect(lines[0]).toMatchObject({
+      description: 'Precio neto',
+      category: 'PER_PARTICIPANT',
+      unitCost: '0',
+    });
+    expect(
+      lines.find((l) => l.description === 'Gastos por día' && l.category === 'PER_STAFF')?.quantity,
+    ).toBe('17');
+    expect(lines.some((l) => l.category === 'PER_CHAPERONE')).toBe(false); // optional, not base
+    expect(lines.at(-1)).toMatchObject({ description: 'Fondo de emergencia', category: 'CONTINGENCY' });
   });
 
   it('only the assignee or office admin can create; others in the office get 403, other offices 404', async () => {
@@ -151,6 +162,15 @@ describe('scenarios (US-029, US-030, US-031)', () => {
       pricePerParticipantMxn: '104581.00',
       groupMarginMxn: '188403.60',
     });
+    // EE sheet rows: (2 × (16 × 50 + 50)) chaperones + 150 fund = 1850, ÷ 10 students.
+    expect(res.body.sheet).toEqual({
+      chaperonesTotal: '1700.00',
+      emergencyFund: '150.00',
+      totalChaperones: '1850.00',
+      leaderPerParticipant: '185.00',
+      groupFixedTotal: '0.00',
+      groupFixedPerParticipant: '0.00',
+    });
     // Stale rowVersion
     const stale = await api()
       .patch(`/api/v1/quotes/${v.id}`)
@@ -164,6 +184,41 @@ describe('scenarios (US-029, US-030, US-031)', () => {
     // Approver may read costs, advisor may not.
     await api().get(`/api/v1/quotes/${v.id}`).set('Cookie', c.approver).expect(200);
     await api().get(`/api/v1/quotes/${v.id}`).set('Cookie', c.advisor).expect(404);
+  });
+
+  it('derives the margin from a typed final price and refuses one below cost', async () => {
+    const v = (await newScenario(c.quoter).expect(201)).body.latest;
+    const res = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ lines: option1.lines, targetPricePerParticipant: '5150', rowVersion: 1 })
+      .expect(200);
+    expect(res.body.targetMarginRate).toBe('0.183495'); // 1 − 4205/5150, truncated
+    expect(res.body.totals).toMatchObject({ pricePerParticipant: '5150.00', marginPerParticipant: '945.00' });
+    const low = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ targetPricePerParticipant: '4000', rowVersion: 2 })
+      .expect(400);
+    expect(low.body.code).toBe('PRICE_BELOW_COST');
+    // Nothing from the refused edit was kept.
+    const after = await api().get(`/api/v1/quotes/${v.id}`).set('Cookie', c.quoter).expect(200);
+    expect(after.body).toMatchObject({ rowVersion: 2, targetMarginRate: '0.183495' });
+    await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ targetPricePerParticipant: '5150', targetMarginRate: '0.2', rowVersion: 2 })
+      .expect(400);
+    const fx = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({
+        lines: [{ category: 'PER_GROUP', description: 'Bus', quantity: '1', unitCost: '1', currency: 'MXN' }],
+        targetPricePerParticipant: '100',
+        rowVersion: 2,
+      })
+      .expect(400);
+    expect(fx.body.code).toBe('FX_REQUIRED');
   });
 
   it('flags foreign-currency lines without FX and prices them once a rate is recorded', async () => {
@@ -376,10 +431,25 @@ describe('authorization (US-071..076)', () => {
   });
 
   it('advisors read the shareable proposal without costs, flagged until authorized', async () => {
-    const v = await readyVersion();
+    const ready = await readyVersion();
+    const comidas = {
+      category: 'PER_PARTICIPANT',
+      description: 'Comidas',
+      quantity: '1',
+      unitCost: '0',
+      currency: 'EUR',
+    };
+    const v = (
+      await api()
+        .patch(`/api/v1/quotes/${ready.id}`)
+        .set('Cookie', c.quoter)
+        .send({ lines: [...option1.lines, comidas], rowVersion: ready.rowVersion })
+        .expect(200)
+    ).body;
     const p = await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', c.advisor).expect(200);
     expect(p.body).toMatchObject({ authorized: false, pricePerParticipant: '5129.00', saleCurrency: 'EUR' });
     expect(p.body.includes).toContain('Precio neto');
+    expect(p.body.includes).not.toContain('Comidas'); // base concept left at zero
     expect(JSON.stringify(p.body)).not.toMatch(/unitCost|margin|cost/i);
     const list = await api()
       .get(`/api/v1/requests/${requestId}/proposals`)

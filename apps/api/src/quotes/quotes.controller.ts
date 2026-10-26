@@ -32,7 +32,16 @@ import {
   type QuoteReview,
   type QuoteVersion,
 } from '@ee/db';
-import { calculateQuote, calculationHash, D, roundMoney, type Dec } from '@ee/quote-engine';
+import {
+  calculateQuote,
+  calculationHash,
+  D,
+  marginRateForPrice,
+  QuoteEngineError,
+  roundMoney,
+  safeDivide,
+  type Dec,
+} from '@ee/quote-engine';
 import type { z } from 'zod';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
@@ -77,9 +86,8 @@ const asciiName = (s: string) =>
 
 const money = (x: Dec) => roundMoney(x, 2).toFixed(2);
 
-/** Live figures for the editor; frozen with a hash when the version goes to approval. */
-function calculate(v: FullVersion) {
-  const r = calculateQuote({
+const engine = (v: FullVersion) =>
+  calculateQuote({
     ...v,
     targetMarginRate: new D(v.targetMarginRate.toString()),
     lines: v.lines.map((l) => ({
@@ -90,6 +98,10 @@ function calculate(v: FullVersion) {
     fxRates: Object.fromEntries(v.fxRates.map((f) => [f.fromCurrency, new D(f.rate.toString())])),
     mxnRate: v.mxnRate && v.saleCurrency !== 'MXN' ? new D(v.mxnRate.toString()) : null,
   });
+
+/** Live figures for the editor; frozen with a hash when the version goes to approval. */
+function calculate(v: FullVersion) {
+  const r = engine(v);
   return {
     directPerParticipant: money(r.directPerParticipant),
     sharedPerParticipant: money(r.sharedPerParticipant),
@@ -102,6 +114,24 @@ function calculate(v: FullVersion) {
     groupMarginMxn: r.groupMarginMxn && money(r.groupMarginMxn),
     /** Per line, in sale currency and already multiplied by headcount where it applies. */
     lineTotals: r.lineTotals.map(money),
+  };
+}
+
+/**
+ * The EE sheet's subtotals (V2 layout). Derived from the same inputs as `totals`, so it stays out of
+ * the approval hash: adding display rows must not invalidate approvals already given.
+ */
+function sheet(v: FullVersion) {
+  const { byCategory: b } = engine(v);
+  const chaperones = b.PER_CHAPERONE.plus(b.PER_STAFF);
+  const participants = new D(v.participants);
+  return {
+    chaperonesTotal: money(chaperones),
+    emergencyFund: money(b.CONTINGENCY),
+    totalChaperones: money(chaperones.plus(b.CONTINGENCY)),
+    leaderPerParticipant: money(safeDivide(chaperones.plus(b.CONTINGENCY), participants)),
+    groupFixedTotal: money(b.PER_GROUP),
+    groupFixedPerParticipant: money(safeDivide(b.PER_GROUP, participants)),
   };
 }
 
@@ -118,6 +148,7 @@ function snapshotHash(v: FullVersion) {
     updatedAt: _u,
     reviews: _rw,
     warnings: _w,
+    sheet: _sh,
     lines,
     ...rest
   } = toDto(v);
@@ -166,6 +197,7 @@ function toDto(v: FullVersion) {
       source: f.source,
     })),
     totals: missingFx.length ? null : calculate(v),
+    sheet: missingFx.length ? null : sheet(v),
     warnings: missingFx.map((c) => ({
       code: 'MISSING_FX',
       message: `Falta tipo de cambio ${c} → ${v.saleCurrency}`,
@@ -274,6 +306,12 @@ export class QuotesController {
       const r = await tx.travelRequest.findUnique({ where: { id } });
       if (!r || !canViewQuotes(user, r)) throw new NotFoundException('Solicitud no encontrada');
       this.assertWork(user, r);
+      const base = await tx.conceptTemplate.findMany({
+        where: { active: true, isBase: true },
+        orderBy: [{ category: 'asc' }, { position: 'asc' }, { label: 'asc' }],
+      });
+      // Allowances count both travel days: return − departure + 1 (Finance, 2026-10-22).
+      const tripDays = (r.returnDate.getTime() - r.departureDate.getTime()) / 86_400_000 + 1;
       const scenario = await tx.quoteScenario.create({
         data: {
           requestId: id,
@@ -287,6 +325,17 @@ export class QuotesController {
               chaperones: body.chaperones ?? r.chaperones,
               staff: body.staff ?? r.staff,
               createdById: user.id,
+              lines: {
+                create: base.map((t, position) => ({
+                  position,
+                  category: t.category,
+                  description: t.label,
+                  quantity: new Prisma.Decimal(t.perTripDay ? tripDays : 1),
+                  unitCost: new Prisma.Decimal(0),
+                  currency: body.saleCurrency,
+                  internalOnly: t.internalOnly,
+                })),
+              },
             },
           },
         },
@@ -416,7 +465,10 @@ export class QuotesController {
       validUntil,
       assumptions,
       includes: v.lines
-        .filter((l) => !l.internalOnly && l.category === 'PER_PARTICIPANT')
+        // Base concepts start at zero; an unpriced one is not something the trip includes.
+        .filter(
+          (l) => !l.internalOnly && l.category === 'PER_PARTICIPANT' && l.unitCost.gt(0) && l.quantity.gt(0),
+        )
         .map((l) => l.description),
     };
   }
@@ -480,7 +532,7 @@ export class QuotesController {
           message: 'No se captura tipo de cambio de la moneda de venta consigo misma',
         });
 
-      const { targetMarginRate, mxnRate, ...rest } = fields;
+      const { targetMarginRate, targetPricePerParticipant, mxnRate, ...rest } = fields;
       const { count } = await tx.quoteVersion.updateMany({
         where: { id, rowVersion },
         data: {
@@ -519,6 +571,7 @@ export class QuotesController {
           })),
         });
       }
+      if (targetPricePerParticipant) await this.priceFromTarget(tx, id, targetPricePerParticipant);
       await audit(tx, {
         actorUserId: user.id,
         action: 'quote.version.updated',
@@ -538,6 +591,39 @@ export class QuotesController {
     });
   }
 
+  /** Typed final price → the margin that rounds back to exactly that price, from the saved lines. */
+  private async priceFromTarget(tx: Tx, id: string, target: string) {
+    const v = await tx.quoteVersion.findUniqueOrThrow({ where: { id }, include: full });
+    const dto = toDto(v);
+    if (!dto.totals)
+      throw new BadRequestException({
+        code: 'FX_REQUIRED',
+        message: 'Registra los tipos de cambio antes de fijar el precio final',
+      });
+    const cost = engine(v).costPerParticipant;
+    const price = new D(target);
+    let rate: Dec;
+    try {
+      rate = marginRateForPrice(cost, price);
+    } catch (e) {
+      if (!(e instanceof QuoteEngineError)) throw e;
+      throw new BadRequestException({
+        code: 'PRICE_BELOW_COST',
+        message: `El precio final debe ser mayor que el costo por estudiante (${dto.totals.costPerParticipant} ${v.saleCurrency})`,
+      });
+    }
+    const check = engine({ ...v, targetMarginRate: new Prisma.Decimal(rate.toFixed()) });
+    if (!check.pricePerParticipant.eq(price))
+      throw new BadRequestException({
+        code: 'PRICE_UNREACHABLE',
+        message: 'Ese precio no se alcanza con un % de seis decimales; captura el % de comisión',
+      });
+    await tx.quoteVersion.update({
+      where: { id },
+      data: { targetMarginRate: new Prisma.Decimal(rate.toFixed()) },
+    });
+  }
+
   /** US-045, US-051: only a complete, priced version with a validity date goes to review. */
   @Post('quotes/:id/submit')
   submit(
@@ -552,7 +638,8 @@ export class QuotesController {
         throw new ForbiddenException('Solo se envían a autorización versiones en borrador o devueltas');
       const dto = toDto(v);
       const missing = [
-        !dto.lines.length && 'conceptos',
+        // Base concepts start at zero, so "has lines" is not enough.
+        !dto.lines.some((l) => new D(l.lineTotal).gt(0)) && 'conceptos',
         !dto.validUntil && 'vigencia',
         !dto.totals && 'tipos de cambio',
       ].filter(Boolean);

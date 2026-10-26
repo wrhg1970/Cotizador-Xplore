@@ -56,6 +56,15 @@ Definir fórmulas exactas con Finanzas antes de producción. La implementación 
 - Configurar modo de redondeo y decimales por moneda.
 - Documentar tratamiento de diferencias de conversión.
 
+## Hoja EE (implementado, Sprint A, 2026-10-26)
+Layout tomado del prototipo V2 y validado con Finanzas (Will, 2026-10-26):
+- **Conceptos por estudiante** → SubTotal 1.
+- **Gastos del líder** = (chaperones de la escuela + chaperones EE + fondo de emergencia) ÷ estudiantes. Los rubros de chaperón son por chaperón y **se multiplican por el número de chaperones**.
+- **Fijos del grupo** ÷ estudiantes (se muestra aparte si existe).
+- SubTotal 2 = coste por estudiante.
+- **% Comisión sobre el precio final**: precio = SubTotal 2 ÷ (1 − %), redondeado hacia arriba al entero. (El prototipo V2 lo calculaba sobre el coste; se descartó.)
+- **Precio final capturado**: % = 1 − coste ÷ precio, truncado a 6 decimales; el servidor verifica que el redondeo devuelva exactamente ese precio.
+
 ## Versionado
 Cada versión guarda `formulaSetId`, `formulaSetVersion`, inputs, FX, líneas, resultados y `calculationHash`. Los cambios de fórmula no recalculan cotizaciones ya enviadas.
 

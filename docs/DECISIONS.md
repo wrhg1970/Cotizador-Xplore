@@ -39,3 +39,8 @@
 - Dinero con `decimal.js` en el motor y strings decimales en JSON.
 - `audit_logs` append-only reforzado con trigger en PostgreSQL.
 - Pendiente: alojamiento, almacenamiento de documentos, librería PDF, dominios Google, fórmulas de Finanzas.
+
+## Sprint A — hoja EE desde el prototipo V2 (2026-10-26)
+- Will eligió llevar las funciones del prototipo V2 (XploreCotizador-V2, AI Studio/Firebase) a esta app en lugar de usar el prototipo como base: aquí ya están la autorización en servidor, la auditoría y el despliegue.
+- Comisión sobre precio final y bloque de chaperones × cantidad (confirmado por Will). El motor no cambió de fórmula.
+- Catálogo de rubros global, mantenido por el administrador del sistema. Los subtotales de la hoja (`sheet`) quedan fuera del hash de aprobación para no invalidar autorizaciones ya dadas.
