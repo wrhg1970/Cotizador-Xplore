@@ -57,3 +57,5 @@
 - La subida va como JSON base64 con límite de 4.5 MB solo en esa ruta (resto: 100 kB), para no usar multer (vulnerabilidad abierta en la versión que trae NestJS).
 - Pendiente: registrar resultado con el cliente (ganada/perdida) para que el tablero mida conversión.
 
+## Excel interno con formato de la hoja EE (2026-10-27)
+- La pestaña «Cotización» replica la hoja oficial de Finanzas, con las mismas cifras que la pantalla (mismo cálculo del servidor). El detalle de líneas pasa a la pestaña «Conceptos». Plan de pagos e itinerario van en pestañas propias. Las cifras se exportan como valores, no como fórmulas: el cálculo oficial es el del motor versionado.

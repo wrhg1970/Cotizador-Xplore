@@ -389,13 +389,31 @@ describe('authorization (US-071..076)', () => {
     expect(xlsx.headers['content-disposition']).toMatch(/filename="?EE-\d{4}-\w{6}-Opcion_1-v1\.xlsx/);
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(xlsx.body as ExcelJS.Buffer);
-    const rows = wb
-      .getWorksheet('Cotización')!
-      .getSheetValues()
-      .map((r) => (Array.isArray(r) ? r.slice(1) : []));
-    expect(rows).toContainEqual(['Precio final por estudiante', 5129, 'EUR']);
-    expect(rows).toContainEqual(['Por estudiante', 'Precio neto', 1, 3900, 'EUR', 3900, 'No', '']);
-    expect(rows).toContainEqual(['Por chaperón EE', 'Viáticos 16 días', 16, 50, 'EUR', 1600, 'No', '']);
+    const values = (name: string) =>
+      wb
+        .getWorksheet(name)!
+        .getSheetValues()
+        .map((r) => (Array.isArray(r) ? r.slice(1) : []));
+    // EE sheet layout: label/amount pairs in columns A–B (students) and D–E (chaperones).
+    const ee = new Map(
+      values('Cotización').flatMap((r) => [
+        [r[0], r[1]],
+        [r[3], r[4]],
+      ]),
+    );
+    expect(ee.get('SubTotal 1')).toBe(4020);
+    expect(ee.get('Gastos del líder (total chaperones ÷ estudiantes)')).toBe(185);
+    expect(ee.get('SubTotal 2')).toBe(4205);
+    expect(ee.get('% Comisión (sobre el precio final)')).toBe(0.18);
+    expect(ee.get('PRECIO FINAL (EUR)')).toBe(5129);
+    expect(ee.get('Total del grupo')).toBe(51290);
+    expect(ee.get('Viáticos 16 días')).toBe(1600);
+    expect(ee.get('SubTotal chaperones')).toBe(1700);
+    expect(ee.get('Total chaperones')).toBe(1850);
+    const lines = values('Conceptos');
+    expect(lines).toContainEqual(['Por estudiante', 'Precio neto', 1, 3900, 'EUR', 3900, 'No', '']);
+    expect(lines).toContainEqual(['Por chaperón EE', 'Viáticos 16 días', 16, 50, 'EUR', 1600, 'No', '']);
+    expect(values('Plan de pagos')).toContainEqual(['Sin plan de pagos']);
     await api().get(`/api/v1/quotes/${v.id}/export.xlsx`).set('Cookie', c.advisor).expect(404);
     expect((await prisma.travelRequest.findUniqueOrThrow({ where: { id: requestId } })).status).toBe('SENT');
     await expect(prisma.quoteReview.deleteMany({ where: { versionId: v.id } })).rejects.toThrow(
@@ -498,6 +516,31 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
       itinerary: content.itinerary,
       exclusions: content.exclusions,
     });
+    // The internal Excel carries the plan, free places, itinerary and exclusions in their own tabs.
+    const file = await api()
+      .get(`/api/v1/quotes/${v.id}/export.xlsx`)
+      .set('Cookie', c.quoter)
+      .buffer(true)
+      .parse((r, done) => {
+        const chunks: Buffer[] = [];
+        r.on('data', (d: Buffer) => chunks.push(d));
+        r.on('end', () => done(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(file.body as ExcelJS.Buffer);
+    const tab = (name: string) =>
+      wb
+        .getWorksheet(name)!
+        .getSheetValues()
+        .map((r) => (Array.isArray(r) ? r.slice(1) : []));
+    const payRows = tab('Plan de pagos');
+    expect(payRows).toContainEqual(['Inscripción', '2026-11-15', 769.35]);
+    expect(payRows).toContainEqual(['Pago 6 de 6', expect.any(String), expect.any(Number)]);
+    expect(payRows).toContainEqual(['Lugares liberados', 2, '1 por cada 5 estudiantes, para chaperón']);
+    const itRows = tab('Itinerario');
+    expect(itRows).toContainEqual([1, 'Llegada a Roma', 'Traslado al hotel']);
+    expect(itRows).toContainEqual(['', 'Gastos personales']);
     // Duplicates carry the proposal content.
     const dup = await api()
       .post(`/api/v1/scenarios/${v.scenarioId}/duplicate`)
