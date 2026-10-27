@@ -81,7 +81,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
       )}
-      <main>{children}</main>
+      <main className={onLogin ? 'bare' : undefined}>{children}</main>
     </>
   );
 }

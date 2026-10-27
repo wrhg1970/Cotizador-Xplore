@@ -67,7 +67,7 @@ header.top .bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px 32px;
+  gap: 12px 20px;
 }
 header.top nav {
   display: flex;
@@ -79,13 +79,20 @@ header.top nav a {
   color: var(--muted);
   font-weight: 600;
   text-decoration: none;
-  padding: 10px 14px;
+  padding: 10px 12px;
   border-radius: 999px;
 }
 header.top nav a:hover,
 header.top nav a[aria-current='page'] {
   color: var(--text);
   background: var(--subtle);
+}
+header.top .user button {
+  padding: 8px 14px;
+}
+main.bare {
+  max-width: none;
+  padding: 0;
 }
 header.top .user {
   margin-left: auto;
