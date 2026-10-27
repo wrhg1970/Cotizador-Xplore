@@ -1,6 +1,6 @@
 import type { RequestStatus } from '@ee/contracts';
 import type { AuthUser } from '../auth/auth.types.js';
-import { hasOfficeRole, isSystemAdmin } from '../auth/authz.js';
+import { canSeeInternalCosts, hasOfficeRole, officeScope } from '../auth/authz.js';
 
 export interface RequestRef {
   officeId: string;
@@ -13,8 +13,10 @@ const EDITABLE: readonly RequestStatus[] = ['DRAFT', 'SUBMITTED', 'QUOTING'];
 const CLOSED: readonly RequestStatus[] = ['WON', 'LOST', 'CANCELLED'];
 
 const isOfficeAdmin = (u: AuthUser, r: RequestRef) => hasOfficeRole(u, r.officeId, ['OFFICE_ADMIN']);
-const isMember = (u: AuthUser, r: RequestRef) =>
-  isSystemAdmin(u) || u.roles.some((x) => x.officeId === r.officeId);
+const isMember = (u: AuthUser, r: RequestRef) => {
+  const scope = officeScope(u);
+  return scope === 'ALL' || scope.includes(r.officeId);
+};
 
 /** Drafts stay private to their author and office admins (US-010). */
 export const canView = (u: AuthUser, r: RequestRef): boolean =>
@@ -38,9 +40,9 @@ export const canAssign = (u: AuthUser, r: RequestRef): boolean =>
 export const canCancel = (u: AuthUser, r: RequestRef): boolean =>
   !CLOSED.includes(r.status) && isOfficeAdmin(u, r);
 
-/** Quotes carry internal costs: only the quoting side of the office sees them (US-070, PRD §PDF). */
+/** Quotes carry internal costs: only roles allowed by policy see them (US-070, PRD §PDF). */
 export const canViewQuotes = (u: AuthUser, r: RequestRef): boolean =>
-  r.status !== 'DRAFT' && hasOfficeRole(u, r.officeId, ['QUOTER', 'APPROVER', 'OFFICE_ADMIN', 'AUDITOR']);
+  r.status !== 'DRAFT' && canSeeInternalCosts(u, r.officeId);
 
 /** Scenarios are built while the request is being quoted, by its assignee or the office admin. */
 export const canWorkQuotes = (u: AuthUser, r: RequestRef): boolean =>

@@ -32,6 +32,7 @@ Todas van en el gestor de secretos del proveedor, nunca en la imagen ni en el re
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - `ALLOWED_GOOGLE_DOMAINS`: dominios de Google Workspace separados por coma.
 - `SESSION_SECRET`: `openssl rand -hex 32`.
+- `VERTEX_PROJECT` (opcional): proyecto de Google Cloud para el importador con IA; sin él, el importador responde 503. `VERTEX_LOCATION` (por defecto `global`) y `VERTEX_MODEL` (por defecto `gemini-3.8-flash`). `deploy.sh` lo configura solo y da a la cuenta de servicio el rol `roles/aiplatform.user`.
 
 ## Google
 

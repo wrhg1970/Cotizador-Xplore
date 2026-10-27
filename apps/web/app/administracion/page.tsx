@@ -1,0 +1,168 @@
+'use client';
+
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { api, errorText } from '../lib/api';
+import { ROLE_LABEL, type RolePolicy } from '../lib/types';
+import { useMe } from '../lib/useMe';
+
+type Row = RolePolicy & { role: Exclude<keyof typeof ROLE_LABEL, 'SYSTEM_ADMIN'> };
+interface Office {
+  id: string;
+  code: string;
+  name: string;
+}
+
+const FLAG = {
+  allOffices: 'Todas las oficinas',
+  viewInternalCosts: 'Ve costos internos',
+  exportInternalXlsx: 'Descarga Excel interno',
+} as const;
+
+/** System admin settings: what each role may do, and the offices that exist. */
+export default function AdminPage() {
+  const me = useMe();
+  const [rows, setRows] = useState<Row[]>([]);
+  const [offices, setOffices] = useState<Office[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const isSysAdmin = !!me?.roles.some((r) => r.role === 'SYSTEM_ADMIN');
+
+  const reload = useCallback(() => {
+    api<Row[]>('/role-policies').then(setRows, (e) => setError(errorText(e)));
+    api<Office[]>('/offices').then(setOffices, (e) => setError(errorText(e)));
+  }, []);
+  useEffect(() => {
+    if (isSysAdmin) reload();
+  }, [isSysAdmin, reload]);
+
+  async function run(done: string, call: () => Promise<unknown>) {
+    setError(null);
+    setNotice(null);
+    try {
+      await call();
+      setNotice(done);
+      reload();
+      return true;
+    } catch (e) {
+      setError(errorText(e));
+      reload();
+      return false;
+    }
+  }
+
+  const save = (row: Row, change: Partial<RolePolicy>) => {
+    const { role, ...policy } = { ...row, ...change };
+    // Excel interno always needs costs; keep the pair consistent instead of failing validation.
+    if (change.viewInternalCosts === false) policy.exportInternalXlsx = false;
+    if (change.exportInternalXlsx) policy.viewInternalCosts = true;
+    return run(`Permisos de ${ROLE_LABEL[role]} guardados`, () =>
+      api(`/role-policies/${role}`, { method: 'PUT', body: policy }),
+    );
+  };
+
+  async function createOffice(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const f = new FormData(form);
+    const body = { code: String(f.get('code')).trim().toUpperCase(), name: String(f.get('name')).trim() };
+    if (await run(`Oficina ${body.code} creada`, () => api('/offices', { method: 'POST', body })))
+      form.reset();
+  }
+
+  if (me && !isSysAdmin) return <p className="error">Solo un administrador del sistema puede entrar aquí.</p>;
+
+  return (
+    <>
+      <h1>Administración</h1>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {notice && <p role="status">{notice}</p>}
+
+      <section aria-labelledby="permisos">
+        <h2 id="permisos">Permisos por rol</h2>
+        <p className="muted">
+          Los pasos del flujo (quién crea, cotiza, autoriza y envía) son fijos. Aquí se ajusta lo demás. El
+          administrador del sistema siempre puede todo. Nadie autoriza una cotización que preparó, sin
+          importar estos permisos. Cada cambio queda en la bitácora.
+        </p>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Rol</th>
+                {Object.values(FLAG).map((l) => (
+                  <th key={l}>{l}</th>
+                ))}
+                <th>Tope de autorización (MXN, total del grupo)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.role}>
+                  <th scope="row">{ROLE_LABEL[row.role]}</th>
+                  {(Object.keys(FLAG) as (keyof typeof FLAG)[]).map((k) => (
+                    <td key={k}>
+                      <input
+                        type="checkbox"
+                        aria-label={`${FLAG[k]}: ${ROLE_LABEL[row.role]}`}
+                        checked={row[k]}
+                        onChange={(e) => void save(row, { [k]: e.target.checked })}
+                      />
+                    </td>
+                  ))}
+                  <td>
+                    {row.role === 'APPROVER' ? (
+                      <input
+                        aria-label="Tope de autorización en pesos"
+                        inputMode="decimal"
+                        placeholder="Sin tope"
+                        defaultValue={row.approvalLimitMxn ?? ''}
+                        key={row.approvalLimitMxn ?? ''}
+                        onBlur={(e) => {
+                          const v = e.target.value.replace(/[,\s$]/g, '');
+                          const limit = v === '' ? null : v;
+                          if (
+                            limit !== row.approvalLimitMxn &&
+                            Number(limit) !== Number(row.approvalLimitMxn)
+                          )
+                            void save(row, { approvalLimitMxn: limit });
+                        }}
+                      />
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-labelledby="oficinas">
+        <h2 id="oficinas">Oficinas</h2>
+        <ul>
+          {offices.map((o) => (
+            <li key={o.id}>
+              <strong>{o.code}</strong> · {o.name}
+            </li>
+          ))}
+        </ul>
+        <form onSubmit={createOffice} className="row">
+          <label>
+            Código
+            <input name="code" required pattern="[A-Za-z0-9\-]{2,20}" maxLength={20} placeholder="MTY" />
+          </label>
+          <label>
+            Nombre
+            <input name="name" required maxLength={120} />
+          </label>
+          <button>Agregar oficina</button>
+        </form>
+      </section>
+    </>
+  );
+}

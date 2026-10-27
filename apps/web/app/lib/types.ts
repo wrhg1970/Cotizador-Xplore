@@ -13,6 +13,14 @@ export interface Me {
   email: string;
   name: string;
   roles: { officeId: string; role: string }[];
+  policies?: Partial<Record<string, RolePolicy>>;
+}
+
+export interface RolePolicy {
+  allOffices: boolean;
+  viewInternalCosts: boolean;
+  exportInternalXlsx: boolean;
+  approvalLimitMxn: string | null;
 }
 
 export interface TravelRequestDto {

@@ -3,20 +3,35 @@ import { type INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
-import type { NextFunction, Request, Response } from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
 import { AppModule } from './app.module.js';
 import type { OidcProvider } from './auth/oidc.js';
+import type { SheetReader } from './quotes/sheet-import.js';
 import type { Env } from './env.js';
 import { HttpExceptionFilter } from './http-exception.filter.js';
 
 const CORRELATION_ID = /^[A-Za-z0-9-]{1,64}$/;
 
-export async function createApp(env: Env, oidc?: OidcProvider): Promise<INestApplication> {
-  const app = await NestFactory.create(AppModule.forRoot(env, oidc), {
+const IMPORT_ROUTE = /^\/api\/v1\/quotes\/[^/]+\/import$/;
+
+export async function createApp(
+  env: Env,
+  oidc?: OidcProvider,
+  reader?: SheetReader,
+): Promise<INestApplication> {
+  const app = await NestFactory.create(AppModule.forRoot(env, oidc, reader), {
     logger: env.NODE_ENV === 'test' ? false : undefined,
+    bodyParser: false,
   });
+  // Express's 100 kB default everywhere except the sheet upload (3 MB file as base64).
+  const json = express.json();
+  const importJson = express.json({ limit: '4500kb' });
+  app.use((req: Request, res: Response, next: NextFunction) =>
+    (IMPORT_ROUTE.test(req.path) ? importJson : json)(req, res, next),
+  );
+  app.use(express.urlencoded({ extended: true }));
   app.use(helmet());
   app.use(cookieParser(env.SESSION_SECRET));
   app.use((req: Request, res: Response, next: NextFunction) => {

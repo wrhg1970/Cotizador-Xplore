@@ -13,11 +13,20 @@ import { ConceptTemplatesController } from './concepts/concept-templates.control
 import { OfficeQuotersController, RequestsController } from './requests/requests.controller.js';
 import { QuotesController } from './quotes/quotes.controller.js';
 import { QuoteTemplatesController } from './quotes/templates.controller.js';
+import { DashboardController } from './dashboard/dashboard.controller.js';
+import { RolePoliciesController } from './auth/role-policies.controller.js';
+import { SheetImportController } from './quotes/sheet-import.controller.js';
+import { SHEET_READER, type SheetReader, VertexSheetReader } from './quotes/sheet-import.js';
 import { UsersController } from './users/users.controller.js';
 
 @Module({})
 export class AppModule {
-  static forRoot(env: Env, oidcOverride?: OidcProvider): DynamicModule {
+  static forRoot(env: Env, oidcOverride?: OidcProvider, readerOverride?: SheetReader): DynamicModule {
+    const reader =
+      readerOverride ??
+      (env.VERTEX_PROJECT
+        ? new VertexSheetReader(env.VERTEX_PROJECT, env.VERTEX_LOCATION, env.VERTEX_MODEL)
+        : null);
     const oidc =
       oidcOverride ??
       (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
@@ -47,10 +56,14 @@ export class AppModule {
         ConceptTemplatesController,
         QuotesController,
         QuoteTemplatesController,
+        DashboardController,
+        RolePoliciesController,
+        SheetImportController,
       ],
       providers: [
         { provide: ENV, useValue: env },
         { provide: OIDC, useValue: oidc },
+        { provide: SHEET_READER, useValue: reader },
         prismaProvider,
         PrismaShutdown,
         AuthService,

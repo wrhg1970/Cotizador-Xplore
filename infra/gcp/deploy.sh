@@ -36,7 +36,8 @@ secret() { # secret <nombre> : lee el valor de stdin
 
 echo "== APIs"
 gcloud services enable run.googleapis.com sqladmin.googleapis.com \
-  secretmanager.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
+  secretmanager.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com \
+  aiplatform.googleapis.com
 
 echo "== Artifact Registry"
 exists gcloud artifacts repositories describe cotizador --location="$REGION" ||
@@ -64,7 +65,8 @@ if ! exists gcloud secrets describe cotizador-google-client-secret; then
   printf '%s' "$GOOGLE_CLIENT_SECRET" | secret cotizador-google-client-secret
 fi
 # Cloud Build usa la misma cuenta de servicio en proyectos nuevos y ya no recibe permisos automáticos.
-for role in roles/secretmanager.secretAccessor roles/cloudsql.client roles/cloudbuild.builds.builder; do
+# aiplatform.user: the sheet importer calls Gemini on Vertex AI with this account, no API keys.
+for role in roles/secretmanager.secretAccessor roles/cloudsql.client roles/cloudbuild.builds.builder roles/aiplatform.user; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$RUNTIME_SA" \
     --role="$role" --condition=None >/dev/null
 done
@@ -98,7 +100,7 @@ echo "== API"
 # las rutas ya exigen sesión. Pasar a ingress interno + VPC cuando haya más tráfico.
 gcloud run deploy cotizador-api --image="$REPO/api:$TAG" --region="$REGION" --port=4000 \
   --allow-unauthenticated --add-cloudsql-instances="$CONN" \
-  --set-env-vars="^|^NODE_ENV=production|API_PUBLIC_URL=$PUBLIC_URL|WEB_ORIGIN=$PUBLIC_URL|ALLOWED_GOOGLE_DOMAINS=$ALLOWED_GOOGLE_DOMAINS|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" \
+  --set-env-vars="^|^NODE_ENV=production|API_PUBLIC_URL=$PUBLIC_URL|WEB_ORIGIN=$PUBLIC_URL|ALLOWED_GOOGLE_DOMAINS=$ALLOWED_GOOGLE_DOMAINS|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|VERTEX_PROJECT=$PROJECT_ID" \
   --set-secrets=DATABASE_URL=cotizador-database-url:latest,SESSION_SECRET=cotizador-session-secret:latest,GOOGLE_CLIENT_SECRET=cotizador-google-client-secret:latest
 
 echo "== Web"

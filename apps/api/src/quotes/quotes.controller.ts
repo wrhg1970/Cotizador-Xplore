@@ -52,7 +52,7 @@ import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
-import { hasOfficeRole } from '../auth/authz.js';
+import { approvalLimitMxn, canExportInternalXlsx, hasOfficeRole } from '../auth/authz.js';
 import { canView, canViewQuotes, canWorkQuotes, type RequestRef } from '../requests/request-policy.js';
 import { ZodPipe } from '../zod.pipe.js';
 import { quoteWorkbook } from './quote-xlsx.js';
@@ -570,8 +570,10 @@ export class QuotesController {
   async exportXlsx(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string, @Res() res: Response) {
     const v = await this.prisma.quoteVersion.findUnique({ where: { id }, include: full });
     if (!v) throw new NotFoundException('Cotización no encontrada');
-    await this.request(this.prisma, v.scenario.requestId, user);
-    const r = await this.prisma.travelRequest.findUniqueOrThrow({ where: { id: v.scenario.requestId } });
+    const ref = await this.request(this.prisma, v.scenario.requestId, user);
+    if (!canExportInternalXlsx(user, ref.officeId))
+      throw new ForbiddenException('Tu rol no tiene permiso para descargar el Excel interno');
+    const r = await this.prisma.travelRequest.findUniqueOrThrow({ where: { id: ref.id } });
     const file = await quoteWorkbook(toDto(v), { folio: r.folio, groupName: r.groupName });
     res
       .type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -747,6 +749,7 @@ export class QuotesController {
   ) {
     return this.review(user, req, id, body.rowVersion, 'quote.approved', (v, r) => {
       this.assertReviewer(user, v, r);
+      this.assertWithinLimit(user, v);
       return { status: 'APPROVED', decision: 'APPROVED', comment: body.comment };
     });
   }
@@ -804,6 +807,22 @@ export class QuotesController {
         },
       };
     });
+  }
+
+  /** Role policy "tope de autorización": compared on the group price in pesos. */
+  private assertWithinLimit(user: AuthUser, v: FullVersion) {
+    const limit = approvalLimitMxn(user);
+    if (limit === null) return;
+    const { groupPrice } = engine(v);
+    const rate = v.saleCurrency === 'MXN' ? new D(1) : v.mxnRate && new D(v.mxnRate.toString());
+    if (!rate)
+      throw new ForbiddenException(
+        'Tu autorización tiene tope en pesos: captura el tipo de cambio a MXN de la cotización',
+      );
+    if (groupPrice.mul(rate).gt(limit))
+      throw new ForbiddenException(
+        `El total del grupo supera tu tope de autorización (${limit} MXN); debe autorizarlo alguien con un tope mayor`,
+      );
   }
 
   private assertReviewer(user: AuthUser, v: FullVersion, r: RequestRef) {

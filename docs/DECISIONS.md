@@ -49,3 +49,11 @@
 - Plan de pagos por versión, calculado por el motor (no guardado); si deja de cuadrar con el precio, la versión no puede enviarse a autorización.
 - Lugares liberados informativos hasta que Finanzas defina su efecto en el precio.
 - Plantillas por oficina (contienen costos internos: solo el lado cotizador las ve). No copian tipos de cambio ni fechas de pago.
+
+## Sprint C — tablero, permisos por rol e importador con IA (2026-10-27)
+- Tablero «Mi trabajo» como página de inicio: pendientes calculados en el servidor con las mismas reglas de autorización (por ejemplo, nadie ve para autorizar lo que preparó).
+- Permisos configurables por rol, no por usuario: los pasos del flujo (crear, cotizar, autorizar, enviar) siguen fijos y probados; lo configurable es alcance nacional, ver costos internos, descargar el Excel interno y tope de autorización en MXN. Valores iniciales = reglas anteriores, así que nada cambia hasta que el administrador lo decida.
+- Importador: Will eligió Gemini en Vertex AI (mismo proyecto de Google Cloud, cuenta de servicio, sin claves). Dependencia `@google/genai` 2.28.0 (Google, Apache-2.0). A diferencia de la V2, no crea solicitudes ni infiere tipos de cambio: solo propone conceptos para una versión en borrador, que el cotizador revisa y guarda.
+- La subida va como JSON base64 con límite de 4.5 MB solo en esa ruta (resto: 100 kB), para no usar multer (vulnerabilidad abierta en la versión que trae NestJS).
+- Pendiente: registrar resultado con el cliente (ganada/perdida) para que el tablero mida conversión.
+

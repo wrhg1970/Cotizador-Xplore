@@ -32,6 +32,8 @@
 - Costes/márgenes internos no aparecen en PDF comercial.
 - Exportaciones de información financiera quedan auditadas.
 - Acceso de integración es mínimo y por sistema.
+- Permisos por rol configurables (Sprint C) solo por el administrador del sistema y auditados (`role_policy.updated`). El tope de autorización se compara con el total del grupo en MXN; si la cotización no está en MXN y no tiene tipo de cambio a pesos, la autorización con tope se bloquea.
+- Importador con IA: la hoja se procesa en memoria y no se guarda; solo se envía su texto a Vertex AI dentro del proyecto de Google Cloud de EE, con la cuenta de servicio (sin claves). La respuesta de la IA se valida como una edición manual y nunca se guarda sin revisión del cotizador. La bitácora solo registra conteos. Las ligas de Google Sheets se reconstruyen desde el ID (sin SSRF a otros hosts).
 
 ## Incidentes
 Registrar, contener, revocar credenciales, preservar evidencia, evaluar alcance, notificar conforme a obligaciones legales y realizar análisis post-incidente. Definir contactos y tiempos antes de producción.

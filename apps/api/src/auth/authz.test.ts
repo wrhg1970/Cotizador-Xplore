@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { AuthUser } from './auth.types.js';
-import { canGrantRole, hasOfficeRole, officeScope } from './authz.js';
+import {
+  approvalLimitMxn,
+  canExportInternalXlsx,
+  canGrantRole,
+  canSeeInternalCosts,
+  DEFAULT_POLICIES,
+  hasOfficeRole,
+  officeScope,
+  officesWithRole,
+} from './authz.js';
 
 const A = '00000000-0000-4000-8000-00000000000a';
 const B = '00000000-0000-4000-8000-00000000000b';
@@ -27,5 +36,44 @@ describe('authz', () => {
     expect(canGrantRole(oa, A, 'OFFICE_ADMIN')).toBe(false);
     expect(canGrantRole(oa, A, 'SYSTEM_ADMIN')).toBe(false);
     expect(canGrantRole(oa, B, 'QUOTER')).toBe(false);
+  });
+
+  it('defaults keep internal costs on the quoting side of the office', () => {
+    const advisor = user([{ officeId: A, role: 'ADVISOR' }]);
+    const auditor = user([{ officeId: A, role: 'AUDITOR' }]);
+    expect(canSeeInternalCosts(advisor, A)).toBe(false);
+    expect(canSeeInternalCosts(auditor, A)).toBe(true);
+    expect(canSeeInternalCosts(auditor, B)).toBe(false);
+    expect(canExportInternalXlsx(auditor, A)).toBe(true);
+    expect(approvalLimitMxn(user([{ officeId: A, role: 'APPROVER' }]))).toBeNull();
+  });
+
+  it('applies configured policies: national roles, costs, Excel and approval limit', () => {
+    const policies = {
+      ...DEFAULT_POLICIES,
+      AUDITOR: { ...DEFAULT_POLICIES.AUDITOR, allOffices: true, exportInternalXlsx: false },
+      ADVISOR: { ...DEFAULT_POLICIES.ADVISOR, viewInternalCosts: true },
+      APPROVER: { ...DEFAULT_POLICIES.APPROVER, approvalLimitMxn: '500000.00' },
+    };
+    const auditor = { ...user([{ officeId: A, role: 'AUDITOR' }]), policies };
+    expect(officeScope(auditor)).toBe('ALL');
+    expect(hasOfficeRole(auditor, B, ['AUDITOR'])).toBe(true);
+    expect(hasOfficeRole(auditor, B, ['QUOTER'])).toBe(false);
+    expect(canSeeInternalCosts(auditor, B)).toBe(true);
+    expect(canExportInternalXlsx(auditor, B)).toBe(false);
+
+    // A national auditor who is also a local quoter quotes only in their own office.
+    const mixed = {
+      ...user([
+        { officeId: A, role: 'QUOTER' },
+        { officeId: A, role: 'AUDITOR' },
+      ]),
+      policies,
+    };
+    expect(officesWithRole(mixed, ['QUOTER'])).toEqual([A]);
+
+    expect(canSeeInternalCosts({ ...user([{ officeId: A, role: 'ADVISOR' }]), policies }, A)).toBe(true);
+    expect(approvalLimitMxn({ ...user([{ officeId: A, role: 'APPROVER' }]), policies })).toBe('500000.00');
+    expect(approvalLimitMxn({ ...user([{ officeId: A, role: 'SYSTEM_ADMIN' }]), policies })).toBeNull();
   });
 });

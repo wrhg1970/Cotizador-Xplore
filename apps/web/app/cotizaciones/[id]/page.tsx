@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CurrencyCode, LineCategory } from '@ee/contracts';
 import { api, errorText } from '../../lib/api';
 import { PaymentSchedule, ProposalContent } from './ProposalContent';
+import { SheetImport } from './SheetImport';
 import { SheetSummary } from './SheetSummary';
 import {
   CHANNEL_LABEL,
@@ -21,7 +22,7 @@ import {
   type QuoteLineDto,
   type TravelRequestDto,
 } from '../../lib/types';
-import { isOfficeAdmin, useMe } from '../../lib/useMe';
+import { canExportXlsx, isOfficeAdmin, useMe } from '../../lib/useMe';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const blankLine = (
@@ -239,9 +240,11 @@ export default function QuoteEditorPage() {
             </button>
           )}
           {/* Plain link: same-origin download carries the session cookie. */}
-          <a className="button secondary" href={`/api/v1/quotes/${q.id}/export.xlsx`}>
-            Descargar Excel interno
-          </a>
+          {req && canExportXlsx(me, req.office.id) && (
+            <a className="button secondary" href={`/api/v1/quotes/${q.id}/export.xlsx`}>
+              Descargar Excel interno
+            </a>
+          )}
         </div>
         {works && q.status === 'APPROVED' && (
           <form
@@ -320,6 +323,24 @@ export default function QuoteEditorPage() {
           )}
           <PaymentSchedule q={q} />
         </section>
+      )}
+
+      {editable && (
+        <SheetImport
+          quoteId={q.id}
+          onApply={(p, mode) => {
+            set({
+              lines: mode === 'replace' ? p.lines : [...draft.lines, ...p.lines],
+              ...(p.itinerary.length ? { itinerary: p.itinerary } : {}),
+              ...(p.exclusions.length ? { exclusions: p.exclusions } : {}),
+            });
+            if (p.targetMarginRate) {
+              setMarginPct(toPct(p.targetMarginRate));
+              setByPrice(false);
+            }
+            setNotice('Conceptos importados: revísalos y pulsa “Guardar y calcular”.');
+          }}
+        />
       )}
 
       <fieldset disabled={!editable} style={{ border: 0, padding: 0, margin: 0 }}>

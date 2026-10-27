@@ -11,6 +11,7 @@
 - `ConceptTemplate`: catálogo de rubros de la hoja EE (nombre, bloque/categoría, base, interno, cantidad = días del viaje, orden, activo). Los escenarios nuevos copian los rubros base con costo cero; cambiar el catálogo no toca cotizaciones existentes.
 - `QuoteVersion` (Sprint B): `payment_plan` (JSON validado), `students_per_free_place`, `free_place_benefit`, `itinerary` (JSON), `exclusions`. El calendario de pagos se calcula, no se guarda.
 - `QuoteTemplate`: plantilla por oficina con conceptos (JSON), % de comisión, itinerario, «no incluye» y condiciones; sin tipos de cambio ni fechas de pago.
+- `RolePolicy` (Sprint C): permisos configurables por rol (`all_offices`, `view_internal_costs`, `export_internal_xlsx`, `approval_limit_mxn`). Valores iniciales = reglas fijas anteriores; `SYSTEM_ADMIN` no tiene fila (siempre global); el Excel interno exige ver costos (constraint).
 - `QuoteLine`: concepto, cantidad, unidad, coste unitario, moneda, regla de reparto, flags de visibilidad.
 - `FormulaSet`, `FormulaRule`: reglas versionadas, vigencia y definición validada.
 - `Approval`: decisión, aprobador, fecha, comentarios y hash de versión aprobada.

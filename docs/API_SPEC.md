@@ -22,6 +22,9 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `DELETE /quote-templates/{id}` — retira la plantilla (quien la creó o el coordinador)
 - `POST /concept-templates`, `PATCH /concept-templates/{id}` — solo administrador del sistema, con auditoría
 - `GET /users?officeId=...` (solo administradores autorizados)
+- `GET /dashboard` — «Mi trabajo»: pendientes del usuario (`SUBMIT_REQUEST`, `ASSIGN`, `QUOTE`, `FIX_QUOTE`, `APPROVE`, `SEND`) y conteo de solicitudes por oficina y estado, dentro de su alcance (sin borradores ajenos)
+- `GET /role-policies`, `PUT /role-policies/{role}` — permisos por rol (`allOffices`, `viewInternalCosts`, `exportInternalXlsx`, `approvalLimitMxn`); solo administrador del sistema, con auditoría. `SYSTEM_ADMIN` no es editable. `GET /me` incluye `policies`
+- `POST /offices` — alta de oficina (administrador del sistema)
 
 ### Solicitudes
 - `POST /requests`
@@ -41,6 +44,8 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `POST /scenarios/{scenarioId}/versions`
 - `GET /quotes/{quoteVersionId}`
 - `PATCH /quotes/{quoteVersionId}` (solo borrador). Acepta `targetMarginRate` (% de comisión sobre el precio final) o `targetPricePerParticipant` (precio final entero; el servidor deriva el %), nunca ambos. Errores: `PRICE_BELOW_COST`, `PRICE_UNREACHABLE`, `FX_REQUIRED`. También acepta `paymentPlan` (inscripción en % o monto + 1 a 15 parcialidades mensuales/quincenales/semanales), `studentsPerFreePlace`/`freePlaceBenefit`, `itinerary` y `exclusions`; la respuesta trae `paymentSchedule` y `freePlaces` calculados. `POST /requests/{id}/scenarios` acepta `templateId`. La respuesta incluye `sheet` con los subtotales de la hoja EE (fuera del hash de aprobación).
+- `POST /quotes/{quoteVersionId}/import` — lee una hoja de costos con Gemini (Vertex AI) y devuelve conceptos propuestos, % de comisión, itinerario y «no incluye» validados con las mismas reglas que una edición; **no guarda nada**. Cuerpo: `{fileName, fileBase64}` (.xlsx/.csv, 3 MB) o `{sheetUrl}` (Google Sheets público). Solo el cotizador asignado o el coordinador, con versión en borrador o devuelta. Errores: `SHEET_IMPORT` (400), 502 si la IA falla, 503 si no está configurado. Límite: 10 por minuto
+- `GET /quotes/{quoteVersionId}/export.xlsx` — Excel interno; exige el permiso `exportInternalXlsx` del rol
 - `POST /quotes/{quoteVersionId}/calculate`
 - `POST /quotes/{quoteVersionId}/submit-for-approval`
 - `POST /quotes/{quoteVersionId}/approve`

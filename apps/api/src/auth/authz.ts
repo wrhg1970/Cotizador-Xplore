@@ -1,18 +1,77 @@
-import type { RoleName } from '@ee/contracts';
-import type { AuthUser } from './auth.types.js';
+import type { EditableRole, RoleName, RolePolicyInput } from '@ee/contracts';
+import type { AuthUser, OfficeRole } from './auth.types.js';
+
+/** Same values the role_policies migration seeds: the fixed rules from before Sprint C. */
+export const DEFAULT_POLICIES: Record<EditableRole, RolePolicyInput> = {
+  ADVISOR: { allOffices: false, viewInternalCosts: false, exportInternalXlsx: false, approvalLimitMxn: null },
+  QUOTER: { allOffices: false, viewInternalCosts: true, exportInternalXlsx: true, approvalLimitMxn: null },
+  APPROVER: { allOffices: false, viewInternalCosts: true, exportInternalXlsx: true, approvalLimitMxn: null },
+  OFFICE_ADMIN: {
+    allOffices: false,
+    viewInternalCosts: true,
+    exportInternalXlsx: true,
+    approvalLimitMxn: null,
+  },
+  AUDITOR: { allOffices: false, viewInternalCosts: true, exportInternalXlsx: true, approvalLimitMxn: null },
+};
 
 /** SYSTEM_ADMIN in any office is global (PRD F-01); every other role is scoped to its office. */
 export const isSystemAdmin = (user: AuthUser): boolean => user.roles.some((r) => r.role === 'SYSTEM_ADMIN');
 
+const policy = (user: AuthUser, role: EditableRole): RolePolicyInput =>
+  user.policies?.[role] ?? DEFAULT_POLICIES[role];
+
+type Grant = OfficeRole & { role: EditableRole };
+const grants = (user: AuthUser): Grant[] => user.roles.filter((r): r is Grant => r.role !== 'SYSTEM_ADMIN');
+
+/** Grants of the user that act in this office: granted there, or national by policy. */
+const grantsIn = (user: AuthUser, officeId: string): Grant[] =>
+  grants(user).filter((r) => r.officeId === officeId || policy(user, r.role).allOffices);
+
 export const hasOfficeRole = (user: AuthUser, officeId: string, roles: readonly RoleName[]): boolean =>
-  isSystemAdmin(user) || user.roles.some((r) => r.officeId === officeId && roles.includes(r.role));
+  isSystemAdmin(user) || grantsIn(user, officeId).some((r) => roles.includes(r.role));
+
+/** Office ids where the user holds one of the roles, or 'ALL'. */
+export const officesWithRole = (user: AuthUser, roles: readonly RoleName[]): string[] | 'ALL' => {
+  if (isSystemAdmin(user)) return 'ALL';
+  const held = grants(user).filter((r) => roles.includes(r.role));
+  if (held.some((r) => policy(user, r.role).allOffices)) return 'ALL';
+  return [...new Set(held.map((r) => r.officeId))];
+};
 
 /** Office ids the user may read, or 'ALL'. Repositories must filter by this (IDOR/BOLA). */
 export const officeScope = (user: AuthUser): string[] | 'ALL' =>
-  isSystemAdmin(user) ? 'ALL' : [...new Set(user.roles.map((r) => r.officeId))];
+  officesWithRole(
+    user,
+    user.roles.map((r) => r.role),
+  );
+
+/** Internal costs, margins and commissions (PRD §PDF); configurable per role. */
+export const canSeeInternalCosts = (user: AuthUser, officeId: string): boolean =>
+  isSystemAdmin(user) || grantsIn(user, officeId).some((r) => policy(user, r.role).viewInternalCosts);
+
+export const canExportInternalXlsx = (user: AuthUser, officeId: string): boolean =>
+  isSystemAdmin(user) || grantsIn(user, officeId).some((r) => policy(user, r.role).exportInternalXlsx);
+
+/** Highest group price in MXN the user may approve; null = no limit. */
+export const approvalLimitMxn = (user: AuthUser): string | null =>
+  isSystemAdmin(user) ? null : policy(user, 'APPROVER').approvalLimitMxn;
 
 /** Roles an OFFICE_ADMIN may grant inside their own office; admin roles need a SYSTEM_ADMIN. */
 const OFFICE_GRANTABLE: readonly RoleName[] = ['ADVISOR', 'QUOTER', 'APPROVER', 'AUDITOR'];
 
 export const canGrantRole = (user: AuthUser, officeId: string, role: RoleName): boolean =>
   isSystemAdmin(user) || (OFFICE_GRANTABLE.includes(role) && hasOfficeRole(user, officeId, ['OFFICE_ADMIN']));
+
+/** role_policies row → contract shape; amounts travel as strings to keep decimals exact. */
+export const toPolicy = (p: {
+  allOffices: boolean;
+  viewInternalCosts: boolean;
+  exportInternalXlsx: boolean;
+  approvalLimitMxn: { toFixed(dp: number): string } | null;
+}): RolePolicyInput => ({
+  allOffices: p.allOffices,
+  viewInternalCosts: p.viewInternalCosts,
+  exportInternalXlsx: p.exportInternalXlsx,
+  approvalLimitMxn: p.approvalLimitMxn?.toFixed(2) ?? null,
+});
