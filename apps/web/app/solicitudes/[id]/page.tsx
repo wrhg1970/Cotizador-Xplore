@@ -13,7 +13,7 @@ import {
   type TravelRequestDto,
 } from '../../lib/types';
 import { canSeeQuotes, isOfficeAdmin, useMe } from '../../lib/useMe';
-import { Proposals } from '../Proposals';
+import { type ProposalRow, Proposals } from '../Proposals';
 import { Scenarios } from '../Scenarios';
 
 interface Timeline {
@@ -31,6 +31,7 @@ export default function RequestDetailPage() {
   const [r, setR] = useState<TravelRequestDto | null>(null);
   const [tl, setTl] = useState<Timeline | null>(null);
   const [quoters, setQuoters] = useState<Quoter[]>([]);
+  const [proposals, setProposals] = useState<ProposalRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -55,6 +56,11 @@ export default function RequestDetailPage() {
   useEffect(() => {
     if (admin && r) api<Quoter[]>(`/offices/${r.office.id}/quoters`).then(setQuoters, () => undefined);
   }, [admin, r]);
+
+  const answered = r?.status === 'SENT' || r?.status === 'WON';
+  useEffect(() => {
+    if (answered) api<ProposalRow[]>(`/requests/${id}/proposals`).then(setProposals, () => undefined);
+  }, [answered, id]);
 
   async function act(path: string, body: object) {
     if (!r) return;
@@ -97,6 +103,9 @@ export default function RequestDetailPage() {
   const canSubmit = r.status === 'DRAFT' && (isRequester || admin);
   const canAssign = admin && (r.status === 'SUBMITTED' || r.status === 'QUOTING');
   const canCancel = admin && !['WON', 'LOST', 'CANCELLED'].includes(r.status);
+  const canRecordOutcome = r.status === 'SENT' && (admin || me?.id === r.assignee?.id);
+  const sent = proposals.filter((p) => p.sent);
+  const winner = proposals.find((p) => p.versionId === r.wonVersionId);
 
   return (
     <>
@@ -149,6 +158,50 @@ export default function RequestDetailPage() {
               </select>
             </label>
             <button disabled={busy}>{r.assignee ? 'Reasignar' : 'Asignar'}</button>
+          </form>
+        )}
+        {canRecordOutcome && (
+          <form
+            className="row"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void act('outcome', {
+                outcome: 'WON',
+                versionId: String(new FormData(e.currentTarget).get('versionId')),
+              });
+            }}
+          >
+            <label>
+              Propuesta aceptada
+              {/* Remount once proposals load so the single sent option is preselected. */}
+              <select
+                key={sent.length}
+                name="versionId"
+                required
+                defaultValue={sent.length === 1 ? sent[0]!.versionId : ''}
+              >
+                <option value="" disabled>
+                  Selecciona…
+                </option>
+                {sent.map((p) => (
+                  <option key={p.versionId} value={p.versionId}>
+                    {p.scenarioName} · v{p.number}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button disabled={busy}>Ganada</button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy}
+              onClick={() => {
+                const reason = window.prompt('¿Por qué no aceptó el cliente? (obligatorio)')?.trim();
+                if (reason) void act('outcome', { outcome: 'LOST', reason });
+              }}
+            >
+              Perdida
+            </button>
           </form>
         )}
         {canCancel && (
@@ -206,6 +259,18 @@ export default function RequestDetailPage() {
           <dd>{PRIORITY_LABEL[r.priority]}</dd>
           <dt>Fecha límite</dt>
           <dd>{fmtDate(r.dueDate)}</dd>
+          {r.status === 'WON' && (
+            <>
+              <dt>Propuesta ganadora</dt>
+              <dd>{winner ? `${winner.scenarioName} · v${winner.number}` : 'Registrada'}</dd>
+            </>
+          )}
+          {r.lostReason && (
+            <>
+              <dt>Motivo (perdida)</dt>
+              <dd>{r.lostReason}</dd>
+            </>
+          )}
           {r.cancelReason && (
             <>
               <dt>Motivo de cancelación</dt>

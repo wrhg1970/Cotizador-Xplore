@@ -32,7 +32,7 @@ test('"Mi trabajo" lists what is waiting on the user and links to it', async ({ 
   const row = page.getByRole('row').filter({ hasText: folio });
   await expect(row).toContainText('Tablero Roma 2027');
   await expect(page.getByRole('row', { name: `${office.code} · Oficina E2E` })).toHaveText(
-    `${office.code} · Oficina E2E0010000`,
+    `${office.code} · Oficina E2E0010000—`,
   );
   await row.getByRole('link', { name: 'Cotizar' }).click();
   await expect(page).toHaveURL(new RegExp(`/solicitudes/${req.id}$`));

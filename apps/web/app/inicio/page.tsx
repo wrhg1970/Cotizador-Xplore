@@ -6,7 +6,7 @@ import { api, errorText } from '../lib/api';
 import type { RequestStatus } from '@ee/contracts';
 import { fmtDate, STATUS_LABEL } from '../lib/types';
 
-type TaskKind = 'SUBMIT_REQUEST' | 'ASSIGN' | 'QUOTE' | 'FIX_QUOTE' | 'APPROVE' | 'SEND';
+type TaskKind = 'SUBMIT_REQUEST' | 'ASSIGN' | 'QUOTE' | 'FIX_QUOTE' | 'APPROVE' | 'SEND' | 'RECORD_OUTCOME';
 
 interface Dashboard {
   tasks: {
@@ -30,10 +30,18 @@ const TASK_LABEL: Record<TaskKind, string> = {
   FIX_QUOTE: 'Corregir cotización devuelta',
   APPROVE: 'Autorizar cotización',
   SEND: 'Enviar propuesta al cliente',
+  RECORD_OUTCOME: 'Registrar respuesta del cliente',
 };
 
 // Pipeline order of the EE process; closed states go last.
 const STATUSES: RequestStatus[] = ['DRAFT', 'SUBMITTED', 'QUOTING', 'SENT', 'WON', 'LOST', 'CANCELLED'];
+
+/** Won ÷ (won + lost): only proposals the client already answered count. */
+const conversion = (s: Partial<Record<RequestStatus, number>>) => {
+  const won = s.WON ?? 0;
+  const answered = won + (s.LOST ?? 0);
+  return answered ? `${Math.round((won / answered) * 100)}%` : '—';
+};
 
 export default function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
@@ -114,6 +122,7 @@ export default function DashboardPage() {
                         {STATUS_LABEL[s]}
                       </th>
                     ))}
+                    <th className="num">Conversión</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -131,6 +140,7 @@ export default function DashboardPage() {
                           )}
                         </td>
                       ))}
+                      <td className="num">{conversion(o.byStatus)}</td>
                     </tr>
                   ))}
                 </tbody>

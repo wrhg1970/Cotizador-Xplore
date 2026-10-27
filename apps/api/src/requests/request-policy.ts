@@ -40,6 +40,10 @@ export const canAssign = (u: AuthUser, r: RequestRef): boolean =>
 export const canCancel = (u: AuthUser, r: RequestRef): boolean =>
   !CLOSED.includes(r.status) && isOfficeAdmin(u, r);
 
+/** The client's answer is recorded by whoever sends proposals: the assignee or the office admin. */
+export const canRecordOutcome = (u: AuthUser, r: RequestRef): boolean =>
+  r.status === 'SENT' && (r.assigneeId === u.id || isOfficeAdmin(u, r));
+
 /** Quotes carry internal costs: only roles allowed by policy see them (US-070, PRD §PDF). */
 export const canViewQuotes = (u: AuthUser, r: RequestRef): boolean =>
   r.status !== 'DRAFT' && canSeeInternalCosts(u, r.officeId);

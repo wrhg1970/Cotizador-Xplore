@@ -21,6 +21,7 @@ import {
   CreateComment,
   CreateRequest,
   ListRequestsQuery,
+  RecordOutcome,
   UpdateRequest,
   VersionOnly,
   type Budget,
@@ -34,7 +35,15 @@ import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { ZodPipe } from '../zod.pipe.js';
 import { FOLIO_PATTERN, newFolio } from './folio.js';
-import { canAssign, canCancel, canCreateIn, canEdit, canSubmit, canView } from './request-policy.js';
+import {
+  canAssign,
+  canCancel,
+  canCreateIn,
+  canEdit,
+  canRecordOutcome,
+  canSubmit,
+  canView,
+} from './request-policy.js';
 
 type Tx = Prisma.TransactionClient;
 type Row = TravelRequest & {
@@ -80,6 +89,9 @@ function toDto(r: Row) {
     priority: r.priority,
     dueDate: day(r.dueDate),
     cancelReason: r.cancelReason,
+    wonVersionId: r.wonVersionId,
+    lostReason: r.lostReason,
+    closedAt: r.closedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   };
@@ -317,6 +329,38 @@ export class RequestsController {
       cancelReason: body.reason,
       auditDiff: { reason: body.reason },
     }));
+  }
+
+  /** PRD F-06: one winner per request (unique column), and it must be a version actually sent to the client. */
+  @Post(':id/outcome')
+  async outcome(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(RecordOutcome)) body: z.infer<typeof RecordOutcome>,
+  ) {
+    const action = body.outcome === 'WON' ? 'request.won' : 'request.lost';
+    return this.transition(user, req, id, body.version, canRecordOutcome, action, async (tx, row) => {
+      if (body.outcome === 'LOST')
+        return {
+          status: 'LOST',
+          lostReason: body.reason,
+          closedAt: new Date(),
+          auditDiff: { reason: body.reason },
+        };
+      const v = await tx.quoteVersion.findFirst({
+        where: { id: body.versionId, status: 'SENT', scenario: { requestId: row.id } },
+        select: { id: true, number: true, scenario: { select: { name: true } } },
+      });
+      if (!v)
+        throw new BadRequestException('La propuesta ganadora debe ser una versión enviada de esta solicitud');
+      return {
+        status: 'WON',
+        wonVersionId: v.id,
+        closedAt: new Date(),
+        auditDiff: { versionId: v.id, proposal: `${v.scenario.name} · v${v.number}` },
+      };
+    });
   }
 
   private transition(

@@ -6,7 +6,8 @@ import { officeScope, officesWithRole } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 
-export type TaskKind = 'SUBMIT_REQUEST' | 'ASSIGN' | 'QUOTE' | 'FIX_QUOTE' | 'APPROVE' | 'SEND';
+export type TaskKind =
+  'SUBMIT_REQUEST' | 'ASSIGN' | 'QUOTE' | 'FIX_QUOTE' | 'APPROVE' | 'SEND' | 'RECORD_OUTCOME';
 
 export interface DashboardTask {
   kind: TaskKind;
@@ -84,7 +85,7 @@ export class DashboardController {
           scenario: { select: { name: true, request: { select: requestSelect } } },
         },
       });
-    const [drafts, toAssign, toQuote, returned, toApprove, toSend] = await Promise.all([
+    const [drafts, toAssign, toQuote, returned, toApprove, toSend, awaitingClient] = await Promise.all([
       findRequests({ status: 'DRAFT', requesterId: me }),
       findRequests({ status: 'SUBMITTED', assigneeId: null, ...officesWith(user, ['OFFICE_ADMIN']) }),
       // Once a version is in review, approved or returned, the request shows up under that step instead.
@@ -117,6 +118,8 @@ export class DashboardController {
           request: { status: 'QUOTING', OR: [{ assigneeId: me }, officesWith(user, ['OFFICE_ADMIN'])] },
         },
       }),
+      // Same rule as canRecordOutcome: sent proposals waiting for the client's answer.
+      findRequests({ status: 'SENT', OR: [{ assigneeId: me }, officesWith(user, ['OFFICE_ADMIN'])] }),
     ]);
     const fromQuotes = (kind: TaskKind, qs: typeof returned) =>
       qs.map((q) => task(kind, q.scenario.request, q));
@@ -127,6 +130,7 @@ export class DashboardController {
       ...fromQuotes('FIX_QUOTE', returned),
       ...fromQuotes('APPROVE', toApprove),
       ...fromQuotes('SEND', toSend),
+      ...awaitingClient.map((r) => task('RECORD_OUTCOME', r)),
     ];
   }
 
