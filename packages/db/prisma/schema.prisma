@@ -175,6 +175,9 @@ model TravelRequest {
   lostReason     String?          @map("lost_reason")
   /// When the outcome (WON/LOST) was recorded.
   closedAt       DateTime?        @map("closed_at") @db.Timestamptz(3)
+  /// WeTravel payment link created from the winning version (uuid and checkout URL from their API).
+  wetravelLinkId String?          @unique @map("wetravel_link_id")
+  wetravelUrl    String?          @map("wetravel_url")
   /// Optimistic concurrency (US-142).
   version        Int              @default(1)
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)

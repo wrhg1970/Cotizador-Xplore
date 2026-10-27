@@ -6,6 +6,8 @@
 # Uso: PROJECT_ID=... ALLOWED_GOOGLE_DOMAINS=a.com,b.com infra/gcp/deploy.sh
 # Avisos por correo (opcional): agregar SMTP_USER=cuenta@dominio en cada despliegue;
 # la primera vez pide la contraseña de aplicación de esa cuenta. Sin SMTP_USER quedan apagados.
+# WeTravel (opcional): la primera vez correr con WETRAVEL=1 para guardar la llave de la Partner API;
+# después se conecta sola mientras exista el secreto. WETRAVEL_API_URL apunta al sandbox si se quiere.
 set -euo pipefail
 
 : "${PROJECT_ID:?Falta PROJECT_ID}"
@@ -108,13 +110,24 @@ if [[ -n "${SMTP_USER:-}" ]]; then
   MAIL_SECRETS=",SMTP_PASSWORD=cotizador-smtp-password:latest"
 fi
 
+WT_ENV=""
+WT_SECRETS=""
+if [[ -n "${WETRAVEL:-}" ]] && ! exists gcloud secrets describe cotizador-wetravel-api-key; then
+  read -rsp "Llave de la Partner API de WeTravel (no se muestra): " WETRAVEL_API_KEY && echo
+  printf '%s' "$WETRAVEL_API_KEY" | secret cotizador-wetravel-api-key
+fi
+if exists gcloud secrets describe cotizador-wetravel-api-key; then
+  WT_ENV="|WETRAVEL_API_URL=${WETRAVEL_API_URL:-https://api.wetravel.com/v3}"
+  WT_SECRETS=",WETRAVEL_API_KEY=cotizador-wetravel-api-key:latest"
+fi
+
 echo "== API"
 # shortcut: la API queda pública para que web la alcance sin tokens de servicio;
 # las rutas ya exigen sesión. Pasar a ingress interno + VPC cuando haya más tráfico.
 gcloud run deploy cotizador-api --image="$REPO/api:$TAG" --region="$REGION" --port=4000 \
   --allow-unauthenticated --add-cloudsql-instances="$CONN" \
-  --set-env-vars="^|^NODE_ENV=production|API_PUBLIC_URL=$PUBLIC_URL|WEB_ORIGIN=$PUBLIC_URL|ALLOWED_GOOGLE_DOMAINS=$ALLOWED_GOOGLE_DOMAINS|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|VERTEX_PROJECT=$PROJECT_ID$MAIL_ENV" \
-  --set-secrets=DATABASE_URL=cotizador-database-url:latest,SESSION_SECRET=cotizador-session-secret:latest,GOOGLE_CLIENT_SECRET=cotizador-google-client-secret:latest$MAIL_SECRETS
+  --set-env-vars="^|^NODE_ENV=production|API_PUBLIC_URL=$PUBLIC_URL|WEB_ORIGIN=$PUBLIC_URL|ALLOWED_GOOGLE_DOMAINS=$ALLOWED_GOOGLE_DOMAINS|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|VERTEX_PROJECT=$PROJECT_ID$MAIL_ENV$WT_ENV" \
+  --set-secrets=DATABASE_URL=cotizador-database-url:latest,SESSION_SECRET=cotizador-session-secret:latest,GOOGLE_CLIENT_SECRET=cotizador-google-client-secret:latest$MAIL_SECRETS$WT_SECRETS
 
 echo "== Web"
 gcloud run deploy cotizador-web --image="$REPO/web:$TAG" --region="$REGION" --port=3000 \

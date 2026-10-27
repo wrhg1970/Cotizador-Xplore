@@ -53,6 +53,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `POST /quotes/{quoteVersionId}/approve`
 - `POST /quotes/{quoteVersionId}/return`
 - `POST /quotes/{quoteVersionId}/send`
+- `POST /quotes/{quoteVersionId}/wetravel` — crea en WeTravel la liga de pago de la propuesta ganadora (solicitud `WON` y esta versión como ganadora). Solo el cotizador asignado o el coordinador. Responde `{wetravelUrl}`; `GET /requests/{id}` trae `wetravelUrl`. Errores: 403 si no es la ganadora, 409 `WETRAVEL_EXISTS` si ya hay liga, 400 si la cotización tiene avisos, 502 si WeTravel falla, 503 sin `WETRAVEL_API_KEY`
 - `POST /quotes/{quoteVersionId}/documents`
 - `GET /quotes/{quoteVersionId}/documents`
 

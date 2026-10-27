@@ -52,6 +52,13 @@ const Env = z.object({
     .string()
     .optional()
     .transform((v) => v || undefined),
+  // WeTravel Partner API key (refresh token, from Secret Manager); payment links are off when unset.
+  WETRAVEL_API_KEY: z
+    .string()
+    .optional()
+    .transform((v) => v || undefined),
+  /** Sandbox: https://api.demo.wetravel.to/v3 */
+  WETRAVEL_API_URL: z.url().default('https://api.wetravel.com/v3'),
 });
 export type Env = z.infer<typeof Env>;
 export const ENV = Symbol('ENV');

@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   BadRequestException,
   Body,
   ConflictException,
@@ -13,6 +14,7 @@ import {
   Post,
   Req,
   Res,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import {
@@ -57,6 +59,7 @@ import { approvalLimitMxn, canExportInternalXlsx, hasOfficeRole } from '../auth/
 import { canView, canViewQuotes, canWorkQuotes, type RequestRef } from '../requests/request-policy.js';
 import { ZodPipe } from '../zod.pipe.js';
 import { quoteWorkbook } from './quote-xlsx.js';
+import { paymentLinkBody, type WeTravel, WETRAVEL, WeTravelError } from '../integrations/wetravel.js';
 
 type Tx = Prisma.TransactionClient;
 type FullVersion = QuoteVersion & {
@@ -306,6 +309,7 @@ export class QuotesController {
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     private readonly notifier: Notifier,
+    @Inject(WETRAVEL) private readonly wetravel: WeTravel | null,
   ) {}
 
   /** Loads the request behind a quote; anything the user may not see is a 404 (US-004). */
@@ -817,6 +821,66 @@ export class QuotesController {
           });
         },
       };
+    });
+  }
+
+  /**
+   * Publishes the winning proposal as a WeTravel payment link (price and payment plan per participant).
+   * One link per request: a second call returns 409 with the existing URL.
+   */
+  @Post('quotes/:id/wetravel')
+  async wetravelLink(@CurrentUser() user: AuthUser, @Req() req: Request, @Param('id', uuid) id: string) {
+    const v = await this.prisma.quoteVersion.findUnique({ where: { id }, include: full });
+    if (!v) throw new NotFoundException('Cotización no encontrada');
+    const ref = await this.request(this.prisma, v.scenario.requestId, user);
+    const r = await this.prisma.travelRequest.findUniqueOrThrow({ where: { id: ref.id } });
+    if (!(r.assigneeId === user.id || hasOfficeRole(user, r.officeId, ['OFFICE_ADMIN'])))
+      throw new ForbiddenException('Solo el cotizador asignado o el coordinador');
+    if (r.status !== 'WON' || r.wonVersionId !== v.id)
+      throw new ForbiddenException('Solo la propuesta ganadora se publica en WeTravel');
+    if (r.wetravelUrl)
+      throw new ConflictException({
+        code: 'WETRAVEL_EXISTS',
+        message: `Ya existe la liga: ${r.wetravelUrl}`,
+      });
+    if (!this.wetravel) throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
+    const dto = toDto(v);
+    if (!dto.totals || dto.warnings.length)
+      throw new BadRequestException('La cotización tiene avisos pendientes (tipo de cambio o plan de pagos)');
+    let link;
+    try {
+      link = await this.wetravel.createPaymentLink(
+        paymentLinkBody({
+          folio: r.folio,
+          groupName: r.groupName,
+          departureDate: day(r.departureDate)!,
+          returnDate: day(r.returnDate)!,
+          currency: v.saleCurrency,
+          price: dto.totals.pricePerParticipant,
+          schedule: dto.paymentSchedule,
+        }),
+      );
+    } catch (e) {
+      if (!(e instanceof WeTravelError)) throw e;
+      if (e.status === 400) throw new BadRequestException(e.message);
+      throw new BadGatewayException(e.message);
+    }
+    return this.prisma.$transaction(async (tx) => {
+      // shortcut: two simultaneous clicks can each create a link in WeTravel; only the first is kept here.
+      const { count } = await tx.travelRequest.updateMany({
+        where: { id: r.id, wetravelLinkId: null },
+        data: { wetravelLinkId: link.uuid, wetravelUrl: link.checkoutUrl },
+      });
+      if (!count) throw new ConflictException({ code: 'WETRAVEL_EXISTS', message: 'Ya existe la liga' });
+      await audit(tx, {
+        actorUserId: user.id,
+        action: 'request.wetravel_link',
+        entityType: 'TravelRequest',
+        entityId: r.id,
+        correlationId: req.correlationId,
+        diff: { versionId: v.id, wetravelLinkId: link.uuid },
+      });
+      return { wetravelUrl: link.checkoutUrl };
     });
   }
 
