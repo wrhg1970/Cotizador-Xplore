@@ -8,6 +8,7 @@ import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
 import { AppModule } from './app.module.js';
 import type { OidcProvider } from './auth/oidc.js';
+import type { Mailer } from './notify/notifier.js';
 import type { SheetReader } from './quotes/sheet-import.js';
 import type { Env } from './env.js';
 import { HttpExceptionFilter } from './http-exception.filter.js';
@@ -20,8 +21,9 @@ export async function createApp(
   env: Env,
   oidc?: OidcProvider,
   reader?: SheetReader,
+  mailer?: Mailer,
 ): Promise<INestApplication> {
-  const app = await NestFactory.create(AppModule.forRoot(env, oidc, reader), {
+  const app = await NestFactory.create(AppModule.forRoot(env, oidc, reader, mailer), {
     logger: env.NODE_ENV === 'test' ? false : undefined,
     bodyParser: false,
   });

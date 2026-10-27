@@ -51,6 +51,7 @@ import type { z } from 'zod';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
 import { CurrentUser } from '../auth/session.guard.js';
+import { Notifier } from '../notify/notifier.js';
 import { PRISMA } from '../prisma.service.js';
 import { approvalLimitMxn, canExportInternalXlsx, hasOfficeRole } from '../auth/authz.js';
 import { canView, canViewQuotes, canWorkQuotes, type RequestRef } from '../requests/request-policy.js';
@@ -302,7 +303,10 @@ async function copyVersion(tx: Tx, src: FullVersion, scenarioId: string, number:
 
 @Controller()
 export class QuotesController {
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    private readonly notifier: Notifier,
+  ) {}
 
   /** Loads the request behind a quote; anything the user may not see is a 404 (US-004). */
   private async request(
@@ -713,13 +717,13 @@ export class QuotesController {
 
   /** US-045, US-051: only a complete, priced version with a validity date goes to review. */
   @Post('quotes/:id/submit')
-  submit(
+  async submit(
     @CurrentUser() user: AuthUser,
     @Req() req: Request,
     @Param('id', uuid) id: string,
     @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
   ) {
-    return this.review(user, req, id, body.rowVersion, 'quote.submitted_for_approval', (v, r) => {
+    const dto = await this.review(user, req, id, body.rowVersion, 'quote.submitted_for_approval', (v, r) => {
       this.assertWork(user, r);
       if (!(EDITABLE as readonly string[]).includes(v.status))
         throw new ForbiddenException('Solo se envían a autorización versiones en borrador o devueltas');
@@ -738,35 +742,41 @@ export class QuotesController {
         });
       return { status: 'IN_REVIEW' };
     });
+    void this.notifier.notify({ kind: 'REVIEW_REQUESTED', versionId: id }, user.id);
+    return dto;
   }
 
   /** US-071, US-073: an office approver who neither built nor quotes this version. */
   @Post('quotes/:id/approve')
-  approve(
+  async approve(
     @CurrentUser() user: AuthUser,
     @Req() req: Request,
     @Param('id', uuid) id: string,
     @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
   ) {
-    return this.review(user, req, id, body.rowVersion, 'quote.approved', (v, r) => {
+    const dto = await this.review(user, req, id, body.rowVersion, 'quote.approved', (v, r) => {
       this.assertReviewer(user, v, r);
       this.assertWithinLimit(user, v);
       return { status: 'APPROVED', decision: 'APPROVED', comment: body.comment };
     });
+    void this.notifier.notify({ kind: 'APPROVED', versionId: id }, user.id);
+    return dto;
   }
 
   /** US-072: back to the quoter with a mandatory reason. */
   @Post('quotes/:id/return')
-  returnForChanges(
+  async returnForChanges(
     @CurrentUser() user: AuthUser,
     @Req() req: Request,
     @Param('id', uuid) id: string,
     @Body(new ZodPipe(ReturnQuote)) body: z.infer<typeof ReturnQuote>,
   ) {
-    return this.review(user, req, id, body.rowVersion, 'quote.rejected_for_changes', (v, r) => {
+    const dto = await this.review(user, req, id, body.rowVersion, 'quote.rejected_for_changes', (v, r) => {
       this.assertReviewer(user, v, r);
       return { status: 'RETURNED', decision: 'RETURNED', comment: body.comment };
     });
+    void this.notifier.notify({ kind: 'RETURNED', versionId: id }, user.id);
+    return dto;
   }
 
   /** US-074, US-075: records the manual send; refused unless the approved calculation is unchanged. */
