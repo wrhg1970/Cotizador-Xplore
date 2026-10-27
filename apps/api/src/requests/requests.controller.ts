@@ -29,7 +29,7 @@ import { Prisma, type PrismaClient, type TravelRequest } from '@ee/db';
 import type { z } from 'zod';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
-import { hasOfficeRole, officeScope } from '../auth/authz.js';
+import { hasOfficeRole, officeScope, officesWithRole } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { ZodPipe } from '../zod.pipe.js';
@@ -190,7 +190,7 @@ export class RequestsController {
     @Query(new ZodPipe(ListRequestsQuery)) q: z.infer<typeof ListRequestsQuery>,
   ) {
     const scope = officeScope(user);
-    const adminOffices = user.roles.filter((r) => r.role === 'OFFICE_ADMIN').map((r) => r.officeId);
+    const adminOffices = officesWithRole(user, ['OFFICE_ADMIN']);
     const where: Prisma.TravelRequestWhereInput = {
       AND: [
         scope === 'ALL' ? {} : { officeId: { in: scope } },
@@ -200,7 +200,7 @@ export class RequestsController {
               OR: [
                 { status: { not: 'DRAFT' } },
                 { requesterId: user.id },
-                { officeId: { in: adminOffices } },
+                adminOffices === 'ALL' ? {} : { officeId: { in: adminOffices } },
               ],
             },
         q.officeId ? { officeId: q.officeId } : {},

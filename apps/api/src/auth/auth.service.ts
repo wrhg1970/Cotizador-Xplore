@@ -5,6 +5,7 @@ import { audit } from '../audit.js';
 import { ENV, type Env } from '../env.js';
 import { PRISMA } from '../prisma.service.js';
 import type { AuthUser } from './auth.types.js';
+import { toPolicy } from './authz.js';
 import type { IdClaims } from './oidc.js';
 
 export const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
@@ -92,6 +93,7 @@ export class AuthService {
     });
     if (!session || session.expiresAt <= new Date() || session.user.status !== 'ACTIVE') return null;
     const { user } = session;
+    const policies = await this.prisma.rolePolicy.findMany();
     return {
       id: user.id,
       email: user.email,
@@ -99,6 +101,7 @@ export class AuthService {
       roles: user.officeRoles
         .filter((r) => r.office.active)
         .map((r) => ({ officeId: r.officeId, role: r.role })),
+      policies: Object.fromEntries(policies.map((p) => [p.role, toPolicy(p)])),
     };
   }
 

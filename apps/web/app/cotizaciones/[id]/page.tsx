@@ -21,7 +21,7 @@ import {
   type QuoteLineDto,
   type TravelRequestDto,
 } from '../../lib/types';
-import { isOfficeAdmin, useMe } from '../../lib/useMe';
+import { canExportXlsx, isOfficeAdmin, useMe } from '../../lib/useMe';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const blankLine = (
@@ -239,9 +239,11 @@ export default function QuoteEditorPage() {
             </button>
           )}
           {/* Plain link: same-origin download carries the session cookie. */}
-          <a className="button secondary" href={`/api/v1/quotes/${q.id}/export.xlsx`}>
-            Descargar Excel interno
-          </a>
+          {req && canExportXlsx(me, req.office.id) && (
+            <a className="button secondary" href={`/api/v1/quotes/${q.id}/export.xlsx`}>
+              Descargar Excel interno
+            </a>
+          )}
         </div>
         {works && q.status === 'APPROVED' && (
           <form

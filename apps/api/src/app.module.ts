@@ -14,6 +14,7 @@ import { OfficeQuotersController, RequestsController } from './requests/requests
 import { QuotesController } from './quotes/quotes.controller.js';
 import { QuoteTemplatesController } from './quotes/templates.controller.js';
 import { DashboardController } from './dashboard/dashboard.controller.js';
+import { RolePoliciesController } from './auth/role-policies.controller.js';
 import { UsersController } from './users/users.controller.js';
 
 @Module({})
@@ -49,6 +50,7 @@ export class AppModule {
         QuotesController,
         QuoteTemplatesController,
         DashboardController,
+        RolePoliciesController,
       ],
       providers: [
         { provide: ENV, useValue: env },

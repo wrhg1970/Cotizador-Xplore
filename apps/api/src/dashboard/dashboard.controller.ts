@@ -2,7 +2,7 @@ import { Controller, Get, Inject } from '@nestjs/common';
 import type { RoleName } from '@ee/contracts';
 import type { Prisma, PrismaClient } from '@ee/db';
 import type { AuthUser } from '../auth/auth.types.js';
-import { isSystemAdmin, officeScope } from '../auth/authz.js';
+import { officeScope, officesWithRole } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 
@@ -20,11 +20,10 @@ export interface DashboardTask {
   quoteLabel: string | null;
 }
 
-/** Offices where the user holds one of the roles; SYSTEM_ADMIN counts everywhere (authz.hasOfficeRole). */
-const officesWith = (user: AuthUser, roles: readonly RoleName[]): Prisma.TravelRequestWhereInput =>
-  isSystemAdmin(user)
-    ? {}
-    : { officeId: { in: user.roles.filter((r) => roles.includes(r.role)).map((r) => r.officeId) } };
+const officesWith = (user: AuthUser, roles: readonly RoleName[]): Prisma.TravelRequestWhereInput => {
+  const ids = officesWithRole(user, roles);
+  return ids === 'ALL' ? {} : { officeId: { in: ids } };
+};
 
 const requestSelect = {
   id: true,

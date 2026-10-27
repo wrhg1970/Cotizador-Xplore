@@ -32,6 +32,9 @@ export function Shell({ children }: { children: ReactNode }) {
               ['QUOTER', 'APPROVER', 'OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'].includes(r.role),
             ) && <Link href="/plantillas">Plantillas</Link>}
             {me?.roles.some((r) => r.role === 'SYSTEM_ADMIN') && <Link href="/rubros">Rubros</Link>}
+            {me?.roles.some((r) => r.role === 'SYSTEM_ADMIN') && (
+              <Link href="/administracion">Administración</Link>
+            )}
           </nav>
           <div className="row">
             {me && <span className="muted">{me.name}</span>}

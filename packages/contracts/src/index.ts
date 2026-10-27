@@ -44,11 +44,35 @@ export type OfficeRoleInput = z.infer<typeof OfficeRoleInput>;
 export const InviteUser = z.strictObject({ email: Email, name: Name, officeId: z.uuid(), role: RoleName });
 export type InviteUser = z.infer<typeof InviteUser>;
 
+/** What each role may do beyond its fixed workflow steps; SYSTEM_ADMIN always has everything. */
+export const RolePolicyInput = z
+  .strictObject({
+    /** Acts in every office, not only where it was granted (e.g. a national auditor). */
+    allOffices: z.boolean(),
+    /** Sees quotes with internal costs, margins and commissions. */
+    viewInternalCosts: z.boolean(),
+    /** Downloads the internal Excel; requires viewInternalCosts. */
+    exportInternalXlsx: z.boolean(),
+    /** Highest group price in MXN this role may approve; null = no limit. */
+    approvalLimitMxn: z
+      .string()
+      .regex(/^\d{1,12}(\.\d{1,2})?$/, 'Monto en pesos, hasta 2 decimales')
+      .nullable(),
+  })
+  .refine((p) => p.viewInternalCosts || !p.exportInternalXlsx, {
+    message: 'Para exportar el Excel interno hay que poder ver costos internos',
+    path: ['exportInternalXlsx'],
+  });
+export type RolePolicyInput = z.infer<typeof RolePolicyInput>;
+export const EditableRole = RoleName.exclude(['SYSTEM_ADMIN']);
+export type EditableRole = z.infer<typeof EditableRole>;
+
 export const Me = z.object({
   id: z.uuid(),
   email: z.string(),
   name: z.string(),
   roles: z.array(z.object({ officeId: z.uuid(), role: RoleName })),
+  policies: z.partialRecord(EditableRole, RolePolicyInput).optional(),
 });
 export type Me = z.infer<typeof Me>;
 

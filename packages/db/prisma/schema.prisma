@@ -23,25 +23,40 @@ enum Role {
   AUDITOR
 }
 
+/// Configurable permissions per role (contracts RolePolicyInput); SYSTEM_ADMIN has no row and is always global.
+model RolePolicy {
+  role               Role     @id
+  allOffices         Boolean  @default(false) @map("all_offices")
+  viewInternalCosts  Boolean  @default(false) @map("view_internal_costs")
+  exportInternalXlsx Boolean  @default(false) @map("export_internal_xlsx")
+  approvalLimitMxn   Decimal? @map("approval_limit_mxn") @db.Decimal(14, 2)
+  updatedById        String?  @map("updated_by_id") @db.Uuid
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedBy          User?    @relation(fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@map("role_policies")
+}
+
 model User {
-  id          String             @id @default(uuid()) @db.Uuid
-  email       String             @unique
-  googleSub   String?            @unique @map("google_sub")
-  name        String
-  status      UserStatus         @default(INVITED)
-  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
-  officeRoles UserOfficeRole[]
-  sessions    Session[]
-  requested   TravelRequest[]    @relation("requester")
-  assigned    TravelRequest[]    @relation("assignee")
-  comments    RequestComment[]
-  scenarios   QuoteScenario[]
-  versions    QuoteVersion[]
-  templates   QuoteTemplate[]
-  fxRates     QuoteFxRate[]
-  reviews     QuoteReview[]
-  deliveries  ProposalDelivery[]
+  id           String             @id @default(uuid()) @db.Uuid
+  email        String             @unique
+  googleSub    String?            @unique @map("google_sub")
+  name         String
+  status       UserStatus         @default(INVITED)
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  officeRoles  UserOfficeRole[]
+  sessions     Session[]
+  requested    TravelRequest[]    @relation("requester")
+  assigned     TravelRequest[]    @relation("assignee")
+  comments     RequestComment[]
+  scenarios    QuoteScenario[]
+  versions     QuoteVersion[]
+  templates    QuoteTemplate[]
+  fxRates      QuoteFxRate[]
+  reviews      QuoteReview[]
+  deliveries   ProposalDelivery[]
+  rolePolicies RolePolicy[]
 
   @@map("users")
 }

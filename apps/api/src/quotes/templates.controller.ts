@@ -18,7 +18,7 @@ import { Prisma, type PrismaClient } from '@ee/db';
 import type { z } from 'zod';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
-import { hasOfficeRole } from '../auth/authz.js';
+import { canSeeInternalCosts, hasOfficeRole } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { canViewQuotes } from '../requests/request-policy.js';
@@ -26,7 +26,6 @@ import { ZodPipe } from '../zod.pipe.js';
 
 const uuid = new ParseUUIDPipe({ version: '4' });
 // Templates hold internal costs: same audience as quotes; the quoting side builds them.
-const READERS = ['QUOTER', 'APPROVER', 'OFFICE_ADMIN', 'AUDITOR'] as const;
 const WRITERS = ['QUOTER', 'OFFICE_ADMIN'] as const;
 
 /** Office templates: save a version's lines and proposal content to start new scenarios from. */
@@ -36,7 +35,7 @@ export class QuoteTemplatesController {
 
   @Get('offices/:officeId/quote-templates')
   list(@CurrentUser() user: AuthUser, @Param('officeId', uuid) officeId: string) {
-    if (!hasOfficeRole(user, officeId, READERS)) throw new NotFoundException();
+    if (!canSeeInternalCosts(user, officeId)) throw new NotFoundException();
     return this.prisma.quoteTemplate
       .findMany({
         where: { officeId, active: true },
@@ -113,7 +112,7 @@ export class QuoteTemplatesController {
   async retire(@CurrentUser() user: AuthUser, @Req() req: Request, @Param('id', uuid) id: string) {
     await this.prisma.$transaction(async (tx) => {
       const t = await tx.quoteTemplate.findUnique({ where: { id } });
-      if (!t || !t.active || !hasOfficeRole(user, t.officeId, READERS))
+      if (!t || !t.active || !canSeeInternalCosts(user, t.officeId))
         throw new NotFoundException('Plantilla no encontrada');
       if (t.createdById !== user.id && !hasOfficeRole(user, t.officeId, ['OFFICE_ADMIN']))
         throw new ForbiddenException('Solo quien la creó o el coordinador');
