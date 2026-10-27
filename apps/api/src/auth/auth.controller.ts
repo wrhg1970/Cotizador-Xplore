@@ -3,6 +3,7 @@ import {
   Get,
   HttpCode,
   Inject,
+  Logger,
   Post,
   Req,
   Res,
@@ -21,6 +22,8 @@ const LOGIN_TTL_MS = 10 * 60 * 1000;
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger('Auth');
+
   constructor(
     private readonly auth: AuthService,
     @Inject(OIDC) private readonly oidc: OidcProvider | null,
@@ -68,7 +71,11 @@ export class AuthController {
       const claims = await provider.exchange(new URL(req.originalUrl, this.env.API_PUBLIC_URL), checks);
       token = await this.auth.login(claims, req.correlationId);
     } catch (err) {
-      return fail(err instanceof LoginRejected ? err.reason : 'LOGIN_FAILED');
+      if (err instanceof LoginRejected) return fail(err.reason);
+      // OAuth error codes (e.g. invalid_client) are safe to log; tokens never reach this object.
+      const { name, message, error, error_description } = err as Error & Record<string, unknown>;
+      this.logger.error({ correlationId: req.correlationId, name, message, error, error_description });
+      return fail('LOGIN_FAILED');
     }
     res.cookie(SESSION_COOKIE, token, this.cookie('/', SESSION_TTL_MS)).redirect(302, this.env.WEB_ORIGIN);
   }
