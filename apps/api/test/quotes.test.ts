@@ -459,3 +459,144 @@ describe('authorization (US-071..076)', () => {
     await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', c.adminB).expect(404);
   });
 });
+
+describe('payment plan, free places and itinerary (Sprint B)', () => {
+  const plan = {
+    depositRate: '0.15',
+    depositDueDate: '2026-11-15',
+    installments: 6,
+    frequency: 'MONTHLY',
+    firstDueDate: '2027-01-31',
+  };
+  const content = {
+    paymentPlan: plan,
+    studentsPerFreePlace: 5,
+    freePlaceBenefit: 'CHAPERONE',
+    itinerary: [
+      { day: 1, title: 'Llegada a Roma', details: 'Traslado al hotel' },
+      { day: 2, title: 'Coliseo y Foro' },
+    ],
+    exclusions: ['Vuelo internacional', 'Gastos personales'],
+  };
+
+  it('computes the schedule from the rounded price and shows it all in the proposal', async () => {
+    const v = (await newScenario(c.quoter).expect(201)).body.latest;
+    const res = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ ...option1, ...content, rowVersion: 1 })
+      .expect(200);
+    expect(res.body.freePlaces).toBe(2); // 10 students, 1 per 5
+    const pay = res.body.paymentSchedule as { number: number; dueDate: string; amount: string }[];
+    expect(pay[0]).toEqual({ number: 0, dueDate: '2026-11-15', amount: '769.35' });
+    expect(pay).toHaveLength(7);
+    expect(pay.reduce((a, p) => a + Number(p.amount), 0).toFixed(2)).toBe('5129.00');
+    const p = await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', c.advisor).expect(200);
+    expect(p.body).toMatchObject({
+      paymentSchedule: pay,
+      freePlaces: { count: 2, benefit: 'CHAPERONE' },
+      itinerary: content.itinerary,
+      exclusions: content.exclusions,
+    });
+    // Duplicates carry the proposal content.
+    const dup = await api()
+      .post(`/api/v1/scenarios/${v.scenarioId}/duplicate`)
+      .set('Cookie', c.quoter)
+      .send({ name: 'Con plan (copia)' })
+      .expect(201);
+    expect(dup.body.latest).toMatchObject({ paymentPlan: plan, exclusions: content.exclusions });
+    // Clearing works.
+    const cleared = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ paymentPlan: null, itinerary: null, studentsPerFreePlace: null, rowVersion: 2 })
+      .expect(200);
+    expect(cleared.body).toMatchObject({
+      paymentPlan: null,
+      paymentSchedule: null,
+      itinerary: null,
+      freePlaces: null,
+    });
+  });
+
+  it('a registration that no longer fits the price warns and blocks approval', async () => {
+    const v = (await newScenario(c.quoter).expect(201)).body.latest;
+    const res = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({
+        ...option1,
+        validUntil: '2026-12-31',
+        paymentPlan: { ...plan, depositRate: undefined, depositAmount: '6000' },
+        rowVersion: 1,
+      })
+      .expect(200);
+    expect(res.body.warnings.map((w: { code: string }) => w.code)).toEqual(['PAYMENT_PLAN']);
+    expect(res.body.paymentSchedule).toBeNull();
+    const submit = await api()
+      .post(`/api/v1/quotes/${v.id}/submit`)
+      .set('Cookie', c.quoter)
+      .send({ rowVersion: 2 })
+      .expect(400);
+    expect(submit.body.message).toContain('plan de pagos');
+    await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ paymentPlan: { ...plan, installments: 20 }, rowVersion: 2 })
+      .expect(400);
+  });
+
+  it('templates: saved from a version, used for a new scenario, scoped to the office', async () => {
+    const v = (await newScenario(c.quoter).expect(201)).body.latest;
+    await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ ...option1, ...content, rowVersion: 1 })
+      .expect(200);
+    const t = await api()
+      .post(`/api/v1/quotes/${v.id}/template`)
+      .set('Cookie', c.quoter)
+      .send({ name: 'Italia primavera' })
+      .expect(201);
+    await api()
+      .post(`/api/v1/quotes/${v.id}/template`)
+      .set('Cookie', c.approver)
+      .send({ name: 'X' })
+      .expect(403);
+    await api()
+      .post(`/api/v1/quotes/${v.id}/template`)
+      .set('Cookie', c.adminB)
+      .send({ name: 'X' })
+      .expect(404);
+
+    const list = await api()
+      .get(`/api/v1/offices/${officeA}/quote-templates`)
+      .set('Cookie', c.approver)
+      .expect(200);
+    expect(list.body.find((x: { id: string }) => x.id === t.body.id)).toMatchObject({ lineCount: 8 });
+    await api().get(`/api/v1/offices/${officeA}/quote-templates`).set('Cookie', c.advisor).expect(404);
+    await api().get(`/api/v1/offices/${officeA}/quote-templates`).set('Cookie', c.adminB).expect(404);
+
+    const s = await newScenario(c.quoter, {
+      name: 'Desde plantilla',
+      saleCurrency: 'EUR',
+      templateId: t.body.id,
+    }).expect(201);
+    expect(s.body.latest).toMatchObject({
+      targetMarginRate: '0.18',
+      exclusions: content.exclusions,
+      itinerary: content.itinerary,
+      paymentPlan: null, // dates belong to the trip, not the template
+    });
+    expect(s.body.latest.totals.pricePerParticipant).toBe('5129.00');
+    await newScenario(c.quoter, { name: 'X', saleCurrency: 'EUR', templateId: crypto.randomUUID() }).expect(
+      404,
+    );
+
+    await api().delete(`/api/v1/quote-templates/${t.body.id}`).set('Cookie', c.quoter2).expect(403);
+    await api().delete(`/api/v1/quote-templates/${t.body.id}`).set('Cookie', c.quoter).expect(204);
+    await newScenario(c.quoter, { name: 'X', saleCurrency: 'EUR', templateId: t.body.id }).expect(404);
+    const log = await prisma.auditLog.findMany({ where: { entityId: t.body.id } });
+    expect(log.map((l) => l.action).sort()).toEqual(['quote_template.created', 'quote_template.retired']);
+  });
+});

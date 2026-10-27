@@ -12,6 +12,7 @@ import { CatalogsController } from './catalogs.controller.js';
 import { ConceptTemplatesController } from './concepts/concept-templates.controller.js';
 import { OfficeQuotersController, RequestsController } from './requests/requests.controller.js';
 import { QuotesController } from './quotes/quotes.controller.js';
+import { QuoteTemplatesController } from './quotes/templates.controller.js';
 import { UsersController } from './users/users.controller.js';
 
 @Module({})
@@ -45,6 +46,7 @@ export class AppModule {
         CatalogsController,
         ConceptTemplatesController,
         QuotesController,
+        QuoteTemplatesController,
       ],
       providers: [
         { provide: ENV, useValue: env },

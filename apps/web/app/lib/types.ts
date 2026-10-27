@@ -120,6 +120,14 @@ export interface QuoteDto {
         lineTotals: string[];
       })
     | null;
+  paymentPlan: PaymentPlanDto | null;
+  studentsPerFreePlace: number | null;
+  freePlaceBenefit: 'CHAPERONE' | 'STUDENT' | null;
+  itinerary: ItineraryDayDto[] | null;
+  exclusions: string[];
+  /** Per student, computed from the rounded price; null without a plan or totals. */
+  paymentSchedule: PaymentDto[] | null;
+  freePlaces: number | null;
   /** EE sheet subtotals; null like `totals` while FX is missing. */
   sheet: Record<
     | 'chaperonesTotal'
@@ -192,6 +200,43 @@ export const SHEET_BLOCKS: { category: LineCategory; title: string; hint: string
   { category: 'CONTINGENCY', title: 'Fondo de emergencia', hint: 'Monto total para el grupo.' },
   { category: 'PER_GROUP', title: 'Fijos del grupo', hint: 'Monto total; se reparte entre los estudiantes.' },
 ];
+
+export interface PaymentPlanDto {
+  depositRate?: string;
+  depositAmount?: string;
+  depositDueDate?: string;
+  installments: number;
+  frequency: 'MONTHLY' | 'BIWEEKLY' | 'WEEKLY';
+  firstDueDate: string;
+}
+export interface PaymentDto {
+  number: number;
+  dueDate: string;
+  amount: string;
+}
+export interface ItineraryDayDto {
+  day: number;
+  title: string;
+  details?: string;
+}
+export const FREQUENCY_LABEL: Record<PaymentPlanDto['frequency'], string> = {
+  MONTHLY: 'Mensual',
+  BIWEEKLY: 'Quincenal',
+  WEEKLY: 'Semanal',
+};
+export const FREE_PLACE_LABEL = { CHAPERONE: 'chaperón', STUDENT: 'beca para estudiante' } as const;
+export const paymentLabel = (p: PaymentDto, count: number) =>
+  p.number === 0 ? 'Inscripción' : `Pago ${p.number} de ${count}`;
+
+export interface QuoteTemplateDto {
+  id: string;
+  name: string;
+  saleCurrency: CurrencyCode;
+  lineCount: number;
+  createdBy: string;
+  createdById: string;
+  createdAt: string;
+}
 
 export interface ConceptTemplateDto {
   id: string;

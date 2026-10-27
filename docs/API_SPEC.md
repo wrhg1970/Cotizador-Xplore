@@ -17,6 +17,9 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `GET /catalogs/countries`
 - `GET /catalogs/currencies`
 - `GET /concept-templates` — catálogo de rubros de la hoja EE (activos; el administrador del sistema ve también los inactivos)
+- `GET /offices/{officeId}/quote-templates` — plantillas de la oficina (lado cotizador)
+- `POST /quotes/{quoteVersionId}/template` — guarda la versión como plantilla (cotizador o coordinador)
+- `DELETE /quote-templates/{id}` — retira la plantilla (quien la creó o el coordinador)
 - `POST /concept-templates`, `PATCH /concept-templates/{id}` — solo administrador del sistema, con auditoría
 - `GET /users?officeId=...` (solo administradores autorizados)
 
@@ -37,7 +40,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `GET /requests/{requestId}/scenarios`
 - `POST /scenarios/{scenarioId}/versions`
 - `GET /quotes/{quoteVersionId}`
-- `PATCH /quotes/{quoteVersionId}` (solo borrador). Acepta `targetMarginRate` (% de comisión sobre el precio final) o `targetPricePerParticipant` (precio final entero; el servidor deriva el %), nunca ambos. Errores: `PRICE_BELOW_COST`, `PRICE_UNREACHABLE`, `FX_REQUIRED`. La respuesta incluye `sheet` con los subtotales de la hoja EE (fuera del hash de aprobación).
+- `PATCH /quotes/{quoteVersionId}` (solo borrador). Acepta `targetMarginRate` (% de comisión sobre el precio final) o `targetPricePerParticipant` (precio final entero; el servidor deriva el %), nunca ambos. Errores: `PRICE_BELOW_COST`, `PRICE_UNREACHABLE`, `FX_REQUIRED`. También acepta `paymentPlan` (inscripción en % o monto + 1 a 15 parcialidades mensuales/quincenales/semanales), `studentsPerFreePlace`/`freePlaceBenefit`, `itinerary` y `exclusions`; la respuesta trae `paymentSchedule` y `freePlaces` calculados. `POST /requests/{id}/scenarios` acepta `templateId`. La respuesta incluye `sheet` con los subtotales de la hoja EE (fuera del hash de aprobación).
 - `POST /quotes/{quoteVersionId}/calculate`
 - `POST /quotes/{quoteVersionId}/submit-for-approval`
 - `POST /quotes/{quoteVersionId}/approve`

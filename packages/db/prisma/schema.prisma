@@ -38,6 +38,7 @@ model User {
   comments    RequestComment[]
   scenarios   QuoteScenario[]
   versions    QuoteVersion[]
+  templates   QuoteTemplate[]
   fxRates     QuoteFxRate[]
   reviews     QuoteReview[]
   deliveries  ProposalDelivery[]
@@ -54,6 +55,7 @@ model Office {
   updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
   userRoles UserOfficeRole[]
   requests  TravelRequest[]
+  templates QuoteTemplate[]
 
   @@map("offices")
 }
@@ -214,34 +216,48 @@ model QuoteScenario {
 
 /// A version is the unit that gets calculated, approved and sent; group sizes live here so siblings never interfere (US-031).
 model QuoteVersion {
-  id               String             @id @default(uuid()) @db.Uuid
-  scenarioId       String             @map("scenario_id") @db.Uuid
-  number           Int
-  status           QuoteVersionStatus @default(DRAFT)
-  saleCurrency     String             @map("sale_currency") @db.Char(3)
+  id                   String             @id @default(uuid()) @db.Uuid
+  scenarioId           String             @map("scenario_id") @db.Uuid
+  number               Int
+  status               QuoteVersionStatus @default(DRAFT)
+  saleCurrency         String             @map("sale_currency") @db.Char(3)
   /// Margin over sale price (Finance's "% Comisión"): price = cost / (1 - rate).
-  targetMarginRate Decimal            @default(0) @map("target_margin_rate") @db.Decimal(7, 6)
+  targetMarginRate     Decimal            @default(0) @map("target_margin_rate") @db.Decimal(7, 6)
   /// MXN per 1 sale currency, only for the approximate peso figures shown to the client.
-  mxnRate          Decimal?           @map("mxn_rate") @db.Decimal(20, 10)
-  participants     Int
-  chaperones       Int
-  staff            Int
-  validUntil       DateTime?          @map("valid_until") @db.Date
-  assumptions      String?
+  mxnRate              Decimal?           @map("mxn_rate") @db.Decimal(20, 10)
+  participants         Int
+  chaperones           Int
+  staff                Int
+  validUntil           DateTime?          @map("valid_until") @db.Date
+  assumptions          String?
+  /// Registration + installments config (contracts PaymentPlanInput); the schedule is computed, not stored.
+  paymentPlan          Json?              @map("payment_plan")
+  /// "1 lugar liberado por cada N estudiantes"; informative until Finance defines its pricing.
+  studentsPerFreePlace Int?               @map("students_per_free_place")
+  freePlaceBenefit     FreePlaceBenefit?  @map("free_place_benefit")
+  /// Day-by-day plan shown in the proposal (contracts ItineraryDay[]).
+  itinerary            Json?
+  /// "No incluye" lines for the proposal.
+  exclusions           String[]           @default([])
   /// Optimistic concurrency token for edits.
-  rowVersion       Int                @default(1) @map("row_version")
-  createdById      String             @map("created_by_id") @db.Uuid
-  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
-  scenario         QuoteScenario      @relation(fields: [scenarioId], references: [id], onDelete: Restrict)
-  createdBy        User               @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  lines            QuoteLine[]
-  fxRates          QuoteFxRate[]
-  reviews          QuoteReview[]
-  deliveries       ProposalDelivery[]
+  rowVersion           Int                @default(1) @map("row_version")
+  createdById          String             @map("created_by_id") @db.Uuid
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  scenario             QuoteScenario      @relation(fields: [scenarioId], references: [id], onDelete: Restrict)
+  createdBy            User               @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  lines                QuoteLine[]
+  fxRates              QuoteFxRate[]
+  reviews              QuoteReview[]
+  deliveries           ProposalDelivery[]
 
   @@unique([scenarioId, number])
   @@map("quote_versions")
+}
+
+enum FreePlaceBenefit {
+  CHAPERONE
+  STUDENT
 }
 
 model QuoteLine {
@@ -343,4 +359,28 @@ model ConceptTemplate {
 
   @@unique([category, label])
   @@map("concept_templates")
+}
+
+/// Reusable starting point for a scenario (lines, margin, proposal content), shared within one office.
+model QuoteTemplate {
+  id                   String            @id @default(uuid()) @db.Uuid
+  officeId             String            @map("office_id") @db.Uuid
+  name                 String
+  saleCurrency         String            @map("sale_currency") @db.Char(3)
+  targetMarginRate     Decimal           @map("target_margin_rate") @db.Decimal(7, 6)
+  /// Snapshot of the source version's lines (contracts QuoteLineInput[]).
+  lines                Json
+  studentsPerFreePlace Int?              @map("students_per_free_place")
+  freePlaceBenefit     FreePlaceBenefit? @map("free_place_benefit")
+  itinerary            Json?
+  exclusions           String[]          @default([])
+  assumptions          String?
+  active               Boolean           @default(true)
+  createdById          String            @map("created_by_id") @db.Uuid
+  createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  office               Office            @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  createdBy            User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([officeId, active])
+  @@map("quote_templates")
 }

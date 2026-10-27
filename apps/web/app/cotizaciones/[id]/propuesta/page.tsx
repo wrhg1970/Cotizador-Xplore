@@ -4,7 +4,14 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, errorText } from '../../../lib/api';
-import { fmtDate, PENDING_LEGEND } from '../../../lib/types';
+import { PaymentSchedule } from '../ProposalContent';
+import {
+  fmtDate,
+  FREE_PLACE_LABEL,
+  type ItineraryDayDto,
+  type PaymentDto,
+  PENDING_LEGEND,
+} from '../../../lib/types';
 
 interface Proposal {
   id: string;
@@ -28,6 +35,10 @@ interface Proposal {
   validUntil: string | null;
   assumptions: string | null;
   includes: string[];
+  paymentSchedule: PaymentDto[] | null;
+  freePlaces: { count: number; benefit: keyof typeof FREE_PLACE_LABEL } | null;
+  itinerary: ItineraryDayDto[];
+  exclusions: string[];
 }
 
 /** Client-facing proposal, safe to share (no costs). Unauthorized versions carry the pending legend. */
@@ -77,14 +88,53 @@ export default function ProposalPage() {
             <span className="muted"> · aprox. {p.pricePerParticipantMxn} MXN</span>
           )}
         </dd>
+        {!!p.freePlaces?.count && (
+          <>
+            <dt>Lugares liberados</dt>
+            <dd>
+              {p.freePlaces.count} ({FREE_PLACE_LABEL[p.freePlaces.benefit]})
+            </dd>
+          </>
+        )}
         <dt>Vigencia</dt>
         <dd>{fmtDate(p.validUntil)}</dd>
       </dl>
+      {p.paymentSchedule && (
+        <>
+          <h2>Plan de pagos por estudiante</h2>
+          <PaymentSchedule q={{ paymentSchedule: p.paymentSchedule, saleCurrency: p.saleCurrency }} />
+        </>
+      )}
+      {p.itinerary.length > 0 && (
+        <>
+          <h2>Itinerario</h2>
+          <ol className="timeline">
+            {p.itinerary.map((d, i) => (
+              <li key={i}>
+                <strong>
+                  Día {d.day}: {d.title}
+                </strong>
+                {d.details && <p style={{ margin: '4px 0 0' }}>{d.details}</p>}
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
       {p.includes.length > 0 && (
         <>
           <h2>Incluye</h2>
           <ul>
             {p.includes.map((d, i) => (
+              <li key={i}>{d}</li>
+            ))}
+          </ul>
+        </>
+      )}
+      {p.exclusions.length > 0 && (
+        <>
+          <h2>No incluye</h2>
+          <ul>
+            {p.exclusions.map((d, i) => (
               <li key={i}>{d}</li>
             ))}
           </ul>

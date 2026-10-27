@@ -180,6 +180,8 @@ const groupCounts = {
 export const CreateScenario = z.strictObject({
   name: ShortText(150),
   saleCurrency: CurrencyCode,
+  /** Start from an office template instead of the catalog's base concepts. */
+  templateId: z.uuid().optional(),
   ...z.object(groupCounts).partial().shape,
 });
 export type CreateScenario = z.infer<typeof CreateScenario>;
@@ -206,6 +208,47 @@ export const FxRateInput = z.strictObject({
 });
 export type FxRateInput = z.infer<typeof FxRateInput>;
 
+/** Registration + installments, per student; the schedule itself is computed by the engine. */
+export const PaymentPlanInput = z
+  .strictObject({
+    depositRate: DecimalString.refine((r) => Number(r) > 0 && Number(r) < 1, 'Entre 0 y 100%').optional(),
+    depositAmount: DecimalString.refine((a) => Number(a) > 0, 'Debe ser mayor que cero').optional(),
+    depositDueDate: IsoDate.optional(),
+    installments: z.number().int().min(1).max(15),
+    frequency: z.enum(['MONTHLY', 'BIWEEKLY', 'WEEKLY']),
+    firstDueDate: IsoDate,
+  })
+  .refine((p) => !(p.depositRate && p.depositAmount), {
+    message: 'Inscripción en % o en monto, no ambas',
+    path: ['depositAmount'],
+  })
+  .refine((p) => !(p.depositRate || p.depositAmount) || !!p.depositDueDate, {
+    message: 'Falta la fecha de inscripción',
+    path: ['depositDueDate'],
+  })
+  .refine((p) => !p.depositDueDate || p.depositDueDate <= p.firstDueDate, {
+    message: 'La inscripción va antes del primer pago',
+    path: ['firstDueDate'],
+  });
+export type PaymentPlanInput = z.infer<typeof PaymentPlanInput>;
+
+export const ItineraryDay = z.strictObject({
+  day: z.number().int().min(1).max(366),
+  title: ShortText(200),
+  details: OptionalText(2000),
+});
+export type ItineraryDay = z.infer<typeof ItineraryDay>;
+
+export const FreePlaceBenefit = z.enum(['CHAPERONE', 'STUDENT']);
+
+/** Proposal content shared by versions and templates. */
+const proposalContent = {
+  studentsPerFreePlace: z.number().int().min(1).max(100).nullable().optional(),
+  freePlaceBenefit: FreePlaceBenefit.nullable().optional(),
+  itinerary: z.array(ItineraryDay).max(120).nullable().optional(),
+  exclusions: z.array(ShortText(300)).max(50).optional(),
+};
+
 /** Draft edit. `lines` and `fxRates`, when present, replace the whole set (order = position). */
 export const UpdateQuote = z
   .strictObject({
@@ -229,6 +272,8 @@ export const UpdateQuote = z
     assumptions: OptionalText(4000).nullable(),
     lines: z.array(QuoteLineInput).max(500).optional(),
     fxRates: z.array(FxRateInput).max(10).optional(),
+    paymentPlan: PaymentPlanInput.nullable().optional(),
+    ...proposalContent,
     rowVersion: z.number().int().min(1),
   })
   .refine((q) => !(q.targetMarginRate && q.targetPricePerParticipant), {
@@ -240,6 +285,8 @@ export const UpdateQuote = z
     path: ['fxRates'],
   });
 export type UpdateQuote = z.infer<typeof UpdateQuote>;
+
+export const CreateQuoteTemplate = z.strictObject({ name: ShortText(150) });
 
 /** Admin-maintained concept ("rubro") of the EE sheet. */
 export const ConceptTemplateInput = z.strictObject({
