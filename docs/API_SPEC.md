@@ -34,6 +34,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `PATCH /requests/{requestId}`
 - `POST /requests/{requestId}/submit`
 - `POST /requests/{requestId}/assign`
+- `POST /requests/{requestId}/outcome` — respuesta del cliente a una solicitud enviada (`SENT`): `{outcome:"WON", versionId, version}` (la versión debe estar enviada y ser de esa solicitud) o `{outcome:"LOST", reason, version}`. Solo el cotizador asignado o el coordinador; la solicitud queda cerrada y se audita (`request.won` / `request.lost`). `GET /requests/{id}/proposals` incluye `sent`
 - `POST /requests/{requestId}/comments`
 - `GET /requests/{requestId}/timeline`
 - `POST /requests/{requestId}/attachments`

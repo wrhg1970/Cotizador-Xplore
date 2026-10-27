@@ -17,7 +17,7 @@
 - `Approval`: decisión, aprobador, fecha, comentarios y hash de versión aprobada.
 - `Document`: tipo, storage key, checksum, versión y metadatos.
 - `ProposalDelivery`: versión enviada, destinatarios, canal, fecha, resultado.
-- `ProposalOutcome`: aceptada/rechazada/expirada, versión y motivo.
+- Resultado con el cliente: columnas de `TravelRequest` (`won_version_id` único, `lost_reason`, `closed_at`), con CHECKs `WON` ⇔ versión ganadora y `LOST` ⇒ motivo. Sustituye a la tabla `ProposalOutcome` prevista.
 - `ExchangeRate`: base, cotizada, tasa, fecha, fuente.
 - `IntegrationConnection`, `IntegrationJob`, `WebhookEvent`, `ExternalReference`.
 - `AuditLog`: actor, acción, entidad, entityId, timestamp, correlationId, diff redactado y `office_id`. `office_id` lo llena un trigger `BEFORE INSERT` a partir de la entidad (solicitud, versión, plantilla, oficina, rol de usuario); nulo = evento global (inicio de sesión, permisos, catálogo). La tabla es append-only (trigger que impide UPDATE/DELETE).
@@ -42,7 +42,7 @@ QuoteVersion 1---* QuoteLine
 QuoteVersion 1---* Approval
 QuoteVersion 1---* Document
 QuoteVersion 1---* ProposalDelivery
-TravelRequest 1---0..1 ProposalOutcome (winner/outcome)
+TravelRequest 0..1---0..1 QuoteVersion (won_version_id, ganadora)
 TravelRequest 1---* ActivityEvent / AuditLog
 IntegrationConnection 1---* IntegrationJob
 ```

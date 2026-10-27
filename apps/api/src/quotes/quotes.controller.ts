@@ -501,6 +501,7 @@ export class QuotesController {
         scenarioName: s.name,
         number: v.number,
         authorized: v.status === 'APPROVED' || v.status === 'SENT',
+        sent: v.status === 'SENT',
         participants: v.participants,
         saleCurrency: v.saleCurrency,
         pricePerParticipant: toDto(v).totals?.pricePerParticipant ?? null,

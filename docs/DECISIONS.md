@@ -55,7 +55,7 @@
 - Permisos configurables por rol, no por usuario: los pasos del flujo (crear, cotizar, autorizar, enviar) siguen fijos y probados; lo configurable es alcance nacional, ver costos internos, descargar el Excel interno y tope de autorización en MXN. Valores iniciales = reglas anteriores, así que nada cambia hasta que el administrador lo decida.
 - Importador: Will eligió Gemini en Vertex AI (mismo proyecto de Google Cloud, cuenta de servicio, sin claves). Dependencia `@google/genai` 2.28.0 (Google, Apache-2.0). A diferencia de la V2, no crea solicitudes ni infiere tipos de cambio: solo propone conceptos para una versión en borrador, que el cotizador revisa y guarda.
 - La subida va como JSON base64 con límite de 4.5 MB solo en esa ruta (resto: 100 kB), para no usar multer (vulnerabilidad abierta en la versión que trae NestJS).
-- Pendiente: registrar resultado con el cliente (ganada/perdida) para que el tablero mida conversión.
+- Resultado con el cliente (ganada/perdida): ver «Ganada/perdida» abajo.
 
 ## Excel interno con formato de la hoja EE (2026-10-27)
 - La pestaña «Cotización» replica la hoja oficial de Finanzas, con las mismas cifras que la pantalla (mismo cálculo del servidor). El detalle de líneas pasa a la pestaña «Conceptos». Plan de pagos e itinerario van en pestañas propias. Las cifras se exportan como valores, no como fórmulas: el cálculo oficial es el del motor versionado.
@@ -63,3 +63,9 @@
 ## Panel de bitácora (2026-10-27)
 - Pantalla «Bitácora» de solo lectura para coordinador, auditor y administrador del sistema, con filtros por oficina, tipo de acción, persona, registro y fechas.
 - La oficina de cada evento la asigna un trigger de la base de datos, para no tocar cada llamada a `audit()`; los eventos anteriores se rellenaron en la migración. Los eventos globales (inicios de sesión, permisos, catálogo) solo los ve el administrador del sistema.
+
+## Ganada/perdida (2026-10-27)
+- El resultado se guarda en la propia solicitud (`won_version_id` único, `lost_reason`, `closed_at`) en lugar de una tabla `ProposalOutcome` aparte: una columna única garantiza en la base de datos que haya una sola ganadora por solicitud y que una versión no gane dos veces. CHECKs: `WON` ⇔ hay versión ganadora; `LOST` exige motivo.
+- La ganadora debe ser una versión enviada de esa misma solicitud. Lo registra quien envía propuestas (cotizador asignado o coordinador).
+- Una vez registrada, la solicitud queda cerrada. Corregir un resultado (la «decisión administrativa auditada» del PRD) queda fuera de este alcance.
+- Conversión en el tablero = ganadas ÷ (ganadas + perdidas) por oficina. Nuevo pendiente «Registrar respuesta del cliente» para solicitudes enviadas.

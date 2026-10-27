@@ -5,11 +5,12 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { PENDING_LEGEND } from '../lib/types';
 
-interface ProposalRow {
+export interface ProposalRow {
   versionId: string;
   scenarioName: string;
   number: number;
   authorized: boolean;
+  sent: boolean;
   participants: number;
   saleCurrency: string;
   pricePerParticipant: string | null;

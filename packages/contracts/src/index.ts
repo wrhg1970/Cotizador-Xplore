@@ -161,6 +161,11 @@ export const VersionOnly = z.strictObject({ version: z.number().int().min(1) });
 export const AssignRequest = z.strictObject({ assigneeId: z.uuid(), version: z.number().int().min(1) });
 export const CancelRequest = z.strictObject({ reason: ShortText(1000), version: z.number().int().min(1) });
 export const CreateComment = z.strictObject({ body: ShortText(2000) });
+/** Client's answer to a sent request (PRD F-06): the one winning sent version, or why it was lost. */
+export const RecordOutcome = z.discriminatedUnion('outcome', [
+  z.strictObject({ outcome: z.literal('WON'), versionId: z.uuid(), version: z.number().int().min(1) }),
+  z.strictObject({ outcome: z.literal('LOST'), reason: ShortText(1000), version: z.number().int().min(1) }),
+]);
 
 export const ListRequestsQuery = z.strictObject({
   officeId: z.uuid().optional(),

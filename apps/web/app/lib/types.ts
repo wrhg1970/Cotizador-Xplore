@@ -46,6 +46,9 @@ export interface TravelRequestDto {
   priority: 'LOW' | 'NORMAL' | 'HIGH';
   dueDate: string | null;
   cancelReason: string | null;
+  wonVersionId: string | null;
+  lostReason: string | null;
+  closedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -69,6 +72,8 @@ export const ACTION_LABEL: Record<string, string> = {
   'request.submitted': 'Envió a cotización',
   'request.assigned': 'Asignó cotizador',
   'request.cancelled': 'Canceló la solicitud',
+  'request.won': 'Registró la solicitud como ganada',
+  'request.lost': 'Registró la solicitud como perdida',
   'request.commented': 'Comentó',
   'quote.scenario.created': 'Creó un escenario',
   'quote.scenario.duplicated': 'Duplicó un escenario',
