@@ -16,17 +16,30 @@ const ERRORS: Record<string, string> = {
 function LoginInner() {
   const error = useSearchParams().get('error');
   return (
-    <div className="card" style={{ maxWidth: 420, margin: '10vh auto' }}>
-      <h1>Cotizador de Estudiantes Embajadores</h1>
-      <p className="muted">Entra con tu cuenta corporativa de Google.</p>
-      {error && (
-        <p className="error" role="alert">
-          {ERRORS[error] ?? ERRORS.LOGIN_FAILED}
+    <div className="login">
+      <section>
+        <span className="brand">
+          xplore<span>·</span>together
+        </span>
+        <h1>Cada viaje empieza con una buena cotización.</h1>
+        <p className="lead">
+          Entra con tu cuenta de Google de Estudiantes Embajadores para ver tus solicitudes, armar opciones y
+          enviar propuestas autorizadas.
         </p>
-      )}
-      <a className="button" href="/api/v1/auth/google/login">
-        Entrar con Google
-      </a>
+        {error && (
+          <p className="error" role="alert">
+            {ERRORS[error] ?? ERRORS.LOGIN_FAILED}
+          </p>
+        )}
+        <a className="button" href="/api/v1/auth/google/login">
+          Entrar con Google
+        </a>
+      </section>
+      <section className="panel" aria-hidden="true">
+        <p>
+          Solicitud, cotización, <span>autorización</span> y propuesta en un solo lugar.
+        </p>
+      </section>
     </div>
   );
 }

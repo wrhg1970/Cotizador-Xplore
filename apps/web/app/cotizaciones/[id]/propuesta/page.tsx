@@ -55,16 +55,28 @@ export default function ProposalPage() {
   const legend = !p.authorized && <p className="legend">{PENDING_LEGEND}</p>;
 
   return (
-    <article>
+    <article className="proposal">
       <p className="no-print row">
         <Link href={`/solicitudes/${p.request.id}`}>← Volver a la solicitud</Link>
         <button onClick={() => window.print()}>Imprimir o guardar PDF</button>
       </p>
       {legend}
+      <span className="brand">
+        xplore<span>·</span>together
+      </span>
+      <p className="kicker">Propuesta de viaje</p>
       <h1>{p.request.groupName}</h1>
       <p className="muted">
         {p.request.folio} · {p.scenarioName} · versión {p.number}
       </p>
+      {p.pricePerParticipant && (
+        <p>
+          <span className="price">
+            {p.pricePerParticipant} {p.saleCurrency}
+          </span>{' '}
+          <span className="muted">por estudiante</span>
+        </p>
+      )}
       <dl className="facts">
         <dt>Destino</dt>
         <dd>
