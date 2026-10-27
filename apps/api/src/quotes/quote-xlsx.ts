@@ -146,7 +146,8 @@ export async function quoteWorkbook(q: QuoteDto, req: { folio: string; groupName
     pay.addRow([]);
     pay.addRow(['Pago', 'Fecha límite', `Monto por estudiante (${q.saleCurrency})`]).font = { bold: true };
     const schedule = q.paymentSchedule ?? [];
-    if (!schedule.length) pay.addRow(['El calendario no cuadra o faltan tipos de cambio; revísalo en la app']);
+    if (!schedule.length)
+      pay.addRow(['El calendario no cuadra o faltan tipos de cambio; revísalo en la app']);
     const count = schedule.filter((p) => p.number > 0).length;
     for (const p of schedule)
       pay.addRow([p.number === 0 ? 'Inscripción' : `Pago ${p.number} de ${count}`, p.dueDate, num(p.amount)]);
