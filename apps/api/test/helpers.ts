@@ -4,6 +4,7 @@ import request from 'supertest';
 import type { IdClaims, LoginChecks, OidcProvider } from '../src/auth/oidc.js';
 import { createApp } from '../src/app.js';
 import { loadEnv } from '../src/env.js';
+import type { Mail, Mailer } from '../src/notify/notifier.js';
 import type { SheetReader } from '../src/quotes/sheet-import.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -36,8 +37,18 @@ export class FakeOidc implements OidcProvider {
 
 export const prisma = createPrismaClient(DATABASE_URL);
 
-export async function makeApp(oidc = new FakeOidc(), reader?: SheetReader) {
-  const app: INestApplication = await createApp(testEnv(), oidc, reader);
+/** Records instead of sending; `fail` simulates an SMTP outage. */
+export class FakeMailer implements Mailer {
+  sent: Mail[] = [];
+  fail = false;
+  async send(mail: Mail) {
+    if (this.fail) throw Object.assign(new Error('smtp down'), { code: 'ECONNECTION' });
+    this.sent.push(mail);
+  }
+}
+
+export async function makeApp(oidc = new FakeOidc(), reader?: SheetReader, mailer?: Mailer) {
+  const app: INestApplication = await createApp(testEnv(), oidc, reader, mailer);
   await app.init();
   return { app, oidc, http: () => request(app.getHttpServer()) };
 }

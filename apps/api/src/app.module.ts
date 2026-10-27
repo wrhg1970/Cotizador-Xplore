@@ -18,11 +18,25 @@ import { RolePoliciesController } from './auth/role-policies.controller.js';
 import { AuditLogController } from './audit-log/audit-log.controller.js';
 import { SheetImportController } from './quotes/sheet-import.controller.js';
 import { SHEET_READER, type SheetReader, VertexSheetReader } from './quotes/sheet-import.js';
+import { MAILER, type Mailer, Notifier, SmtpMailer } from './notify/notifier.js';
 import { UsersController } from './users/users.controller.js';
 
 @Module({})
 export class AppModule {
-  static forRoot(env: Env, oidcOverride?: OidcProvider, readerOverride?: SheetReader): DynamicModule {
+  static forRoot(
+    env: Env,
+    oidcOverride?: OidcProvider,
+    readerOverride?: SheetReader,
+    mailerOverride?: Mailer,
+  ): DynamicModule {
+    const mailer =
+      mailerOverride ??
+      (env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASSWORD
+        ? new SmtpMailer(
+            { host: env.SMTP_HOST, port: env.SMTP_PORT, user: env.SMTP_USER, password: env.SMTP_PASSWORD },
+            env.MAIL_FROM ?? env.SMTP_USER,
+          )
+        : null);
     const reader =
       readerOverride ??
       (env.VERTEX_PROJECT
@@ -66,6 +80,8 @@ export class AppModule {
         { provide: ENV, useValue: env },
         { provide: OIDC, useValue: oidc },
         { provide: SHEET_READER, useValue: reader },
+        { provide: MAILER, useValue: mailer },
+        Notifier,
         prismaProvider,
         PrismaShutdown,
         AuthService,

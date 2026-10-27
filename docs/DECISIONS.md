@@ -69,3 +69,9 @@
 - La ganadora debe ser una versión enviada de esa misma solicitud. Lo registra quien envía propuestas (cotizador asignado o coordinador).
 - Una vez registrada, la solicitud queda cerrada. Corregir un resultado (la «decisión administrativa auditada» del PRD) queda fuera de este alcance.
 - Conversión en el tablero = ganadas ÷ (ganadas + perdidas) por oficina. Nuevo pendiente «Registrar respuesta del cliente» para solicitudes enviadas.
+
+## Avisos por correo (2026-10-27)
+- Will eligió una cuenta dedicada de Google Workspace por SMTP (contraseña de aplicación en Secret Manager), en lugar de Gmail API con delegación de dominio o un proveedor externo: sin datos fuera de Google y con configuración mínima.
+- Cuatro avisos: solicitud asignada (al cotizador), cotización por autorizar (a los autorizadores de la oficina, nunca a quien la preparó), cotización devuelta y cotización autorizada (al autor y al cotizador asignado). Nadie recibe aviso de su propia acción ni los usuarios deshabilitados.
+- Contenido mínimo: folio, grupo y liga. Envío después de la transacción, sin cola ni reintentos.
+- Dependencia `nodemailer` 10.1.7 (MIT-0, sin dependencias, mantenida). Se usa 10.1.7 porque las versiones anteriores tienen avisos de seguridad en el analizador de direcciones.

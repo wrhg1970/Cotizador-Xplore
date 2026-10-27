@@ -33,6 +33,17 @@ Todas van en el gestor de secretos del proveedor, nunca en la imagen ni en el re
 - `ALLOWED_GOOGLE_DOMAINS`: dominios de Google Workspace separados por coma.
 - `SESSION_SECRET`: `openssl rand -hex 32`.
 - `VERTEX_PROJECT` (opcional): proyecto de Google Cloud para el importador con IA; sin él, el importador responde 503. `VERTEX_LOCATION` (por defecto `global`) y `VERTEX_MODEL` (por defecto `gemini-3.8-flash`). `deploy.sh` lo configura solo y da a la cuenta de servicio el rol `roles/aiplatform.user`.
+- Avisos por correo (opcional): `SMTP_HOST`, `SMTP_PORT` (465 por defecto; otro puerto exige STARTTLS), `SMTP_USER`, `SMTP_PASSWORD` y `MAIL_FROM` (por defecto `SMTP_USER`). Sin host, usuario o contraseña los avisos quedan apagados y el flujo funciona igual.
+
+## Cuenta de correo para los avisos
+
+Will eligió una cuenta dedicada de Google Workspace (por ejemplo `cotizador@estudiantesembajadores.com`) enviando por SMTP de Gmail:
+
+1. Crear la cuenta en la Consola de administración de Google Workspace.
+2. Activarle la verificación en 2 pasos y crear una **contraseña de aplicación** (Cuenta de Google → Seguridad → Contraseñas de aplicaciones). Si la opción no aparece, el administrador debe permitir la verificación en 2 pasos para esa cuenta.
+3. Desplegar con `SMTP_USER=cotizador@estudiantesembajadores.com` además de las variables de siempre. La primera vez `deploy.sh` pide la contraseña de aplicación sin mostrarla y la guarda en Secret Manager (`cotizador-smtp-password`). Hay que pasar `SMTP_USER` en cada despliegue: si falta, los avisos se apagan.
+
+Para cambiar la contraseña: `printf '%s' '<nueva>' | gcloud secrets versions add cotizador-smtp-password --data-file=-` y volver a desplegar.
 
 ## Google
 

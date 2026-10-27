@@ -4,6 +4,8 @@
 # los pasos de creación se saltan si el recurso ya existe.
 #
 # Uso: PROJECT_ID=... ALLOWED_GOOGLE_DOMAINS=a.com,b.com infra/gcp/deploy.sh
+# Avisos por correo (opcional): agregar SMTP_USER=cuenta@dominio en cada despliegue;
+# la primera vez pide la contraseña de aplicación de esa cuenta. Sin SMTP_USER quedan apagados.
 set -euo pipefail
 
 : "${PROJECT_ID:?Falta PROJECT_ID}"
@@ -95,13 +97,24 @@ if [[ -n "${SEED_ADMIN_EMAIL:-}" ]]; then
   gcloud run jobs execute cotizador-seed --region="$REGION" --wait
 fi
 
+MAIL_ENV=""
+MAIL_SECRETS=""
+if [[ -n "${SMTP_USER:-}" ]]; then
+  if ! exists gcloud secrets describe cotizador-smtp-password; then
+    read -rsp "Contraseña de aplicación de $SMTP_USER (no se muestra): " SMTP_PASSWORD && echo
+    printf '%s' "$SMTP_PASSWORD" | secret cotizador-smtp-password
+  fi
+  MAIL_ENV="|SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}|SMTP_USER=$SMTP_USER|MAIL_FROM=Cotizador EE <$SMTP_USER>"
+  MAIL_SECRETS=",SMTP_PASSWORD=cotizador-smtp-password:latest"
+fi
+
 echo "== API"
 # shortcut: la API queda pública para que web la alcance sin tokens de servicio;
 # las rutas ya exigen sesión. Pasar a ingress interno + VPC cuando haya más tráfico.
 gcloud run deploy cotizador-api --image="$REPO/api:$TAG" --region="$REGION" --port=4000 \
   --allow-unauthenticated --add-cloudsql-instances="$CONN" \
-  --set-env-vars="^|^NODE_ENV=production|API_PUBLIC_URL=$PUBLIC_URL|WEB_ORIGIN=$PUBLIC_URL|ALLOWED_GOOGLE_DOMAINS=$ALLOWED_GOOGLE_DOMAINS|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|VERTEX_PROJECT=$PROJECT_ID" \
-  --set-secrets=DATABASE_URL=cotizador-database-url:latest,SESSION_SECRET=cotizador-session-secret:latest,GOOGLE_CLIENT_SECRET=cotizador-google-client-secret:latest
+  --set-env-vars="^|^NODE_ENV=production|API_PUBLIC_URL=$PUBLIC_URL|WEB_ORIGIN=$PUBLIC_URL|ALLOWED_GOOGLE_DOMAINS=$ALLOWED_GOOGLE_DOMAINS|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|VERTEX_PROJECT=$PROJECT_ID$MAIL_ENV" \
+  --set-secrets=DATABASE_URL=cotizador-database-url:latest,SESSION_SECRET=cotizador-session-secret:latest,GOOGLE_CLIENT_SECRET=cotizador-google-client-secret:latest$MAIL_SECRETS
 
 echo "== Web"
 gcloud run deploy cotizador-web --image="$REPO/web:$TAG" --region="$REGION" --port=3000 \

@@ -33,6 +33,25 @@ const Env = z.object({
     .transform((v) => v || undefined),
   VERTEX_LOCATION: z.string().min(1).default('global'),
   VERTEX_MODEL: z.string().min(1).default('gemini-3.8-flash'),
+  // Workflow notices by email (dedicated Workspace account); off unless host, user and password are all set.
+  SMTP_HOST: z
+    .string()
+    .optional()
+    .transform((v) => v || undefined),
+  SMTP_PORT: z.coerce.number().int().positive().default(465),
+  SMTP_USER: z
+    .string()
+    .optional()
+    .transform((v) => v || undefined),
+  SMTP_PASSWORD: z
+    .string()
+    .optional()
+    .transform((v) => v || undefined),
+  /** Defaults to SMTP_USER, e.g. "Cotizador EE <cotizador@estudiantesembajadores.com>". */
+  MAIL_FROM: z
+    .string()
+    .optional()
+    .transform((v) => v || undefined),
 });
 export type Env = z.infer<typeof Env>;
 export const ENV = Symbol('ENV');

@@ -32,6 +32,7 @@ import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
 import { hasOfficeRole, officeScope, officesWithRole } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
+import { Notifier } from '../notify/notifier.js';
 import { PRISMA } from '../prisma.service.js';
 import { ZodPipe } from '../zod.pipe.js';
 import { FOLIO_PATTERN, newFolio } from './folio.js';
@@ -127,7 +128,10 @@ function diff(before: ReturnType<typeof toDto>, after: ReturnType<typeof toDto>)
 
 @Controller('requests')
 export class RequestsController {
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    private readonly notifier: Notifier,
+  ) {}
 
   /** Loads a request the user may see; anything else is a 404 so ids leak nothing (US-004). */
   private async load(tx: Tx | PrismaClient, id: string, user: AuthUser): Promise<Row> {
@@ -296,24 +300,36 @@ export class RequestsController {
     @Param('id', uuid) id: string,
     @Body(new ZodPipe(AssignRequest)) body: z.infer<typeof AssignRequest>,
   ) {
-    return this.transition(user, req, id, body.version, canAssign, 'request.assigned', async (tx, row) => {
-      const assignee = await tx.user.findUnique({
-        where: { id: body.assigneeId },
-        include: { officeRoles: true },
-      });
-      const isQuoter = assignee?.officeRoles.some((r) => r.officeId === row.officeId && r.role === 'QUOTER');
-      if (!assignee || assignee.status === 'DISABLED' || !isQuoter) {
-        throw new BadRequestException({
-          code: 'INVALID_ASSIGNEE',
-          message: 'El responsable debe ser cotizador activo de la oficina',
+    const dto = await this.transition(
+      user,
+      req,
+      id,
+      body.version,
+      canAssign,
+      'request.assigned',
+      async (tx, row) => {
+        const assignee = await tx.user.findUnique({
+          where: { id: body.assigneeId },
+          include: { officeRoles: true },
         });
-      }
-      return {
-        status: 'QUOTING',
-        assigneeId: assignee.id,
-        auditDiff: { from: row.assigneeId, to: assignee.id },
-      };
-    });
+        const isQuoter = assignee?.officeRoles.some(
+          (r) => r.officeId === row.officeId && r.role === 'QUOTER',
+        );
+        if (!assignee || assignee.status === 'DISABLED' || !isQuoter) {
+          throw new BadRequestException({
+            code: 'INVALID_ASSIGNEE',
+            message: 'El responsable debe ser cotizador activo de la oficina',
+          });
+        }
+        return {
+          status: 'QUOTING',
+          assigneeId: assignee.id,
+          auditDiff: { from: row.assigneeId, to: assignee.id },
+        };
+      },
+    );
+    void this.notifier.notify({ kind: 'ASSIGNED', requestId: id }, user.id);
+    return dto;
   }
 
   /** US-024 */
