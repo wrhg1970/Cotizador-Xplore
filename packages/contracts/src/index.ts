@@ -370,3 +370,20 @@ export const ImportSheet = z
     message: 'Sube un archivo o pega una liga de Google Sheets, no ambos',
   });
 export type ImportSheet = z.infer<typeof ImportSheet>;
+
+/** Audit log browser (admins and auditors); `action` matches a prefix such as "quote." or "quote.approved". */
+export const ListAuditLogsQuery = z.strictObject({
+  officeId: z.uuid().optional(),
+  action: z
+    .string()
+    .trim()
+    .regex(/^[a-z_.]{1,60}$/)
+    .optional(),
+  actorEmail: z.email().max(254).optional(),
+  entityId: z.string().trim().max(64).optional(),
+  from: z.iso.date().optional(),
+  to: z.iso.date().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+export type ListAuditLogsQuery = z.infer<typeof ListAuditLogsQuery>;

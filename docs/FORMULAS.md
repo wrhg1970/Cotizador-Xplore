@@ -68,7 +68,7 @@ Layout tomado del prototipo V2 y validado con Finanzas (Will, 2026-10-26):
 ## Plan de pagos y lugares liberados (Sprint B, 2026-10-27)
 - Por estudiante, sobre el precio final ya redondeado. Inscripción opcional: % del precio (truncado a centavos) o monto fijo menor que el precio.
 - Parcialidades iguales truncadas a centavos; la última absorbe el residuo, así la suma da exactamente el precio. Fechas: mensual (mismo día, ajustado al fin de mes), quincenal (+14 días) o semanal (+7).
-- Lugares liberados = ⌊estudiantes ÷ N⌋. **Solo informativo**: no cambia el precio hasta que Finanzas defina cómo se cobra (sobre todo la beca para estudiante).
+- Lugares liberados = ⌊estudiantes ÷ N⌋. **Solo informativo**: no cambia el precio (confirmado por Will, 2026-10-27); se muestra en la propuesta.
 - Los campos nuevos entran al hash de aprobación solo cuando tienen valor, para no invalidar autorizaciones previas.
 
 ## Versionado

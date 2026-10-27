@@ -25,6 +25,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `GET /dashboard` — «Mi trabajo»: pendientes del usuario (`SUBMIT_REQUEST`, `ASSIGN`, `QUOTE`, `FIX_QUOTE`, `APPROVE`, `SEND`) y conteo de solicitudes por oficina y estado, dentro de su alcance (sin borradores ajenos)
 - `GET /role-policies`, `PUT /role-policies/{role}` — permisos por rol (`allOffices`, `viewInternalCosts`, `exportInternalXlsx`, `approvalLimitMxn`); solo administrador del sistema, con auditoría. `SYSTEM_ADMIN` no es editable. `GET /me` incluye `policies`
 - `POST /offices` — alta de oficina (administrador del sistema)
+- `GET /audit-logs?officeId&action&actorEmail&entityId&from&to&page&limit` — bitácora de solo lectura; coordinador de oficina y auditor ven sus oficinas, administrador del sistema todo (incluye inicios de sesión y cambios globales). `action` filtra por prefijo (`quote.`), fechas `YYYY-MM-DD` inclusivas, `limit` ≤ 100
 
 ### Solicitudes
 - `POST /requests`

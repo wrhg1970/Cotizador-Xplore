@@ -20,7 +20,7 @@
 8. ORM/consultas parametrizadas; CSP, escaping y protección XSS.
 9. Rate limiting para login, exportaciones, endpoints públicos y webhooks.
 10. Documentos privados; URL firmada de corta duración, autorización al generar y descargar.
-11. Auditoría append-only para acciones críticas; no guardar secretos o datos sensibles en logs.
+11. Auditoría append-only para acciones críticas; no guardar secretos o datos sensibles en logs. La bitácora se consulta solo con rol coordinador, auditor o administrador del sistema, filtrada en servidor por sus oficinas.
 12. Webhooks: verificar firma, timestamp, ventana de replay, idempotencia y tamaño del cuerpo.
 13. Backups cifrados, retención definida y prueba periódica de restauración.
 14. Dependabot/auditoría de dependencias, SAST y escaneo de secretos en CI.
