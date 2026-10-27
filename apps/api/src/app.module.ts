@@ -13,6 +13,7 @@ import { ConceptTemplatesController } from './concepts/concept-templates.control
 import { OfficeQuotersController, RequestsController } from './requests/requests.controller.js';
 import { QuotesController } from './quotes/quotes.controller.js';
 import { QuoteTemplatesController } from './quotes/templates.controller.js';
+import { DashboardController } from './dashboard/dashboard.controller.js';
 import { UsersController } from './users/users.controller.js';
 
 @Module({})
@@ -47,6 +48,7 @@ export class AppModule {
         ConceptTemplatesController,
         QuotesController,
         QuoteTemplatesController,
+        DashboardController,
       ],
       providers: [
         { provide: ENV, useValue: env },

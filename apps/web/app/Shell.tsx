@@ -22,6 +22,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <header className="top">
           <nav aria-label="Principal">
             <strong>Cotizador EE</strong>
+            <Link href="/inicio">Inicio</Link>
             <Link href="/solicitudes">Solicitudes</Link>
             <Link href="/solicitudes?assignedToMe=true">Mis tareas</Link>
             {me?.roles.some((r) => r.role === 'OFFICE_ADMIN' || r.role === 'SYSTEM_ADMIN') && (
