@@ -470,3 +470,8 @@ article.proposal ol.timeline li::before {
     border-radius: 0;
   }
 }
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
+  min-height: 0;
+}
