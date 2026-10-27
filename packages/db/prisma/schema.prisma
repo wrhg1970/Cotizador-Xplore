@@ -98,9 +98,12 @@ model AuditLog {
   entityId      String   @map("entity_id")
   correlationId String   @map("correlation_id")
   diff          Json?
+  /// Set by a DB trigger from the entity (request, version, template, office, role grant); null = global.
+  officeId      String?  @map("office_id") @db.Uuid
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([entityType, entityId, createdAt])
+  @@index([officeId, createdAt])
   @@index([actorUserId, createdAt])
   @@map("audit_logs")
 }
@@ -247,7 +250,7 @@ model QuoteVersion {
   assumptions          String?
   /// Registration + installments config (contracts PaymentPlanInput); the schedule is computed, not stored.
   paymentPlan          Json?              @map("payment_plan")
-  /// "1 lugar liberado por cada N estudiantes"; informative until Finance defines its pricing.
+  /// "1 lugar liberado por cada N estudiantes"; informative only, never changes the price (confirmed 2026-10-27).
   studentsPerFreePlace Int?               @map("students_per_free_place")
   freePlaceBenefit     FreePlaceBenefit?  @map("free_place_benefit")
   /// Day-by-day plan shown in the proposal (contracts ItineraryDay[]).

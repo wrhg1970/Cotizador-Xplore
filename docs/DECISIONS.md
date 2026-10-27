@@ -47,7 +47,7 @@
 
 ## Sprint B — plan de pagos, lugares liberados, itinerario y plantillas (2026-10-27)
 - Plan de pagos por versión, calculado por el motor (no guardado); si deja de cuadrar con el precio, la versión no puede enviarse a autorización.
-- Lugares liberados informativos hasta que Finanzas defina su efecto en el precio.
+- Lugares liberados solo informativos: no bajan el precio (confirmado por Will, 2026-10-27).
 - Plantillas por oficina (contienen costos internos: solo el lado cotizador las ve). No copian tipos de cambio ni fechas de pago.
 
 ## Sprint C — tablero, permisos por rol e importador con IA (2026-10-27)
@@ -59,3 +59,7 @@
 
 ## Excel interno con formato de la hoja EE (2026-10-27)
 - La pestaña «Cotización» replica la hoja oficial de Finanzas, con las mismas cifras que la pantalla (mismo cálculo del servidor). El detalle de líneas pasa a la pestaña «Conceptos». Plan de pagos e itinerario van en pestañas propias. Las cifras se exportan como valores, no como fórmulas: el cálculo oficial es el del motor versionado.
+
+## Panel de bitácora (2026-10-27)
+- Pantalla «Bitácora» de solo lectura para coordinador, auditor y administrador del sistema, con filtros por oficina, tipo de acción, persona, registro y fechas.
+- La oficina de cada evento la asigna un trigger de la base de datos, para no tocar cada llamada a `audit()`; los eventos anteriores se rellenaron en la migración. Los eventos globales (inicios de sesión, permisos, catálogo) solo los ve el administrador del sistema.

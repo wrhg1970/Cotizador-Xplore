@@ -20,7 +20,7 @@
 - `ProposalOutcome`: aceptada/rechazada/expirada, versión y motivo.
 - `ExchangeRate`: base, cotizada, tasa, fecha, fuente.
 - `IntegrationConnection`, `IntegrationJob`, `WebhookEvent`, `ExternalReference`.
-- `AuditLog`: actor, acción, entidad, entityId, timestamp, correlationId, diff redactado.
+- `AuditLog`: actor, acción, entidad, entityId, timestamp, correlationId, diff redactado y `office_id`. `office_id` lo llena un trigger `BEFORE INSERT` a partir de la entidad (solicitud, versión, plantilla, oficina, rol de usuario); nulo = evento global (inicio de sesión, permisos, catálogo). La tabla es append-only (trigger que impide UPDATE/DELETE).
 
 ## Reglas de almacenamiento
 - IDs UUID.
