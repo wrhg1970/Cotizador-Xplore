@@ -44,3 +44,8 @@
 - Will eligió llevar las funciones del prototipo V2 (XploreCotizador-V2, AI Studio/Firebase) a esta app en lugar de usar el prototipo como base: aquí ya están la autorización en servidor, la auditoría y el despliegue.
 - Comisión sobre precio final y bloque de chaperones × cantidad (confirmado por Will). El motor no cambió de fórmula.
 - Catálogo de rubros global, mantenido por el administrador del sistema. Los subtotales de la hoja (`sheet`) quedan fuera del hash de aprobación para no invalidar autorizaciones ya dadas.
+
+## Sprint B — plan de pagos, lugares liberados, itinerario y plantillas (2026-10-27)
+- Plan de pagos por versión, calculado por el motor (no guardado); si deja de cuadrar con el precio, la versión no puede enviarse a autorización.
+- Lugares liberados informativos hasta que Finanzas defina su efecto en el precio.
+- Plantillas por oficina (contienen costos internos: solo el lado cotizador las ve). No copian tipos de cambio ni fechas de pago.

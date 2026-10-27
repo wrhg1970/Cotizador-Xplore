@@ -9,13 +9,23 @@ import {
   PENDING_LEGEND,
   QUOTE_STATUS_LABEL,
   type QuoteDto,
+  type QuoteTemplateDto,
   type ScenarioDto,
   SHEET_BLOCKS,
 } from '../lib/types';
 
 /** US-029/030/047: scenarios side by side, with create and duplicate for whoever quotes. */
-export function Scenarios({ requestId, canWork }: { requestId: string; canWork: boolean }) {
+export function Scenarios({
+  requestId,
+  officeId,
+  canWork,
+}: {
+  requestId: string;
+  officeId: string;
+  canWork: boolean;
+}) {
   const [items, setItems] = useState<ScenarioDto[] | null>(null);
+  const [templates, setTemplates] = useState<QuoteTemplateDto[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(
@@ -26,6 +36,12 @@ export function Scenarios({ requestId, canWork }: { requestId: string; canWork: 
   useEffect(() => {
     void reload();
   }, [reload]);
+  useEffect(() => {
+    if (canWork)
+      api<QuoteTemplateDto[]>(`/offices/${officeId}/quote-templates`).then(setTemplates, () =>
+        setTemplates([]),
+      );
+  }, [canWork, officeId]);
 
   async function run(path: string, body: object) {
     setError(null);
@@ -44,6 +60,7 @@ export function Scenarios({ requestId, canWork }: { requestId: string; canWork: 
     void run(`/requests/${requestId}/scenarios`, {
       name: String(f.get('name')).trim(),
       saleCurrency: f.get('saleCurrency'),
+      ...(f.get('templateId') ? { templateId: f.get('templateId') } : {}),
     }).then(() => form.reset());
   }
 
@@ -71,6 +88,27 @@ export function Scenarios({ requestId, canWork }: { requestId: string; canWork: 
               ))}
             </select>
           </label>
+          {templates.length > 0 && (
+            <label>
+              Empezar desde
+              <select
+                name="templateId"
+                defaultValue=""
+                onChange={(e) => {
+                  const t = templates.find((x) => x.id === e.target.value);
+                  const cur = e.currentTarget.form?.elements.namedItem('saleCurrency');
+                  if (t && cur instanceof HTMLSelectElement) cur.value = t.saleCurrency;
+                }}
+              >
+                <option value="">Rubros base del catálogo</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    Plantilla: {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button>Nuevo escenario</button>
         </form>
       )}

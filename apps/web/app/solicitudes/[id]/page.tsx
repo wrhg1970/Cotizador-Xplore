@@ -225,6 +225,7 @@ export default function RequestDetailPage() {
       {r.status !== 'DRAFT' && canSeeQuotes(me, r.office.id) && (
         <Scenarios
           requestId={r.id}
+          officeId={r.office.id}
           canWork={r.status === 'QUOTING' && (admin || me?.id === r.assignee?.id)}
         />
       )}

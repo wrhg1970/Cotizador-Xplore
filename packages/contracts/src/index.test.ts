@@ -88,3 +88,27 @@ describe('quote contracts', () => {
     ).toBe(false);
   });
 });
+
+describe('payment plan', () => {
+  it('needs a date for any registration and puts it before the first payment', async () => {
+    const { PaymentPlanInput } = await import('./index.js');
+    const base = { installments: 6, frequency: 'MONTHLY', firstDueDate: '2027-01-15' };
+    expect(PaymentPlanInput.safeParse(base).success).toBe(true);
+    expect(
+      PaymentPlanInput.safeParse({ ...base, depositRate: '0.15', depositDueDate: '2026-11-15' }).success,
+    ).toBe(true);
+    expect(PaymentPlanInput.safeParse({ ...base, depositRate: '0.15' }).success).toBe(false);
+    expect(
+      PaymentPlanInput.safeParse({
+        ...base,
+        depositRate: '0.1',
+        depositAmount: '100',
+        depositDueDate: '2026-11-15',
+      }).success,
+    ).toBe(false);
+    expect(
+      PaymentPlanInput.safeParse({ ...base, depositAmount: '100', depositDueDate: '2027-02-01' }).success,
+    ).toBe(false);
+    expect(PaymentPlanInput.safeParse({ ...base, installments: 16 }).success).toBe(false);
+  });
+});

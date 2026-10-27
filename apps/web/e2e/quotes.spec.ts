@@ -68,11 +68,41 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await expect(finalPrice).toContainText('5200.00');
   await expect(page.getByLabel('% Comisión (sobre el precio final)')).toHaveValue('18.9423');
 
+  // Proposal extras: 15% registration + 6 monthly payments, free places, itinerary, exclusions.
+  await page.getByLabel('Ofrecer plan de pagos').check();
+  await page.getByLabel('Tipo de inscripción').selectOption('rate');
+  await page.getByLabel('1 lugar por cada (estudiantes)').fill('5');
+  await page.getByRole('button', { name: 'Agregar día' }).click();
+  await page.getByLabel('Título').fill('Llegada a Roma');
+  await page.getByLabel('Un concepto por línea').fill('Vuelo internacional\nGastos personales');
+  await page.getByRole('button', { name: 'Guardar y calcular' }).click();
+  const schedule = page.getByRole('table', { name: 'Plan de pagos por estudiante' });
+  await expect(schedule.getByRole('row', { name: /Inscripción/ })).toContainText('780.00'); // 15% of 5200
+  await expect(schedule.getByRole('row', { name: /Pago 6 de 6/ })).toContainText('736.70');
+  await expect(page.getByText('Lugares liberados: 2')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Ver propuesta para compartir' }).click();
+  await expect(page.getByRole('heading', { name: 'Plan de pagos por estudiante' })).toBeVisible();
+  await expect(page.getByText('Día 1: Llegada a Roma')).toBeVisible();
+  await expect(page.getByText('Vuelo internacional')).toBeVisible();
+  await page.goBack();
+
+  page.once('dialog', (d) => d.accept('Italia base'));
+  await page.getByRole('button', { name: 'Guardar como plantilla' }).click();
+  await expect(page.getByText('Plantilla "Italia base" guardada para la oficina')).toBeVisible();
+
   await page.getByRole('link', { name: /Italia Spring Break 2027/ }).click();
   page.once('dialog', (d) => d.accept('Opción 2'));
   await page.getByRole('button', { name: 'Duplicar' }).click();
   await expect(page.getByRole('link', { name: 'Opción 2' })).toBeVisible();
   await expect(page.getByRole('cell', { name: '5200.00 EUR' })).toHaveCount(2);
+
+  // A new scenario from the template starts with its concepts and %.
+  await page.getByLabel('Nombre del escenario').fill('Opción 3');
+  await page.getByLabel('Empezar desde').selectOption({ label: 'Plantilla: Italia base' });
+  await page.getByRole('button', { name: 'Nuevo escenario' }).click();
+  await expect(page.getByRole('link', { name: 'Opción 3' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: '5200.00 EUR' })).toHaveCount(3);
 
   // Advisors never see internal costs.
   const advCtx = await browser.newContext();

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { CurrencyCode, LineCategory } from '@ee/contracts';
 import { api, errorText } from '../../lib/api';
+import { PaymentSchedule, ProposalContent } from './ProposalContent';
 import { SheetSummary } from './SheetSummary';
 import {
   CHANNEL_LABEL,
@@ -54,6 +55,7 @@ export default function QuoteEditorPage() {
   const [catalog, setCatalog] = useState<ConceptTemplateDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback((v: QuoteDto) => {
     setQ(v);
@@ -134,6 +136,11 @@ export default function QuoteEditorPage() {
           staff: draft.staff,
           validUntil: draft.validUntil || null,
           assumptions: draft.assumptions ?? '',
+          paymentPlan: draft.paymentPlan,
+          studentsPerFreePlace: draft.studentsPerFreePlace,
+          freePlaceBenefit: draft.freePlaceBenefit,
+          itinerary: draft.itinerary?.map((d) => ({ ...d, details: d.details?.trim() || undefined })) ?? null,
+          exclusions: draft.exclusions.map((x) => x.trim()).filter(Boolean),
           // Server-only fields would fail strict validation.
           lines: draft.lines.map(({ id: _id, lineTotal: _t, ...l }) => ({
             ...l,
@@ -170,6 +177,7 @@ export default function QuoteEditorPage() {
         <span className="badge">{QUOTE_STATUS_LABEL[q.status]}</span>
       </div>
 
+      {notice && <p role="status">{notice}</p>}
       {error && (
         <p className="error" role="alert">
           {error}
@@ -211,6 +219,24 @@ export default function QuoteEditorPage() {
                 Devolver con comentarios
               </button>
             </>
+          )}
+          {works && (
+            <button
+              className="secondary"
+              onClick={async () => {
+                const name = window.prompt('Nombre de la plantilla:', q.scenarioName)?.trim();
+                if (!name) return;
+                setError(null);
+                try {
+                  await api(`/quotes/${q.id}/template`, { method: 'POST', body: { name } });
+                  setNotice(`Plantilla "${name}" guardada para la oficina`);
+                } catch (e) {
+                  setError(errorText(e));
+                }
+              }}
+            >
+              Guardar como plantilla
+            </button>
           )}
           {/* Plain link: same-origin download carries the session cookie. */}
           <a className="button secondary" href={`/api/v1/quotes/${q.id}/export.xlsx`}>
@@ -281,6 +307,20 @@ export default function QuoteEditorPage() {
       </section>
 
       <SheetSummary q={q} />
+      {(q.paymentSchedule || q.freePlaces !== null) && (
+        <section className="card" aria-labelledby="plan-guardado" style={{ marginTop: 16 }}>
+          <h2 id="plan-guardado" style={{ marginTop: 0 }}>
+            Plan de pagos y lugares liberados (guardado)
+          </h2>
+          {q.freePlaces !== null && (
+            <p>
+              Lugares liberados: <strong>{q.freePlaces}</strong> (1 por cada {q.studentsPerFreePlace}{' '}
+              estudiantes, para {q.freePlaceBenefit === 'STUDENT' ? 'beca de estudiante' : 'chaperón'})
+            </p>
+          )}
+          <PaymentSchedule q={q} />
+        </section>
+      )}
 
       <fieldset disabled={!editable} style={{ border: 0, padding: 0, margin: 0 }}>
         <section aria-labelledby="grupo">
@@ -588,6 +628,8 @@ export default function QuoteEditorPage() {
             Agregar tipo de cambio
           </button>
         </section>
+
+        <ProposalContent draft={draft} set={set} />
 
         <section aria-labelledby="supuestos">
           <h2 id="supuestos">Supuestos</h2>

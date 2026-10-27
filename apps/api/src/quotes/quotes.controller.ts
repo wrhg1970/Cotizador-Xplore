@@ -17,6 +17,9 @@ import {
 import type { Request, Response } from 'express';
 import {
   CreateScenario,
+  ItineraryDay,
+  PaymentPlanInput,
+  QuoteLineInput,
   DuplicateScenario,
   ReturnQuote,
   ReviewQuote,
@@ -36,6 +39,8 @@ import {
   calculateQuote,
   calculationHash,
   D,
+  freePlaces,
+  paymentSchedule,
   marginRateForPrice,
   QuoteEngineError,
   roundMoney,
@@ -85,6 +90,29 @@ const asciiName = (s: string) =>
     .replace(/[^\w.-]+/g, '_');
 
 const money = (x: Dec) => roundMoney(x, 2).toFixed(2);
+// Json columns: a null clears the column; Prisma spells that DbNull.
+const json = (x: unknown) => (x === null ? Prisma.DbNull : (x as Prisma.InputJsonValue));
+const plan = (v: QuoteVersion) => (v.paymentPlan ? PaymentPlanInput.parse(v.paymentPlan) : null);
+
+/** Per-student schedule from the rounded price; a plan that no longer fits the price becomes a warning. */
+function schedule(v: FullVersion, price: Dec | null) {
+  const p = plan(v);
+  if (!p || !price) return { payments: null, warning: null };
+  try {
+    const payments = paymentSchedule(price, {
+      ...p,
+      depositRate: p.depositRate ? new D(p.depositRate) : null,
+      depositAmount: p.depositAmount ? new D(p.depositAmount) : null,
+    });
+    return {
+      payments: payments.map((x) => ({ number: x.number, dueDate: x.dueDate, amount: x.amount.toFixed(2) })),
+      warning: null,
+    };
+  } catch (e) {
+    if (!(e instanceof QuoteEngineError)) throw e;
+    return { payments: null, warning: { code: 'PAYMENT_PLAN', message: `Plan de pagos: ${e.message}` } };
+  }
+}
 
 const engine = (v: FullVersion) =>
   calculateQuote({
@@ -149,10 +177,20 @@ function snapshotHash(v: FullVersion) {
     reviews: _rw,
     warnings: _w,
     sheet: _sh,
+    paymentSchedule: _ps,
+    freePlaces: _fp,
     lines,
     ...rest
   } = toDto(v);
-  return calculationHash({ ...rest, lines: lines.map(({ id: _l, ...l }) => l) });
+  // Proposal fields added later enter the hash only when set, so earlier approvals keep their hash.
+  const added = ['paymentPlan', 'studentsPerFreePlace', 'freePlaceBenefit', 'itinerary'] as const;
+  for (const k of added) if (rest[k] === null) delete rest[k];
+  const { exclusions, ...kept } = rest;
+  return calculationHash({
+    ...kept,
+    ...(exclusions.length ? { exclusions } : {}),
+    lines: lines.map(({ id: _l, ...l }) => l),
+  });
 }
 
 export type QuoteDto = ReturnType<typeof toDto>;
@@ -162,6 +200,7 @@ function toDto(v: FullVersion) {
   const missingFx = [...new Set(v.lines.map((l) => l.currency))].filter(
     (c) => c !== v.saleCurrency && !rated.has(c),
   );
+  const pay = schedule(v, missingFx.length ? null : engine(v).pricePerParticipant);
   return {
     id: v.id,
     scenarioId: v.scenarioId,
@@ -178,6 +217,13 @@ function toDto(v: FullVersion) {
     staff: v.staff,
     validUntil: day(v.validUntil),
     assumptions: v.assumptions,
+    paymentPlan: plan(v),
+    studentsPerFreePlace: v.studentsPerFreePlace,
+    freePlaceBenefit: v.freePlaceBenefit,
+    itinerary: v.itinerary ? ItineraryDay.array().parse(v.itinerary) : null,
+    exclusions: v.exclusions,
+    paymentSchedule: pay.payments,
+    freePlaces: v.studentsPerFreePlace ? freePlaces(v.participants, v.studentsPerFreePlace) : null,
     lines: v.lines.map((l) => ({
       id: l.id,
       category: l.category,
@@ -198,10 +244,13 @@ function toDto(v: FullVersion) {
     })),
     totals: missingFx.length ? null : calculate(v),
     sheet: missingFx.length ? null : sheet(v),
-    warnings: missingFx.map((c) => ({
-      code: 'MISSING_FX',
-      message: `Falta tipo de cambio ${c} → ${v.saleCurrency}`,
-    })),
+    warnings: [
+      ...missingFx.map((c) => ({
+        code: 'MISSING_FX',
+        message: `Falta tipo de cambio ${c} → ${v.saleCurrency}`,
+      })),
+      ...(pay.warning ? [pay.warning] : []),
+    ],
     deliveries: v.deliveries.map((d) => ({
       recipients: d.recipients,
       channel: d.channel,
@@ -234,6 +283,11 @@ async function copyVersion(tx: Tx, src: FullVersion, scenarioId: string, number:
       staff: src.staff,
       validUntil: src.validUntil,
       assumptions: src.assumptions,
+      paymentPlan: src.paymentPlan ?? Prisma.DbNull,
+      studentsPerFreePlace: src.studentsPerFreePlace,
+      freePlaceBenefit: src.freePlaceBenefit,
+      itinerary: src.itinerary ?? Prisma.DbNull,
+      exclusions: src.exclusions,
       createdById: userId,
       lines: {
         create: src.lines.map(({ id: _i, versionId: _v, ...l }) => l),
@@ -306,12 +360,29 @@ export class QuotesController {
       const r = await tx.travelRequest.findUnique({ where: { id } });
       if (!r || !canViewQuotes(user, r)) throw new NotFoundException('Solicitud no encontrada');
       this.assertWork(user, r);
-      const base = await tx.conceptTemplate.findMany({
-        where: { active: true, isBase: true },
-        orderBy: [{ category: 'asc' }, { position: 'asc' }, { label: 'asc' }],
-      });
+      const template = body.templateId
+        ? await tx.quoteTemplate.findFirst({
+            where: { id: body.templateId, officeId: r.officeId, active: true },
+          })
+        : null;
+      if (body.templateId && !template) throw new NotFoundException('Plantilla no encontrada');
       // Allowances count both travel days: return − departure + 1 (Finance, 2026-10-22).
       const tripDays = (r.returnDate.getTime() - r.departureDate.getTime()) / 86_400_000 + 1;
+      const lines = template
+        ? QuoteLineInput.array().parse(template.lines)
+        : (
+            await tx.conceptTemplate.findMany({
+              where: { active: true, isBase: true },
+              orderBy: [{ category: 'asc' }, { position: 'asc' }, { label: 'asc' }],
+            })
+          ).map((t) => ({
+            category: t.category,
+            description: t.label,
+            quantity: String(t.perTripDay ? tripDays : 1),
+            unitCost: '0',
+            currency: body.saleCurrency,
+            internalOnly: t.internalOnly,
+          }));
       const scenario = await tx.quoteScenario.create({
         data: {
           requestId: id,
@@ -325,15 +396,20 @@ export class QuotesController {
               chaperones: body.chaperones ?? r.chaperones,
               staff: body.staff ?? r.staff,
               createdById: user.id,
+              ...(template && {
+                targetMarginRate: template.targetMarginRate,
+                studentsPerFreePlace: template.studentsPerFreePlace,
+                freePlaceBenefit: template.freePlaceBenefit,
+                itinerary: template.itinerary ?? Prisma.DbNull,
+                exclusions: template.exclusions,
+                assumptions: template.assumptions,
+              }),
               lines: {
-                create: base.map((t, position) => ({
+                create: lines.map((l, position) => ({
+                  ...l,
                   position,
-                  category: t.category,
-                  description: t.label,
-                  quantity: new Prisma.Decimal(t.perTripDay ? tripDays : 1),
-                  unitCost: new Prisma.Decimal(0),
-                  currency: body.saleCurrency,
-                  internalOnly: t.internalOnly,
+                  quantity: new Prisma.Decimal(l.quantity),
+                  unitCost: new Prisma.Decimal(l.unitCost),
                 })),
               },
             },
@@ -347,7 +423,7 @@ export class QuotesController {
         entityType: 'TravelRequest',
         entityId: id,
         correlationId: req.correlationId,
-        diff: { scenarioId: scenario.id, name: scenario.name },
+        diff: { scenarioId: scenario.id, name: scenario.name, templateId: template?.id ?? null },
       });
       return { id: scenario.id, name: scenario.name, latest: toDto(scenario.versions[0]!) };
     });
@@ -442,7 +518,8 @@ export class QuotesController {
     const r = v && (await this.prisma.travelRequest.findUnique({ where: { id: v.scenario.requestId } }));
     if (!v || !r || !canView(user, r) || r.status === 'DRAFT')
       throw new NotFoundException('Cotización no encontrada');
-    const { totals, validUntil, assumptions } = toDto(v);
+    const dto = toDto(v);
+    const { totals, validUntil, assumptions } = dto;
     return {
       id: v.id,
       number: v.number,
@@ -464,6 +541,10 @@ export class QuotesController {
       pricePerParticipantMxn: totals?.pricePerParticipantMxn ?? null,
       validUntil,
       assumptions,
+      paymentSchedule: dto.paymentSchedule,
+      freePlaces: dto.freePlaces && { count: dto.freePlaces, benefit: dto.freePlaceBenefit },
+      itinerary: dto.itinerary ?? [],
+      exclusions: dto.exclusions,
       includes: v.lines
         // Base concepts start at zero; an unpriced one is not something the trip includes.
         .filter(
@@ -532,7 +613,8 @@ export class QuotesController {
           message: 'No se captura tipo de cambio de la moneda de venta consigo misma',
         });
 
-      const { targetMarginRate, targetPricePerParticipant, mxnRate, ...rest } = fields;
+      const { targetMarginRate, targetPricePerParticipant, mxnRate, paymentPlan, itinerary, ...rest } =
+        fields;
       const { count } = await tx.quoteVersion.updateMany({
         where: { id, rowVersion },
         data: {
@@ -542,6 +624,8 @@ export class QuotesController {
             ? { mxnRate: mxnRate === null ? null : new Prisma.Decimal(mxnRate) }
             : {}),
           ...(validUntil !== undefined ? { validUntil: validUntil ? toDate(validUntil) : null } : {}),
+          ...(paymentPlan !== undefined ? { paymentPlan: json(paymentPlan) } : {}),
+          ...(itinerary !== undefined ? { itinerary: json(itinerary) } : {}),
           rowVersion: { increment: 1 },
         },
       });
@@ -642,6 +726,7 @@ export class QuotesController {
         !dto.lines.some((l) => new D(l.lineTotal).gt(0)) && 'conceptos',
         !dto.validUntil && 'vigencia',
         !dto.totals && 'tipos de cambio',
+        dto.warnings.some((w) => w.code === 'PAYMENT_PLAN') && 'plan de pagos',
       ].filter(Boolean);
       if (missing.length)
         throw new BadRequestException({

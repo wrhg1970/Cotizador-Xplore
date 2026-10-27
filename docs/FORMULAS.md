@@ -65,6 +65,12 @@ Layout tomado del prototipo V2 y validado con Finanzas (Will, 2026-10-26):
 - **% Comisión sobre el precio final**: precio = SubTotal 2 ÷ (1 − %), redondeado hacia arriba al entero. (El prototipo V2 lo calculaba sobre el coste; se descartó.)
 - **Precio final capturado**: % = 1 − coste ÷ precio, truncado a 6 decimales; el servidor verifica que el redondeo devuelva exactamente ese precio.
 
+## Plan de pagos y lugares liberados (Sprint B, 2026-10-27)
+- Por estudiante, sobre el precio final ya redondeado. Inscripción opcional: % del precio (truncado a centavos) o monto fijo menor que el precio.
+- Parcialidades iguales truncadas a centavos; la última absorbe el residuo, así la suma da exactamente el precio. Fechas: mensual (mismo día, ajustado al fin de mes), quincenal (+14 días) o semanal (+7).
+- Lugares liberados = ⌊estudiantes ÷ N⌋. **Solo informativo**: no cambia el precio hasta que Finanzas defina cómo se cobra (sobre todo la beca para estudiante).
+- Los campos nuevos entran al hash de aprobación solo cuando tienen valor, para no invalidar autorizaciones previas.
+
 ## Versionado
 Cada versión guarda `formulaSetId`, `formulaSetVersion`, inputs, FX, líneas, resultados y `calculationHash`. Los cambios de fórmula no recalculan cotizaciones ya enviadas.
 
