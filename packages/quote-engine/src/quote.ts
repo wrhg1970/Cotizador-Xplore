@@ -44,8 +44,17 @@ export function calculateQuote(q: QuoteInput) {
   const pricePerParticipant = priceFromTargetMargin(costPerParticipant, q.targetMarginRate).ceil();
   const marginPerParticipant = pricePerParticipant.minus(costPerParticipant);
   const groupMargin = marginPerParticipant.mul(q.participants);
+  const categories: Category[] = [
+    'PER_PARTICIPANT',
+    'PER_CHAPERONE',
+    'PER_STAFF',
+    'PER_GROUP',
+    'CONTINGENCY',
+  ];
   return {
     lineTotals,
+    /** Sale-currency total per category, headcount applied; per-participant stays per head. */
+    byCategory: Object.fromEntries(categories.map((c) => [c, sum((x) => x === c)])) as Record<Category, Dec>,
     directPerParticipant,
     sharedTotal,
     sharedPerParticipant,

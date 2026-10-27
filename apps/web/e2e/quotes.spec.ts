@@ -34,32 +34,45 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await page.getByRole('link', { name: 'Opción 1' }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Opción 1 · v1');
 
-  const lines: [string, string, string, string][] = [
-    ['PER_PARTICIPANT', 'Precio neto', '1', '3900'],
-    ['PER_PARTICIPANT', 'Kit, promoción, envío y operación', '1', '120'],
-    ['PER_STAFF', 'Viáticos', '16', '50'],
-    ['PER_STAFF', 'Kit chaperón', '1', '50'],
-    ['CONTINGENCY', 'Fondo de emergencia', '1', '150'],
+  // The scenario starts with the EE sheet's base concepts; fill Finance's "Opción 1" costs.
+  await expect(page.getByLabel('Concepto 1', { exact: true })).toHaveValue('Precio neto');
+  const costs: [number, string, string][] = [
+    [1, 'Precio neto', '3900'],
+    [4, 'Kit EE', '50'],
+    [6, 'Promoción', '20'],
+    [7, 'Costo envío de kits', '10'],
+    [8, 'Operación', '40'],
+    [14, 'Gastos por día', '50'],
+    [17, 'Kit', '50'],
+    [18, 'Fondo de emergencia', '150'],
   ];
-  for (const [i, [cat, desc, qty, cost]] of lines.entries()) {
-    await page.getByRole('button', { name: 'Agregar concepto' }).click();
-    await page.getByLabel(`Tipo ${i + 1}`).selectOption(cat);
-    await page.getByLabel(`Concepto ${i + 1}`).fill(desc);
-    await page.getByLabel(`Cantidad ${i + 1}`).fill(qty);
-    await page.getByLabel(`Costo ${i + 1}`).fill(cost);
+  for (const [i, name, cost] of costs) {
+    await expect(page.getByLabel(`Concepto ${i}`, { exact: true })).toHaveValue(name);
+    await page.getByLabel(`Costo ${i}`, { exact: true }).fill(cost);
   }
-  await page.getByLabel('Margen sobre venta (%)').fill('18');
-  await page.getByLabel('Tipo de cambio a MXN (aproximado)').fill('20.39');
+  // Allowances start at the trip's days: return − departure + 1.
+  await expect(page.getByLabel('Cantidad 14', { exact: true })).toHaveValue('17');
   await expect(page.getByText('este viaje: 17')).toBeVisible();
+  await page.getByLabel('% Comisión (sobre el precio final)').fill('18');
+  await page.getByLabel('Tipo de cambio a MXN (aproximado)').fill('20.39');
   await page.getByRole('button', { name: 'Guardar y calcular' }).click();
-  await expect(page.getByText('5129.00 EUR')).toBeVisible();
-  await expect(page.getByText('104581.00 MXN')).toBeVisible();
+  // 4020 + (17 × 50 + 50) × 2 ÷ 10 + 150 ÷ 10 = 4215 → 4215 / 0.82 = 5140.24 → 5141
+  const finalPrice = page.getByRole('row', { name: /PRECIO FINAL/ });
+  await expect(finalPrice).toContainText('5141.00');
+  await expect(page.getByRole('row', { name: /Gastos del líder/ })).toContainText('195.00');
+  await expect(page.getByText('104825.00 MXN')).toBeVisible();
+
+  // Typing the final price derives the %.
+  await page.getByLabel('Precio final por estudiante').fill('5200');
+  await page.getByRole('button', { name: 'Guardar y calcular' }).click();
+  await expect(finalPrice).toContainText('5200.00');
+  await expect(page.getByLabel('% Comisión (sobre el precio final)')).toHaveValue('18.9423');
 
   await page.getByRole('link', { name: /Italia Spring Break 2027/ }).click();
   page.once('dialog', (d) => d.accept('Opción 2'));
   await page.getByRole('button', { name: 'Duplicar' }).click();
   await expect(page.getByRole('link', { name: 'Opción 2' })).toBeVisible();
-  await expect(page.getByRole('cell', { name: '5129.00 EUR' })).toHaveCount(2);
+  await expect(page.getByRole('cell', { name: '5200.00 EUR' })).toHaveCount(2);
 
   // Advisors never see internal costs.
   const advCtx = await browser.newContext();

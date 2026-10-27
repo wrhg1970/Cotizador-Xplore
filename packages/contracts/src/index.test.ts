@@ -75,3 +75,16 @@ describe('request contracts', () => {
     expect(UpdateRequest.parse({ version: 1, city: 'X' })).toEqual({ version: 1, city: 'X' });
   });
 });
+
+describe('quote contracts', () => {
+  it('takes a whole final price or a margin, never both', async () => {
+    const { UpdateQuote } = await import('./index.js');
+    expect(UpdateQuote.safeParse({ targetPricePerParticipant: '5150', rowVersion: 1 }).success).toBe(true);
+    for (const p of ['5150.5', '0', '-1', '1e3'])
+      expect(UpdateQuote.safeParse({ targetPricePerParticipant: p, rowVersion: 1 }).success).toBe(false);
+    expect(
+      UpdateQuote.safeParse({ targetPricePerParticipant: '5150', targetMarginRate: '0.1', rowVersion: 1 })
+        .success,
+    ).toBe(false);
+  });
+});

@@ -113,8 +113,23 @@ export interface QuoteDto {
         | 'groupPrice'
         | 'groupMargin',
         string
-      > & { pricePerParticipantMxn: string | null; groupMarginMxn: string | null })
+      > & {
+        pricePerParticipantMxn: string | null;
+        groupMarginMxn: string | null;
+        /** Per line, in sale currency, headcount applied. */
+        lineTotals: string[];
+      })
     | null;
+  /** EE sheet subtotals; null like `totals` while FX is missing. */
+  sheet: Record<
+    | 'chaperonesTotal'
+    | 'emergencyFund'
+    | 'totalChaperones'
+    | 'leaderPerParticipant'
+    | 'groupFixedTotal'
+    | 'groupFixedPerParticipant',
+    string
+  > | null;
   warnings: { code: string; message: string }[];
   reviews: { decision: 'APPROVED' | 'RETURNED'; reviewer: string; comment: string | null; at: string }[];
   deliveries: {
@@ -160,6 +175,34 @@ export const CATEGORY_LABEL: Record<LineCategory, string> = {
   PER_GROUP: 'Fijo del grupo',
   CONTINGENCY: 'Fondo de emergencia',
 };
+
+/** Blocks of the EE sheet, in the order Finance reads them. */
+export const SHEET_BLOCKS: { category: LineCategory; title: string; hint: string }[] = [
+  { category: 'PER_PARTICIPANT', title: 'Conceptos por estudiante', hint: 'Lo que paga cada estudiante.' },
+  {
+    category: 'PER_STAFF',
+    title: 'Chaperones EE',
+    hint: 'Costo por chaperón; se multiplica por los chaperones EE.',
+  },
+  {
+    category: 'PER_CHAPERONE',
+    title: 'Chaperones de la escuela',
+    hint: 'Costo por chaperón; se multiplica por los chaperones de la escuela.',
+  },
+  { category: 'CONTINGENCY', title: 'Fondo de emergencia', hint: 'Monto total para el grupo.' },
+  { category: 'PER_GROUP', title: 'Fijos del grupo', hint: 'Monto total; se reparte entre los estudiantes.' },
+];
+
+export interface ConceptTemplateDto {
+  id: string;
+  label: string;
+  category: LineCategory;
+  internalOnly: boolean;
+  isBase: boolean;
+  perTripDay: boolean;
+  position: number;
+  active: boolean;
+}
 
 const dateFmt = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeZone: 'UTC' });
 const dateTimeFmt = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' });

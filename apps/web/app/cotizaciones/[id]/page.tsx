@@ -5,14 +5,16 @@ import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { CurrencyCode, LineCategory } from '@ee/contracts';
 import { api, errorText } from '../../lib/api';
+import { SheetSummary } from './SheetSummary';
 import {
-  CATEGORY_LABEL,
   CHANNEL_LABEL,
   fmtDate,
   fmtDateTime,
   isAuthorized,
   PENDING_LEGEND,
   QUOTE_STATUS_LABEL,
+  SHEET_BLOCKS,
+  type ConceptTemplateDto,
   type FxRateDto,
   type QuoteDto,
   type QuoteLineDto,
@@ -21,10 +23,15 @@ import {
 import { isOfficeAdmin, useMe } from '../../lib/useMe';
 
 const today = () => new Date().toISOString().slice(0, 10);
-const blankLine = (currency: CurrencyCode): QuoteLineDto => ({
-  category: 'PER_PARTICIPANT',
-  description: '',
-  quantity: '1',
+const blankLine = (
+  currency: CurrencyCode,
+  category: LineCategory,
+  description = '',
+  quantity = '1',
+): QuoteLineDto => ({
+  category,
+  description,
+  quantity,
   unitCost: '0',
   currency,
   internalOnly: false,
@@ -41,6 +48,10 @@ export default function QuoteEditorPage() {
   const [req, setReq] = useState<TravelRequestDto | null>(null);
   const [draft, setDraft] = useState<QuoteDto | null>(null);
   const [marginPct, setMarginPct] = useState('0');
+  // Whichever of % or final price was typed last is what gets saved.
+  const [targetPrice, setTargetPrice] = useState('');
+  const [byPrice, setByPrice] = useState(false);
+  const [catalog, setCatalog] = useState<ConceptTemplateDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -48,6 +59,8 @@ export default function QuoteEditorPage() {
     setQ(v);
     setDraft(v);
     setMarginPct(toPct(v.targetMarginRate));
+    setTargetPrice(v.totals ? String(Math.round(Number(v.totals.pricePerParticipant))) : '');
+    setByPrice(false);
   }, []);
 
   useEffect(() => {
@@ -58,6 +71,7 @@ export default function QuoteEditorPage() {
       },
       (e) => setError(errorText(e)),
     );
+    api<ConceptTemplateDto[]>('/concept-templates').then(setCatalog, () => setCatalog([]));
   }, [id, load]);
 
   if (!q || !draft) return error ? <p className="error">{error}</p> : <p className="muted">Cargando…</p>;
@@ -71,8 +85,6 @@ export default function QuoteEditorPage() {
     set({ lines: draft.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
   const setFx = (i: number, patch: Partial<FxRateDto>) =>
     set({ fxRates: draft.fxRates.map((f, j) => (j === i ? { ...f, ...patch } : f)) });
-  const t = q.totals;
-  const cur = q.saleCurrency;
   // Allowances count both travel days: return − departure + 1 (Finance, 2026-10-22).
   const tripDays = req ? (Date.parse(req.returnDate) - Date.parse(req.departureDate)) / 86_400_000 + 1 : null;
 
@@ -113,7 +125,9 @@ export default function QuoteEditorPage() {
         body: {
           rowVersion: q.rowVersion,
           saleCurrency: draft.saleCurrency,
-          targetMarginRate: fromPct(marginPct),
+          ...(byPrice
+            ? { targetPricePerParticipant: targetPrice.trim() }
+            : { targetMarginRate: fromPct(marginPct) }),
           mxnRate: draft.mxnRate?.trim() || null,
           participants: draft.participants,
           chaperones: draft.chaperones,
@@ -266,51 +280,7 @@ export default function QuoteEditorPage() {
         )}
       </section>
 
-      <section className="card" aria-labelledby="resumen">
-        <h2 id="resumen" style={{ marginTop: 0 }}>
-          Resumen (guardado)
-        </h2>
-        {t ? (
-          <dl className="facts">
-            <dt>Conceptos por estudiante</dt>
-            <dd>
-              {t.directPerParticipant} {cur}
-            </dd>
-            <dt>Gastos del líder y fijos ÷ estudiantes</dt>
-            <dd>
-              {t.sharedPerParticipant} {cur}
-            </dd>
-            <dt>Coste por estudiante</dt>
-            <dd>
-              {t.costPerParticipant} {cur}
-            </dd>
-            <dt>Margen por estudiante</dt>
-            <dd>
-              {t.marginPerParticipant} {cur}
-            </dd>
-            <dt>Precio final por estudiante</dt>
-            <dd>
-              <strong>
-                {t.pricePerParticipant} {cur}
-              </strong>
-            </dd>
-            <dt>Margen del grupo</dt>
-            <dd>
-              {t.groupMargin} {cur}
-            </dd>
-            {t.pricePerParticipantMxn && (
-              <>
-                <dt>Aproximado en pesos por estudiante</dt>
-                <dd>{t.pricePerParticipantMxn} MXN</dd>
-                <dt>Margen del grupo en pesos</dt>
-                <dd>{t.groupMarginMxn} MXN</dd>
-              </>
-            )}
-          </dl>
-        ) : (
-          <p className="muted">Sin totales hasta registrar los tipos de cambio que faltan.</p>
-        )}
-      </section>
+      <SheetSummary q={q} />
 
       <fieldset disabled={!editable} style={{ border: 0, padding: 0, margin: 0 }}>
         <section aria-labelledby="grupo">
@@ -355,15 +325,36 @@ export default function QuoteEditorPage() {
               </select>
             </label>
             <label>
-              Margen sobre venta (%)
+              % Comisión (sobre el precio final)
               <input
                 type="number"
                 min={0}
                 max={99.9999}
                 step="0.01"
                 value={marginPct}
-                onChange={(e) => setMarginPct(e.target.value)}
+                onChange={(e) => {
+                  setMarginPct(e.target.value);
+                  setByPrice(false);
+                }}
               />
+            </label>
+            <label>
+              Precio final por estudiante
+              <input
+                type="number"
+                min={1}
+                step="1"
+                value={targetPrice}
+                onChange={(e) => {
+                  setTargetPrice(e.target.value);
+                  setByPrice(true);
+                }}
+              />
+              <span className="hint">
+                {byPrice
+                  ? 'Al guardar se calcula el % que da este precio'
+                  : 'O escribe el precio y se calcula el %'}
+              </span>
             </label>
             {draft.saleCurrency !== 'MXN' && (
               <label>
@@ -390,105 +381,141 @@ export default function QuoteEditorPage() {
         <section aria-labelledby="conceptos">
           <h2 id="conceptos">Conceptos</h2>
           <p className="muted">
-            Por estudiante se suma al precio de cada estudiante. Chaperones, fijos y fondo de emergencia se
-            reparten entre los estudiantes. En viáticos, la cantidad son los días
+            En gastos por día, la cantidad son los días
             {tripDays ? ` (este viaje: ${tripDays}, contando salida y regreso)` : ''}. El precio final se
             redondea hacia arriba al número entero.
           </p>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Tipo</th>
-                  <th>Concepto</th>
-                  <th>Cantidad</th>
-                  <th>Costo unitario</th>
-                  <th>Moneda</th>
-                  <th>Interno</th>
-                  <th>Total</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {draft.lines.map((l, i) => (
-                  <tr key={i}>
-                    <td>
-                      <select
-                        aria-label={`Tipo ${i + 1}`}
-                        value={l.category}
-                        onChange={(e) => setLine(i, { category: e.target.value as LineCategory })}
-                      >
-                        {LineCategory.options.map((c) => (
-                          <option key={c} value={c}>
-                            {CATEGORY_LABEL[c]}
-                          </option>
+          {SHEET_BLOCKS.map((b) => {
+            const rows = draft.lines.map((l, i) => ({ l, i })).filter(({ l }) => l.category === b.category);
+            const used = new Set(rows.map(({ l }) => l.description));
+            const options = catalog.filter(
+              (c) => c.category === b.category && c.active && !used.has(c.label),
+            );
+            return (
+              <div key={b.category} style={{ marginBottom: 16 }}>
+                <h3 style={{ marginBottom: 4 }}>{b.title}</h3>
+                <p className="muted" style={{ marginTop: 0 }}>
+                  {b.hint}
+                </p>
+                {rows.length > 0 && (
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Concepto</th>
+                          <th>Cantidad</th>
+                          <th>Costo unitario</th>
+                          <th>Moneda</th>
+                          <th>Interno</th>
+                          <th>Total</th>
+                          <th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map(({ l, i }) => (
+                          <tr key={i}>
+                            <td>
+                              <input
+                                aria-label={`Concepto ${i + 1}`}
+                                value={l.description}
+                                maxLength={300}
+                                onChange={(e) => setLine(i, { description: e.target.value })}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                aria-label={`Cantidad ${i + 1}`}
+                                inputMode="decimal"
+                                size={6}
+                                value={l.quantity}
+                                onChange={(e) => setLine(i, { quantity: e.target.value.trim() })}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                aria-label={`Costo ${i + 1}`}
+                                inputMode="decimal"
+                                size={10}
+                                value={l.unitCost}
+                                onChange={(e) => setLine(i, { unitCost: e.target.value.trim() })}
+                              />
+                            </td>
+                            <td>
+                              <select
+                                aria-label={`Moneda ${i + 1}`}
+                                value={l.currency}
+                                onChange={(e) => setLine(i, { currency: e.target.value as CurrencyCode })}
+                              >
+                                {CurrencyCode.options.map((c) => (
+                                  <option key={c}>{c}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td>
+                              <input
+                                type="checkbox"
+                                aria-label={`Solo interno ${i + 1}`}
+                                checked={l.internalOnly}
+                                onChange={(e) => setLine(i, { internalOnly: e.target.checked })}
+                              />
+                            </td>
+                            <td>{l.lineTotal ?? '—'}</td>
+                            <td>
+                              <button
+                                className="secondary"
+                                aria-label={`Quitar ${i + 1}`}
+                                onClick={() => set({ lines: draft.lines.filter((_, j) => j !== i) })}
+                              >
+                                ✕
+                              </button>
+                            </td>
+                          </tr>
                         ))}
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        aria-label={`Concepto ${i + 1}`}
-                        value={l.description}
-                        maxLength={300}
-                        onChange={(e) => setLine(i, { description: e.target.value })}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        aria-label={`Cantidad ${i + 1}`}
-                        inputMode="decimal"
-                        value={l.quantity}
-                        onChange={(e) => setLine(i, { quantity: e.target.value.trim() })}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        aria-label={`Costo ${i + 1}`}
-                        inputMode="decimal"
-                        value={l.unitCost}
-                        onChange={(e) => setLine(i, { unitCost: e.target.value.trim() })}
-                      />
-                    </td>
-                    <td>
-                      <select
-                        aria-label={`Moneda ${i + 1}`}
-                        value={l.currency}
-                        onChange={(e) => setLine(i, { currency: e.target.value as CurrencyCode })}
-                      >
-                        {CurrencyCode.options.map((c) => (
-                          <option key={c}>{c}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        aria-label={`Solo interno ${i + 1}`}
-                        checked={l.internalOnly}
-                        onChange={(e) => setLine(i, { internalOnly: e.target.checked })}
-                      />
-                    </td>
-                    <td>{l.lineTotal ?? '—'}</td>
-                    <td>
-                      <button
-                        className="secondary"
-                        aria-label={`Quitar ${i + 1}`}
-                        onClick={() => set({ lines: draft.lines.filter((_, j) => j !== i) })}
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <button
-            className="secondary"
-            onClick={() => set({ lines: [...draft.lines, blankLine(draft.saleCurrency)] })}
-          >
-            Agregar concepto
-          </button>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <div className="row" style={{ marginTop: 8 }}>
+                  {options.length > 0 && (
+                    <select
+                      aria-label={`Rubro del catálogo: ${b.title}`}
+                      value=""
+                      onChange={(e) => {
+                        const c = options.find((o) => o.id === e.target.value);
+                        if (!c) return;
+                        const qty = c.perTripDay && tripDays ? String(tripDays) : '1';
+                        set({
+                          lines: [
+                            ...draft.lines,
+                            {
+                              ...blankLine(draft.saleCurrency, b.category, c.label, qty),
+                              internalOnly: c.internalOnly,
+                            },
+                          ],
+                        });
+                      }}
+                    >
+                      <option value="">Agregar rubro del catálogo…</option>
+                      {options.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <button
+                    className="secondary"
+                    aria-label={`Agregar concepto: ${b.title}`}
+                    onClick={() =>
+                      set({ lines: [...draft.lines, blankLine(draft.saleCurrency, b.category)] })
+                    }
+                  >
+                    Agregar otro concepto
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </section>
 
         <section aria-labelledby="fx">
