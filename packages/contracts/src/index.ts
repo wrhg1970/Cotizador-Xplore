@@ -354,3 +354,19 @@ export const SendQuote = z.strictObject({
   sentOn: IsoDate,
   notes: OptionalText(2000),
 });
+
+/** Sheet importer input: an uploaded .xlsx/.csv (base64, 3 MB max) or a public Google Sheets link. */
+export const ImportSheet = z
+  .strictObject({
+    fileName: z.string().trim().max(200).optional(),
+    fileBase64: z
+      .string()
+      .max(4_200_000, 'El archivo pesa más de 3 MB')
+      .regex(/^[A-Za-z0-9+/]*={0,2}$/, 'Archivo inválido')
+      .optional(),
+    sheetUrl: z.url().max(500).optional(),
+  })
+  .refine((b) => (b.fileBase64 ? !b.sheetUrl && !!b.fileName : !!b.sheetUrl), {
+    message: 'Sube un archivo o pega una liga de Google Sheets, no ambos',
+  });
+export type ImportSheet = z.infer<typeof ImportSheet>;

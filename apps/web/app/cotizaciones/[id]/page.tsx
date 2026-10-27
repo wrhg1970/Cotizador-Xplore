@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CurrencyCode, LineCategory } from '@ee/contracts';
 import { api, errorText } from '../../lib/api';
 import { PaymentSchedule, ProposalContent } from './ProposalContent';
+import { SheetImport } from './SheetImport';
 import { SheetSummary } from './SheetSummary';
 import {
   CHANNEL_LABEL,
@@ -322,6 +323,24 @@ export default function QuoteEditorPage() {
           )}
           <PaymentSchedule q={q} />
         </section>
+      )}
+
+      {editable && (
+        <SheetImport
+          quoteId={q.id}
+          onApply={(p, mode) => {
+            set({
+              lines: mode === 'replace' ? p.lines : [...draft.lines, ...p.lines],
+              ...(p.itinerary.length ? { itinerary: p.itinerary } : {}),
+              ...(p.exclusions.length ? { exclusions: p.exclusions } : {}),
+            });
+            if (p.targetMarginRate) {
+              setMarginPct(toPct(p.targetMarginRate));
+              setByPrice(false);
+            }
+            setNotice('Conceptos importados: revísalos y pulsa “Guardar y calcular”.');
+          }}
+        />
       )}
 
       <fieldset disabled={!editable} style={{ border: 0, padding: 0, margin: 0 }}>

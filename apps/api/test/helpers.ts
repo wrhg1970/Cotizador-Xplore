@@ -4,6 +4,7 @@ import request from 'supertest';
 import type { IdClaims, LoginChecks, OidcProvider } from '../src/auth/oidc.js';
 import { createApp } from '../src/app.js';
 import { loadEnv } from '../src/env.js';
+import type { SheetReader } from '../src/quotes/sheet-import.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) throw new Error('DATABASE_URL es obligatorio para las pruebas de la API');
@@ -35,8 +36,8 @@ export class FakeOidc implements OidcProvider {
 
 export const prisma = createPrismaClient(DATABASE_URL);
 
-export async function makeApp(oidc = new FakeOidc()) {
-  const app: INestApplication = await createApp(testEnv(), oidc);
+export async function makeApp(oidc = new FakeOidc(), reader?: SheetReader) {
+  const app: INestApplication = await createApp(testEnv(), oidc, reader);
   await app.init();
   return { app, oidc, http: () => request(app.getHttpServer()) };
 }

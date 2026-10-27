@@ -26,6 +26,13 @@ const Env = z.object({
         .filter(Boolean),
     ),
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET debe tener al menos 32 caracteres'),
+  // Sheet importer (Gemini on Vertex AI, credentials from the runtime service account); off when unset.
+  VERTEX_PROJECT: z
+    .string()
+    .optional()
+    .transform((v) => v || undefined),
+  VERTEX_LOCATION: z.string().min(1).default('global'),
+  VERTEX_MODEL: z.string().min(1).default('gemini-3.8-flash'),
 });
 export type Env = z.infer<typeof Env>;
 export const ENV = Symbol('ENV');
