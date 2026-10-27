@@ -69,14 +69,15 @@ export default function ProposalPage() {
       <p className="muted">
         {p.request.folio} · {p.scenarioName} · versión {p.number}
       </p>
-      {p.pricePerParticipant && (
-        <p>
-          <span className="price">
-            {p.pricePerParticipant} {p.saleCurrency}
-          </span>{' '}
-          <span className="muted">por estudiante</span>
-        </p>
-      )}
+      <p>
+        <span className="price">
+          {p.pricePerParticipant ? `${p.pricePerParticipant} ${p.saleCurrency}` : 'Por definir'}
+        </span>{' '}
+        <span className="muted">
+          por estudiante
+          {p.pricePerParticipantMxn && ` · aprox. ${p.pricePerParticipantMxn} MXN`}
+        </span>
+      </p>
       <dl className="facts">
         <dt>Destino</dt>
         <dd>
@@ -90,15 +91,6 @@ export default function ProposalPage() {
         <dd>
           {p.participants} estudiantes
           {p.chaperones ? ` · ${p.chaperones} chaperones de la escuela` : ''}
-        </dd>
-        <dt>Precio por estudiante</dt>
-        <dd>
-          <strong>
-            {p.pricePerParticipant ? `${p.pricePerParticipant} ${p.saleCurrency}` : 'Por definir'}
-          </strong>
-          {p.pricePerParticipantMxn && (
-            <span className="muted"> · aprox. {p.pricePerParticipantMxn} MXN</span>
-          )}
         </dd>
         {!!p.freePlaces?.count && (
           <>

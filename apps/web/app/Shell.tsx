@@ -29,7 +29,7 @@ export function Shell({ children }: { children: ReactNode }) {
       {!onLogin && (
         <header className="top">
           <div className="bar">
-            <Link className="brand" href="/inicio" aria-label="Cotizador EE, inicio">
+            <Link className="brand" href="/inicio">
               xplore<span>·</span>together
             </Link>
             <nav aria-label="Principal">
