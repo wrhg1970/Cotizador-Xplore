@@ -7,6 +7,7 @@ import { CurrencyCode, LineCategory } from '@ee/contracts';
 import { api, errorText } from '../../lib/api';
 import { PaymentSchedule, ProposalContent } from './ProposalContent';
 import { ShareLinks } from './ShareLinks';
+import { VersionChanges } from './VersionChanges';
 import { SheetImport } from './SheetImport';
 import { SheetSummary } from './SheetSummary';
 import {
@@ -349,6 +350,7 @@ export default function QuoteEditorPage() {
             ))}
           </ul>
         )}
+        <VersionChanges quoteId={q.id} rowVersion={q.rowVersion} />
         <ShareLinks
           quoteId={q.id}
           canShare={

@@ -60,6 +60,7 @@ import { approvalLimitMxn, canExportInternalXlsx, hasOfficeRole } from '../auth/
 import { canView, canViewQuotes, canWorkQuotes, type RequestRef } from '../requests/request-policy.js';
 import { ZodPipe } from '../zod.pipe.js';
 import { quoteWorkbook } from './quote-xlsx.js';
+import { compareVersions } from './compare.js';
 import { paymentLinkBody, type WeTravel, WETRAVEL, WeTravelError } from '../integrations/wetravel.js';
 
 type Tx = Prisma.TransactionClient;
@@ -579,6 +580,24 @@ export class QuotesController {
     if (!v || !r || !canView(user, r) || r.status === 'DRAFT')
       throw new NotFoundException('Cotización no encontrada');
     return clientProposal(v, r);
+  }
+
+  /** Changes against the previous version of the same scenario (null when this is v1). */
+  @Get('quotes/:id/compare')
+  async compare(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
+    const v = await this.prisma.quoteVersion.findUnique({ where: { id }, include: full });
+    if (!v) throw new NotFoundException('Cotización no encontrada');
+    await this.request(this.prisma, v.scenario.requestId, user);
+    const prev = await this.prisma.quoteVersion.findFirst({
+      where: { scenarioId: v.scenarioId, number: { lt: v.number } },
+      orderBy: { number: 'desc' },
+      include: full,
+    });
+    if (!prev) return { previous: null, fields: [], lines: [] };
+    return {
+      previous: { id: prev.id, number: prev.number, status: prev.status },
+      ...compareVersions(toDto(prev), toDto(v)),
+    };
   }
 
   @Get('quotes/:id')
