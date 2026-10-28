@@ -145,6 +145,11 @@ export class AttachmentsController {
     if (!a) throw new NotFoundException('Archivo no encontrado');
     if (a.uploadedById !== user.id && !canDo(user, r.officeId, 'canDelete'))
       throw new ForbiddenException('Solo quien lo subió o un rol con permiso de borrar');
+    if (await this.prisma.quoteVersion.count({ where: { coverAttachmentId: a.id } }))
+      throw new ConflictException({
+        code: 'ATTACHMENT_IN_USE',
+        message: 'Es la portada de una propuesta; quítala de la cotización antes de borrarla',
+      });
     await this.prisma.$transaction(async (tx) => {
       await tx.requestAttachment.delete({ where: { id: a.id } });
       await audit(tx, {

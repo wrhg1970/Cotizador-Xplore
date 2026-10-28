@@ -196,6 +196,7 @@ export interface QuoteDto {
   freePlaceBenefit: 'CHAPERONE' | 'STUDENT' | null;
   itinerary: ItineraryDayDto[] | null;
   exclusions: string[];
+  coverAttachmentId: string | null;
   /** Per student, computed from the rounded price; null without a plan or totals. */
   paymentSchedule: PaymentDto[] | null;
   freePlaces: number | null;

@@ -41,7 +41,24 @@ interface WorkRequest {
   role: 'REQUESTER' | 'ASSIGNEE' | 'COMMERCIAL' | 'SUPPORT';
 }
 
+type AlertKind = 'UNQUOTED' | 'REVIEW_PENDING' | 'SENT_NO_ANSWER' | 'PAYMENT_DUE';
+interface Alert {
+  kind: AlertKind;
+  requestId: string;
+  folio: string;
+  groupName: string;
+  quoteId: string | null;
+  detail: string;
+}
+const ALERT_LABEL: Record<AlertKind, string> = {
+  UNQUOTED: 'Solicitud sin cotizar',
+  REVIEW_PENDING: 'Autorización pendiente',
+  SENT_NO_ANSWER: 'Propuesta sin respuesta',
+  PAYMENT_DUE: 'Pago por vencer',
+};
+
 interface Dashboard {
+  alerts: Alert[];
   tasks: Task[];
   offices: { id: string; code: string; name: string; byStatus: Partial<Record<RequestStatus, number>> }[];
   requests: WorkRequest[];
@@ -270,6 +287,24 @@ export default function DashboardPage() {
         <p className="error" role="alert">
           {error}
         </p>
+      )}
+      {data && data.alerts.length > 0 && (
+        <section className="card" aria-labelledby="alertas" style={{ marginBottom: 16 }}>
+          <h2 id="alertas" style={{ marginTop: 0 }}>
+            Atrasados ({data.alerts.length})
+          </h2>
+          <ul>
+            {data.alerts.map((a, i) => (
+              <li key={`${a.kind}-${a.requestId}-${i}`}>
+                <strong>{ALERT_LABEL[a.kind]}</strong> ·{' '}
+                <Link href={a.quoteId ? `/cotizaciones/${a.quoteId}` : `/solicitudes/${a.requestId}`}>
+                  {a.folio} {a.groupName}
+                </Link>{' '}
+                <span className="muted">· {a.detail}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       {data && (
         <>

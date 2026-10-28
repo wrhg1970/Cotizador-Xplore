@@ -140,3 +140,6 @@ El estado `QUOTE_APPROVED` aplica a la versión aprobada, no necesariamente al e
 - Confirmar marca/plantilla de PDF, vigencia estándar y términos comerciales.
 - Confirmar dominios de Google permitidos, oficinas y responsables.
 - Confirmar documentación/API y credenciales de WeTravel y Wissify.
+
+## Alertas de vencimiento (2026-10-28)
+Cuatro alertas con umbral en días configurable en Administración (0 = apagada): solicitud enviada sin cotización en autorización (al cotizador asignado o, sin asignar, a los administradores de la oficina), cotización en autorización (a los autorizadores de la oficina que no la armaron), propuesta enviada sin respuesta (ejecutivo y cotizador) y pagos de los alumnos por vencer según el plan de la versión ganada (ejecutivo y cotizador). Se ven en Mi trabajo y llegan en un correo diario sin precios.

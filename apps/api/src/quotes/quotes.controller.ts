@@ -162,6 +162,9 @@ export function clientProposal(v: FullVersion, r: TravelRequest) {
     freePlaces: dto.freePlaces && { count: dto.freePlaces, benefit: dto.freePlaceBenefit },
     itinerary: dto.itinerary ?? [],
     exclusions: dto.exclusions,
+    hasCover: !!v.coverAttachmentId,
+    // Only the winning proposal carries the payment link, the same one WeTravel's checkout shows.
+    paymentUrl: r.wonVersionId === v.id ? r.wetravelUrl : null,
     includes: v.lines
       // Base concepts start at zero; an unpriced one is not something the trip includes.
       .filter(
@@ -227,7 +230,13 @@ function snapshotHash(v: FullVersion) {
     ...rest
   } = toDto(v);
   // Proposal fields added later enter the hash only when set, so earlier approvals keep their hash.
-  const added = ['paymentPlan', 'studentsPerFreePlace', 'freePlaceBenefit', 'itinerary'] as const;
+  const added = [
+    'paymentPlan',
+    'studentsPerFreePlace',
+    'freePlaceBenefit',
+    'itinerary',
+    'coverAttachmentId',
+  ] as const;
   for (const k of added) if (rest[k] === null) delete rest[k];
   const { exclusions, ...kept } = rest;
   return calculationHash({
@@ -239,7 +248,7 @@ function snapshotHash(v: FullVersion) {
 
 export type QuoteDto = ReturnType<typeof toDto>;
 
-function toDto(v: FullVersion) {
+export function toDto(v: FullVersion) {
   const rated = new Set(v.fxRates.map((f) => f.fromCurrency));
   const missingFx = [...new Set(v.lines.map((l) => l.currency))].filter(
     (c) => c !== v.saleCurrency && !rated.has(c),
@@ -266,6 +275,7 @@ function toDto(v: FullVersion) {
     freePlaceBenefit: v.freePlaceBenefit,
     itinerary: v.itinerary ? ItineraryDay.array().parse(v.itinerary) : null,
     exclusions: v.exclusions,
+    coverAttachmentId: v.coverAttachmentId,
     paymentSchedule: pay.payments,
     freePlaces: v.studentsPerFreePlace ? freePlaces(v.participants, v.studentsPerFreePlace) : null,
     lines: v.lines.map((l) => ({
@@ -332,6 +342,7 @@ async function copyVersion(tx: Tx, src: FullVersion, scenarioId: string, number:
       freePlaceBenefit: src.freePlaceBenefit,
       itinerary: src.itinerary ?? Prisma.DbNull,
       exclusions: src.exclusions,
+      coverAttachmentId: src.coverAttachmentId,
       createdById: userId,
       lines: {
         create: src.lines.map(({ id: _i, versionId: _v, ...l }) => l),
@@ -631,6 +642,17 @@ export class QuotesController {
           message: 'No se captura tipo de cambio de la moneda de venta consigo misma',
         });
 
+      if (fields.coverAttachmentId) {
+        const cover = await tx.requestAttachment.findFirst({
+          where: { id: fields.coverAttachmentId, requestId: v.scenario.requestId },
+          select: { mimeType: true },
+        });
+        if (!cover?.mimeType.startsWith('image/'))
+          throw new BadRequestException({
+            code: 'VALIDATION_ERROR',
+            message: 'La portada debe ser una imagen JPG o PNG adjunta a esta solicitud',
+          });
+      }
       const { targetMarginRate, targetPricePerParticipant, mxnRate, paymentPlan, itinerary, ...rest } =
         fields;
       const { count } = await tx.quoteVersion.updateMany({
@@ -835,6 +857,21 @@ export class QuotesController {
    * Publishes the winning proposal as a WeTravel payment link (price and payment plan per participant).
    * One link per request: a second call returns 409 with the existing URL.
    */
+  /** What the group has paid through the WeTravel link, read live (nothing about payers is stored). */
+  @Get('requests/:id/wetravel/payments')
+  async wetravelPayments(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
+    await this.request(this.prisma, id, user);
+    const r = await this.prisma.travelRequest.findUniqueOrThrow({ where: { id } });
+    if (!r.wetravelLinkId) throw new NotFoundException('La solicitud no tiene liga de WeTravel');
+    if (!this.wetravel) throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
+    try {
+      return await this.wetravel.linkPayments(r.wetravelLinkId);
+    } catch (e) {
+      if (!(e instanceof WeTravelError)) throw e;
+      throw new BadGatewayException(e.message);
+    }
+  }
+
   @Post('quotes/:id/wetravel')
   async wetravelLink(@CurrentUser() user: AuthUser, @Req() req: Request, @Param('id', uuid) id: string) {
     const v = await this.prisma.quoteVersion.findUnique({ where: { id }, include: full });

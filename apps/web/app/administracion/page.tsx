@@ -2,7 +2,7 @@
 
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
-import { CurrencyCode } from '@ee/contracts';
+import { type AlertSettings, CurrencyCode } from '@ee/contracts';
 import { fmtDate, type OfficialRateDto, ROLE_LABEL, type RolePolicy } from '../lib/types';
 import { useMe } from '../lib/useMe';
 
@@ -23,12 +23,20 @@ const FLAG = {
   exportInternalXlsx: 'Descarga Excel interno',
 } as const;
 
+const ALERT_FIELDS: [keyof AlertSettings, string][] = [
+  ['unquotedDays', 'Solicitud sin cotizar (días)'],
+  ['reviewDays', 'Autorización pendiente (días)'],
+  ['sentNoAnswerDays', 'Propuesta sin respuesta (días)'],
+  ['paymentReminderDays', 'Avisar pagos con (días de anticipación)'],
+];
+
 /** System admin settings: what each role may do, and the offices that exist. */
 export default function AdminPage() {
   const me = useMe();
   const [rows, setRows] = useState<Row[]>([]);
   const [offices, setOffices] = useState<Office[]>([]);
   const [rates, setRates] = useState<OfficialRateDto[]>([]);
+  const [alerts, setAlerts] = useState<AlertSettings | null>(null);
   const [integrations, setIntegrations] = useState<{ key: string; name: string; configured: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -39,6 +47,7 @@ export default function AdminPage() {
     api<Office[]>('/offices').then(setOffices, (e) => setError(errorText(e)));
     api<OfficialRateDto[]>('/official-rates').then(setRates, (e) => setError(errorText(e)));
     api<typeof integrations>('/integrations').then(setIntegrations, (e) => setError(errorText(e)));
+    api<AlertSettings>('/settings/alerts').then(setAlerts, (e) => setError(errorText(e)));
   }, []);
   useEffect(() => {
     if (isSysAdmin) reload();
@@ -91,6 +100,17 @@ export default function AdminPage() {
     };
     const done = `Tipo de cambio ${body.fromCurrency}→${body.toCurrency} publicado`;
     if (await run(done, () => api('/official-rates', { method: 'POST', body }))) form.reset();
+  }
+
+  async function saveAlerts(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const body = Object.fromEntries(ALERT_FIELDS.map(([k]) => [k, Number(f.get(k))]));
+    await run('Alertas guardadas', () => api('/settings/alerts', { method: 'PUT', body }));
+  }
+
+  async function pullBanxico() {
+    await run('Tipos de cambio de Banxico al día', () => api('/official-rates/banxico', { method: 'POST' }));
   }
 
   if (me && !isSysAdmin) return <p className="error">Solo un administrador del sistema puede entrar aquí.</p>;
@@ -172,8 +192,12 @@ export default function AdminPage() {
         <h2 id="tipos">Tipos de cambio oficiales</h2>
         <p className="muted">
           Los cotizadores los usan para prellenar cada cotización, que guarda su propia copia con fecha y
-          fuente. Publicar uno nuevo no cambia cotizaciones existentes; el historial no se borra.
+          fuente. Publicar uno nuevo no cambia cotizaciones existentes; el historial no se borra. USD y EUR se
+          traen solos de Banxico (FIX) cada día hábil cuando el token está configurado.
         </p>
+        <button type="button" className="secondary" onClick={() => void pullBanxico()}>
+          Traer de Banxico ahora
+        </button>
         {rates.length > 0 && (
           <div className="table-wrap">
             <table aria-label="Tipos de cambio vigentes">
@@ -256,6 +280,25 @@ export default function AdminPage() {
           <button>Agregar oficina</button>
         </form>
       </section>
+
+      {alerts && (
+        <section aria-labelledby="alertas">
+          <h2 id="alertas">Alertas de vencimiento</h2>
+          <p className="muted">
+            Días antes de avisar. Llegan en un correo diario (días hábiles, 13:00) y en Mi trabajo. 0 apaga
+            esa alerta.
+          </p>
+          <form onSubmit={saveAlerts} className="row">
+            {ALERT_FIELDS.map(([key, label]) => (
+              <label key={key}>
+                {label}
+                <input name={key} type="number" min={0} max={180} required defaultValue={alerts[key]} />
+              </label>
+            ))}
+            <button>Guardar alertas</button>
+          </form>
+        </section>
+      )}
 
       <section aria-labelledby="integraciones">
         <h2 id="integraciones">Integraciones</h2>

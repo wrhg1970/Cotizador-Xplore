@@ -33,7 +33,12 @@ Implementado: **liga de pago desde la propuesta ganadora** (`POST /quotes/{id}/w
 
 Configuración: `WETRAVEL_API_KEY` (Secret Manager `cotizador-wetravel-api-key`) y `WETRAVEL_API_URL` (producción `https://api.wetravel.com/v3`, sandbox `https://api.demo.wetravel.to/v3`). Sin llave, el botón responde 503.
 
-Pendiente (no implementado): leer pagos/reservas (`/transactions`, `/orders`) y webhooks (Svix) para reflejar cobranza en el cotizador.
+Implementado 2026-10-28: **lo pagado por el grupo** (`GET /requests/{id}/wetravel/payments`, botón "Ver pagos en WeTravel" en la solicitud ganada). Lee en vivo `GET {base}/payment_links/{uuid}` para obtener `trip.uuid` y luego `POST {origen}/v2/transactions` con `filters.trip_uuids` y `transaction_type: payment` (la referencia documenta Transactions en v2 y el anuncio de v3 dice que no cambió). Suma `amount − refunded_amount` por moneda (enteros en centavos), omite estados fallidos, y muestra número de pagos, de pagadores y fecha del último. No se guarda nada de los padres en el cotizador. **No probado contra WeTravel real**: si la respuesta trae otra forma, el botón muestra el error 502 sin afectar nada más.
+
+No implementado a propósito: webhooks. La lectura en vivo ya da el dato al abrir la solicitud, y la forma de los eventos (`payment.created`, `transaction.created`) solo está en el catálogo privado de WeTravel; se puede agregar cuando EE tenga acceso a ese catálogo.
+
+## Banxico (tipo de cambio)
+API SIE pública (`GET /SieAPIRest/service/v1/series/SF43718,SF46410/datos/oportuno`, header `Bmx-Token`). Se guarda cada valor como tipo de cambio oficial con fecha, fuente (`Banxico FIX (SIE SF43718)`) y autor (administrador o "Proceso automático"). Cada cotización sigue congelando su propia copia al usar "Usar tipos de cambio oficiales".
 
 ## Wissify
 2026-10-27: no se encontró API ni documentación pública (empresa en México; sin portal de desarrolladores). Nada implementado hasta que EE consiga documentación y credenciales del proveedor.

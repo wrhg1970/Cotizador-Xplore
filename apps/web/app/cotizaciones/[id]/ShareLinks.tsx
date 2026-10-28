@@ -12,6 +12,7 @@ interface Share {
   lastViewAt: string | null;
   createdAt: string;
   createdBy: { name: string };
+  acceptance?: { signerName: string; signerRole: string; acceptedAt: string; ip: string | null };
 }
 
 /** V2 "portal": a link the school opens without an account. The full URL is shown only once. */
@@ -103,6 +104,13 @@ export function ShareLinks({
                   · {s.viewCount} {s.viewCount === 1 ? 'vista' : 'vistas'}
                   {s.lastViewAt && `, última ${fmtDateTime(s.lastViewAt)}`} · creó {s.createdBy.name}
                 </span>{' '}
+                {s.acceptance && (
+                  <strong>
+                    Aceptada en línea por {s.acceptance.signerName} ({s.acceptance.signerRole}) el{' '}
+                    {fmtDateTime(s.acceptance.acceptedAt)}
+                    {s.acceptance.ip && ` desde ${s.acceptance.ip}`}
+                  </strong>
+                )}{' '}
                 {canRevoke && live && (
                   <button className="secondary" onClick={() => void revoke(s.id)}>
                     Revocar

@@ -211,6 +211,13 @@ export const SetRequestTeam = z
   );
 
 /** School link (V2 portal): days until it stops working. */
+/** The school's acceptance on the shared link: who signs and with what position. */
+export const AcceptProposal = z.strictObject({
+  signerName: ShortText(150),
+  signerRole: ShortText(150),
+  accepted: z.literal(true),
+});
+
 export const CreateProposalShare = z.strictObject({ days: z.number().int().min(1).max(90).default(30) });
 
 export const VersionOnly = z.strictObject({ version: z.number().int().min(1) });
@@ -308,6 +315,21 @@ export const OfficialRateInput = z
   });
 export type OfficialRateInput = z.infer<typeof OfficialRateInput>;
 
+/** Days before each overdue alert fires (Administración → Alertas); 0 turns that alert off. */
+export const AlertSettings = z.strictObject({
+  unquotedDays: z.number().int().min(0).max(90),
+  reviewDays: z.number().int().min(0).max(90),
+  sentNoAnswerDays: z.number().int().min(0).max(180),
+  paymentReminderDays: z.number().int().min(0).max(60),
+});
+export type AlertSettings = z.infer<typeof AlertSettings>;
+export const DEFAULT_ALERT_SETTINGS: AlertSettings = {
+  unquotedDays: 3,
+  reviewDays: 2,
+  sentNoAnswerDays: 7,
+  paymentReminderDays: 5,
+};
+
 /** Registration + installments, per student; the schedule itself is computed by the engine. */
 export const PaymentPlanInput = z
   .strictObject({
@@ -347,6 +369,8 @@ const proposalContent = {
   freePlaceBenefit: FreePlaceBenefit.nullable().optional(),
   itinerary: z.array(ItineraryDay).max(120).nullable().optional(),
   exclusions: z.array(ShortText(300)).max(50).optional(),
+  /** Image attachment (JPG/PNG) of the same request shown as the proposal's cover. */
+  coverAttachmentId: z.uuid().nullable().optional(),
 };
 
 /** Draft edit. `lines` and `fxRates`, when present, replace the whole set (order = position). */

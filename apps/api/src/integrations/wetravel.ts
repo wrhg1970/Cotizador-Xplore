@@ -26,9 +26,46 @@ export interface PaymentLink {
   checkoutUrl: string;
 }
 
+/** Money collected for one payment link, per currency in minor units (cents), refunds already subtracted. */
+export interface LinkPayments {
+  /** e.g. { USD: 1250000 } = 12,500.00 USD */
+  collected: Record<string, number>;
+  payments: number;
+  payers: number;
+  lastPaymentAt: string | null;
+}
+
 /** Seam for tests; null in the container means WeTravel is not configured. */
 export interface WeTravel {
   createPaymentLink(body: PaymentLinkBody): Promise<PaymentLink>;
+  linkPayments(linkUuid: string): Promise<LinkPayments>;
+}
+
+interface Transaction {
+  amount?: number;
+  refunded_amount?: number;
+  currency?: string;
+  status?: string;
+  created_at?: string;
+  buyer?: { email?: string };
+}
+
+/** Pure sum over WeTravel transactions (type payment): amount minus refunds, failed ones skipped. */
+export function sumPayments(txs: Transaction[]): LinkPayments {
+  const collected: Record<string, number> = {};
+  const payers = new Set<string>();
+  let payments = 0;
+  let last: string | null = null;
+  for (const t of txs) {
+    if (!t.currency || typeof t.amount !== 'number') continue;
+    if (t.status && /fail|declin|cancel|void/i.test(t.status)) continue;
+    const c = t.currency.toUpperCase();
+    collected[c] = (collected[c] ?? 0) + t.amount - (t.refunded_amount ?? 0);
+    payments++;
+    if (t.buyer?.email) payers.add(t.buyer.email.toLowerCase());
+    if (t.created_at && (!last || t.created_at > last)) last = t.created_at;
+  }
+  return { collected, payments, payers: payers.size, lastPaymentAt: last };
 }
 export const WETRAVEL = Symbol('WETRAVEL');
 
@@ -132,5 +169,47 @@ export class HttpWeTravel implements WeTravel {
     const link = (json.data ?? json) as { uuid?: string; checkout_url?: string };
     if (!link.uuid || !link.checkout_url) throw new WeTravelError(502, 'Respuesta de WeTravel sin liga');
     return { uuid: link.uuid, checkoutUrl: link.checkout_url };
+  }
+
+  private async call(url: string, init: { method?: string; body?: unknown } = {}) {
+    const res = await fetch(url, {
+      method: init.method ?? 'GET',
+      headers: {
+        Authorization: `Bearer ${await this.accessToken()}`,
+        Accept: 'application/json',
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(init.body ? { body: JSON.stringify(init.body) } : {}),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) {
+      if (res.status === 401) this.token = null;
+      throw new WeTravelError(res.status, `WeTravel respondió ${res.status} al leer los pagos`);
+    }
+    const json = (await res.json()) as Record<string, unknown>;
+    return json;
+  }
+
+  /**
+   * GET {base}/payment_links/{uuid} gives the link's trip uuid; POST /v2/transactions (the reference
+   * lists it under v2 and the v3 release says Transactions did not change) filtered by that trip and
+   * type `payment` gives what was collected. Amounts are integers in minor units.
+   */
+  async linkPayments(linkUuid: string): Promise<LinkPayments> {
+    const link = await this.call(`${this.baseUrl}/payment_links/${encodeURIComponent(linkUuid)}`);
+    const trip = ((link.data ?? link) as { trip?: { uuid?: string } }).trip;
+    const tripUuid = trip?.uuid ?? linkUuid;
+    const transactions = `${new URL(this.baseUrl).origin}/v2/transactions`;
+    const all: Transaction[] = [];
+    // shortcut: at most 5 pages of 1000; a single school group never gets close.
+    for (let page = 1; page <= 5; page++) {
+      const res = await this.call(transactions, {
+        method: 'POST',
+        body: { page, per_page: 1000, filters: { trip_uuids: [tripUuid], transaction_type: 'payment' } },
+      });
+      all.push(...((res.data as Transaction[] | undefined) ?? []));
+      if (!(res.pagination as { has_next?: boolean } | undefined)?.has_next) break;
+    }
+    return sumPayments(all);
   }
 }

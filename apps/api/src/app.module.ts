@@ -26,6 +26,9 @@ import { RequestTeamController } from './requests/team.controller.js';
 import { ProposalShareController } from './quotes/share.controller.js';
 import { IntegrationsController, ReportsController } from './reports/reports.controller.js';
 import { HttpWeTravel, type WeTravel, WETRAVEL } from './integrations/wetravel.js';
+import { BANXICO, type Banxico, HttpBanxico } from './rates/banxico.js';
+import { CronController } from './cron/cron.controller.js';
+import { AlertSettingsController } from './alerts/alerts.controller.js';
 
 @Module({})
 export class AppModule {
@@ -35,7 +38,9 @@ export class AppModule {
     readerOverride?: SheetReader,
     mailerOverride?: Mailer,
     wetravelOverride?: WeTravel,
+    banxicoOverride?: Banxico,
   ): DynamicModule {
+    const banxico = banxicoOverride ?? (env.BANXICO_TOKEN ? new HttpBanxico(env.BANXICO_TOKEN) : null);
     const wetravel =
       wetravelOverride ??
       (env.WETRAVEL_API_KEY ? new HttpWeTravel(env.WETRAVEL_API_URL, env.WETRAVEL_API_KEY) : null);
@@ -92,6 +97,8 @@ export class AppModule {
         ProposalShareController,
         ReportsController,
         IntegrationsController,
+        CronController,
+        AlertSettingsController,
       ],
       providers: [
         { provide: ENV, useValue: env },
@@ -99,6 +106,7 @@ export class AppModule {
         { provide: SHEET_READER, useValue: reader },
         { provide: MAILER, useValue: mailer },
         { provide: WETRAVEL, useValue: wetravel },
+        { provide: BANXICO, useValue: banxico },
         Notifier,
         prismaProvider,
         PrismaShutdown,

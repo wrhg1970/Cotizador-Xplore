@@ -35,10 +35,21 @@ export interface Proposal {
   freePlaces: { count: number; benefit: keyof typeof FREE_PLACE_LABEL } | null;
   itinerary: ItineraryDayDto[];
   exclusions: string[];
+  hasCover: boolean;
+  /** WeTravel checkout, only on the winning proposal. */
+  paymentUrl: string | null;
 }
 
 /** Client-facing proposal body, shared by the print view and the school's link. */
-export function ProposalView({ p, actions }: { p: Proposal; actions: ReactNode }) {
+export function ProposalView({
+  p,
+  actions,
+  coverSrc,
+}: {
+  p: Proposal;
+  actions: ReactNode;
+  coverSrc: string;
+}) {
   const legend = !p.authorized && <p className="legend">{PENDING_LEGEND}</p>;
 
   return (
@@ -48,11 +59,18 @@ export function ProposalView({ p, actions }: { p: Proposal; actions: ReactNode }
         <button onClick={() => window.print()}>Imprimir o guardar PDF</button>
       </p>
       {legend}
-      <span className="brand">
-        <Logo height={72} />
-      </span>
-      <p className="kicker">Propuesta de viaje</p>
-      <h1>{p.request.groupName}</h1>
+      <header className="hero">
+        {p.hasCover && <img src={coverSrc} alt={`Foto de ${p.request.city}`} />}
+        <div className="hero-text">
+          <span className="brand">
+            <Logo height={56} />
+          </span>
+          <p className="kicker">
+            Propuesta de viaje · {p.request.city}, {p.request.countryCode}
+          </p>
+          <h1>{p.request.groupName}</h1>
+        </div>
+      </header>
       <p className="muted">
         {p.request.folio} · {p.scenarioName} · versión {p.number}
       </p>
@@ -65,6 +83,14 @@ export function ProposalView({ p, actions }: { p: Proposal; actions: ReactNode }
           {p.pricePerParticipantMxn && ` · aprox. ${p.pricePerParticipantMxn} MXN`}
         </span>
       </p>
+      {p.paymentUrl && (
+        <p>
+          <a className="button pay" href={p.paymentUrl} target="_blank" rel="noopener noreferrer">
+            Pagar en línea
+          </a>{' '}
+          <span className="muted print-only">{p.paymentUrl}</span>
+        </p>
+      )}
       <dl className="facts">
         <dt>Destino</dt>
         <dd>
@@ -102,8 +128,12 @@ export function ProposalView({ p, actions }: { p: Proposal; actions: ReactNode }
           <ol className="timeline">
             {p.itinerary.map((d, i) => (
               <li key={i}>
+                <span className="day" aria-hidden>
+                  {d.day}
+                </span>
                 <strong>
-                  Día {d.day}: {d.title}
+                  <span className="sr-only">Día {d.day}: </span>
+                  {d.title}
                 </strong>
                 {d.details && <p style={{ margin: '4px 0 0' }}>{d.details}</p>}
               </li>

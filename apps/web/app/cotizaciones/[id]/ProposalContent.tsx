@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { api } from '../../lib/api';
 import { fmtDate, FREQUENCY_LABEL, paymentLabel, type PaymentPlanDto, type QuoteDto } from '../../lib/types';
 
 const toPct = (rate: string) => String(Number((Number(rate) * 100).toFixed(4)));
@@ -23,6 +25,7 @@ export function ProposalContent({
 
   return (
     <>
+      <CoverPicker draft={draft} set={set} />
       <section aria-labelledby="plan">
         <h2 id="plan">Plan de pagos</h2>
         <label className="inline">
@@ -234,6 +237,44 @@ export function ProposalContent({
         </label>
       </section>
     </>
+  );
+}
+
+/** Destination photo for the proposal, chosen among the request's JPG/PNG attachments. */
+function CoverPicker({ draft, set }: { draft: QuoteDto; set: (patch: Partial<QuoteDto>) => void }) {
+  const [images, setImages] = useState<{ id: string; fileName: string }[]>([]);
+  useEffect(() => {
+    api<{ id: string; fileName: string; mimeType: string }[]>(
+      `/requests/${draft.requestId}/attachments`,
+    ).then(
+      (all) => setImages(all.filter((a) => a.mimeType.startsWith('image/'))),
+      () => setImages([]),
+    );
+  }, [draft.requestId]);
+  return (
+    <section aria-labelledby="portada">
+      <h2 id="portada">Foto del destino</h2>
+      {images.length ? (
+        <label>
+          Portada de la propuesta
+          <select
+            value={draft.coverAttachmentId ?? ''}
+            onChange={(e) => set({ coverAttachmentId: e.target.value || null })}
+          >
+            <option value="">Sin foto</option>
+            {images.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.fileName}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <p className="muted">
+          Sube una foto JPG o PNG en los adjuntos de la solicitud para usarla de portada.
+        </p>
+      )}
+    </section>
   );
 }
 

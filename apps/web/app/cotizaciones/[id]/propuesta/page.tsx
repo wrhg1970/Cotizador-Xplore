@@ -20,6 +20,7 @@ export default function ProposalPage() {
   return (
     <ProposalView
       p={p}
+      coverSrc={`/api/v1/quotes/${id}/proposal/cover`}
       actions={<Link href={`/solicitudes/${p.request.id}`}>← Volver a la solicitud</Link>}
     />
   );

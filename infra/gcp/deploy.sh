@@ -12,6 +12,8 @@
 # la primera vez pide la contraseña de aplicación de esa cuenta. Sin SMTP_USER quedan apagados.
 # WeTravel (opcional): la primera vez correr con WETRAVEL=1 para guardar la llave de la Partner API;
 # después se conecta sola mientras exista el secreto. WETRAVEL_API_URL apunta al sandbox si se quiere.
+# Banxico (opcional): la primera vez correr con BANXICO=1 para guardar el token del SIE; igual que WeTravel.
+# Siempre crea la tarea diaria de Cloud Scheduler (días hábiles, 13:00 hora de CDMX) que llama a /cron/daily.
 set -euo pipefail
 
 : "${PROJECT_ID:?Falta PROJECT_ID}"
@@ -55,7 +57,7 @@ secret() { # secret <nombre> : lee el valor de stdin
 echo "== APIs"
 gcloud services enable run.googleapis.com sqladmin.googleapis.com \
   secretmanager.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com \
-  aiplatform.googleapis.com
+  aiplatform.googleapis.com cloudscheduler.googleapis.com
 
 echo "== Artifact Registry"
 exists gcloud artifacts repositories describe cotizador --location="$REGION" ||
@@ -136,17 +138,40 @@ if exists gcloud secrets describe cotizador-wetravel-api-key; then
   WT_SECRETS=",WETRAVEL_API_KEY=cotizador-wetravel-api-key:latest"
 fi
 
+BMX_ENV=""
+if [[ -n "${BANXICO:-}" ]] && ! exists gcloud secrets describe cotizador-banxico-token; then
+  read -rsp "Token del SIE de Banxico (no se muestra): " BANXICO_TOKEN && echo
+  printf '%s' "$BANXICO_TOKEN" | secret cotizador-banxico-token
+fi
+exists gcloud secrets describe cotizador-banxico-token && BMX_ENV=",BANXICO_TOKEN=cotizador-banxico-token:latest"
+
+CRON_SECRET_NAME="cotizador${SUFFIX}-cron-secret"
+exists gcloud secrets describe "$CRON_SECRET_NAME" ||
+  openssl rand -hex 32 | tr -d '\n' | secret "$CRON_SECRET_NAME"
+
 echo "== API"
 # shortcut: la API queda pública para que web la alcance sin tokens de servicio;
 # las rutas ya exigen sesión. Pasar a ingress interno + VPC cuando haya más tráfico.
 gcloud run deploy "cotizador-api$SUFFIX" --image="$REPO/api:$TAG" --region="$REGION" --port=4000 \
   --allow-unauthenticated --add-cloudsql-instances="$CONN" \
   --set-env-vars="^|^NODE_ENV=production|API_PUBLIC_URL=$PUBLIC_URL|WEB_ORIGIN=$PUBLIC_URL|ALLOWED_GOOGLE_DOMAINS=$ALLOWED_GOOGLE_DOMAINS|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|VERTEX_PROJECT=$PROJECT_ID$MAIL_ENV$WT_ENV" \
-  --set-secrets=DATABASE_URL=$DB_SECRET:latest,SESSION_SECRET=$SESSION_SECRET_NAME:latest,GOOGLE_CLIENT_SECRET=cotizador-google-client-secret:latest$MAIL_SECRETS$WT_SECRETS
+  --set-secrets=DATABASE_URL=$DB_SECRET:latest,SESSION_SECRET=$SESSION_SECRET_NAME:latest,GOOGLE_CLIENT_SECRET=cotizador-google-client-secret:latest,CRON_SECRET=$CRON_SECRET_NAME:latest$MAIL_SECRETS$WT_SECRETS$BMX_ENV
 
 echo "== Web"
 gcloud run deploy "cotizador-web$SUFFIX" --image="$REPO/web$SUFFIX:$TAG" --region="$REGION" --port=3000 \
   --allow-unauthenticated
+
+echo "== Tarea diaria (Banxico y avisos)"
+# shortcut: el secreto viaja como header y queda visible para quien vea la tarea en el proyecto;
+# pasar a token OIDC de Cloud Scheduler si el proyecto se abre a más personas.
+CRON_ARGS=(--location="$REGION" --schedule="0 13 * * 1-5" --time-zone="America/Mexico_City"
+  --uri="$API_URL/api/v1/cron/daily" --http-method=POST
+  --headers="X-Cron-Secret=$(gcloud secrets versions access latest --secret="$CRON_SECRET_NAME")")
+if exists gcloud scheduler jobs describe "cotizador$SUFFIX-daily" --location="$REGION"; then
+  gcloud scheduler jobs update http "cotizador$SUFFIX-daily" "${CRON_ARGS[@]/--headers=/--update-headers=}" >/dev/null
+else
+  gcloud scheduler jobs create http "cotizador$SUFFIX-daily" "${CRON_ARGS[@]}" >/dev/null
+fi
 
 echo
 echo "Listo ($ENV): $PUBLIC_URL"

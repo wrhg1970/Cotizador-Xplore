@@ -236,6 +236,8 @@ export class IntegrationsController {
       },
       { key: 'VERTEX', name: 'Importar hojas con IA (Gemini)', configured: !!e.VERTEX_PROJECT },
       { key: 'WETRAVEL', name: 'WeTravel (ligas de pago)', configured: !!e.WETRAVEL_API_KEY },
+      { key: 'BANXICO', name: 'Tipo de cambio Banxico (FIX)', configured: !!e.BANXICO_TOKEN },
+      { key: 'CRON', name: 'Tareas diarias programadas', configured: !!e.CRON_SECRET },
       // No public API yet: waiting on Wissify's documentation and test credentials.
       { key: 'WISSIFY', name: 'Wissify', configured: false },
     ];

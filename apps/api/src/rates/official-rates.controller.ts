@@ -1,4 +1,13 @@
-import { Body, Controller, ForbiddenException, Get, Inject, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Inject,
+  Post,
+  Req,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { OfficialRateInput } from '@ee/contracts';
 import type { PrismaClient } from '@ee/db';
@@ -9,8 +18,45 @@ import { isSystemAdmin } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { ZodPipe } from '../zod.pipe.js';
+import { BANXICO, type Banxico } from './banxico.js';
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
+
+/**
+ * Publishes Banxico's latest rates as official ones, skipping pairs whose current rate already has
+ * the same source and date, so the daily job and the admin button can both run any number of times.
+ * actorUserId null = the scheduled process.
+ */
+export async function refreshFromBanxico(
+  prisma: PrismaClient,
+  banxico: Banxico,
+  actorUserId: string | null,
+  correlationId: string,
+) {
+  const published: string[] = [];
+  for (const r of await banxico.latest()) {
+    const current = await prisma.officialRate.findFirst({
+      where: { fromCurrency: r.fromCurrency, toCurrency: r.toCurrency },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (current && current.source === r.source && day(current.rateDate) === r.rateDate) continue;
+    await prisma.$transaction(async (tx) => {
+      const row = await tx.officialRate.create({
+        data: { ...r, rateDate: new Date(`${r.rateDate}T00:00:00Z`), capturedById: actorUserId },
+      });
+      await audit(tx, {
+        actorUserId,
+        action: 'official_rate.published',
+        entityType: 'OfficialRate',
+        entityId: row.id,
+        correlationId,
+        diff: { ...r },
+      });
+    });
+    published.push(`${r.fromCurrency}/${r.toCurrency}`);
+  }
+  return { published };
+}
 
 /**
  * Official EE exchange rates (V2 "Parámetros financieros"): everyone reads the current rate per
@@ -18,7 +64,10 @@ const day = (d: Date) => d.toISOString().slice(0, 10);
  */
 @Controller('official-rates')
 export class OfficialRatesController {
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    @Inject(BANXICO) private readonly banxico: Banxico | null,
+  ) {}
 
   @Get()
   async current() {
@@ -34,9 +83,17 @@ export class OfficialRatesController {
       rate: r.rate.toString(),
       rateDate: day(r.rateDate),
       source: r.source,
-      capturedBy: r.capturedBy.name,
+      capturedBy: r.capturedBy?.name ?? 'Proceso automático',
       createdAt: r.createdAt.toISOString(),
     }));
+  }
+
+  /** "Traer de Banxico" in Administración; the daily job calls the same refresh. */
+  @Post('banxico')
+  async fromBanxico(@CurrentUser() user: AuthUser, @Req() req: Request) {
+    if (!isSystemAdmin(user)) throw new ForbiddenException('Solo un administrador del sistema');
+    if (!this.banxico) throw new ServiceUnavailableException('Banxico no está configurado');
+    return refreshFromBanxico(this.prisma, this.banxico, user.id, req.correlationId);
   }
 
   @Post()

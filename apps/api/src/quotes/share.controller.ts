@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import {
   Body,
   Controller,
+  ConflictException,
   Delete,
   ForbiddenException,
   Get,
@@ -11,10 +12,11 @@ import {
   ParseUUIDPipe,
   Post,
   Req,
+  Res,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { Request } from 'express';
-import { CreateProposalShare } from '@ee/contracts';
+import type { Request, Response } from 'express';
+import { AcceptProposal, CreateProposalShare } from '@ee/contracts';
 import type { PrismaClient, TravelRequest } from '@ee/db';
 import type { z } from 'zod';
 import { audit } from '../audit.js';
@@ -24,6 +26,7 @@ import { CurrentUser, Public } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { canView } from '../requests/request-policy.js';
 import { ZodPipe } from '../zod.pipe.js';
+import { Notifier } from '../notify/notifier.js';
 import { clientProposal, full } from './quotes.controller.js';
 
 const uuid = new ParseUUIDPipe({ version: '4' });
@@ -39,7 +42,10 @@ const OPEN = ['QUOTING', 'SENT', 'WON'];
  */
 @Controller()
 export class ProposalShareController {
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    private readonly notifier: Notifier,
+  ) {}
 
   private async version(id: string, user: AuthUser) {
     const v = await this.prisma.quoteVersion.findUnique({ where: { id }, include: full });
@@ -61,11 +67,18 @@ export class ProposalShareController {
     const rows = await this.prisma.proposalShare.findMany({
       where: { versionId: id },
       omit: { tokenHash: true },
-      include: { createdBy: { select: { name: true } } },
+      include: {
+        createdBy: { select: { name: true } },
+        acceptances: { select: { signerName: true, signerRole: true, acceptedAt: true, ip: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map((s) => ({
+    return rows.map(({ acceptances, ...s }) => ({
       ...s,
+      acceptance: acceptances[0] && {
+        ...acceptances[0],
+        acceptedAt: acceptances[0].acceptedAt.toISOString(),
+      },
       expiresAt: s.expiresAt.toISOString(),
       revokedAt: s.revokedAt?.toISOString() ?? null,
       lastViewAt: s.lastViewAt?.toISOString() ?? null,
@@ -130,28 +143,127 @@ export class ProposalShareController {
     return { ok: true };
   }
 
-  /** The school's view. Every failure is the same 404, so a guessed token learns nothing. */
-  @Public()
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @Get('public/proposals/:token')
-  async open(@Param('token') token: string) {
+  /** A live share or the same 404 for every failure, so a guessed token learns nothing. */
+  private async share(token: string) {
     const gone = new NotFoundException('Esta liga no existe o ya no está vigente');
     if (!TOKEN.test(token)) throw gone;
     const s = await this.prisma.proposalShare.findUnique({
       where: { tokenHash: hash(token) },
-      include: { version: { include: full } },
+      include: { version: { include: { ...full, acceptance: true } } },
     });
     if (!s || s.revokedAt || s.expiresAt <= new Date() || !SHAREABLE.includes(s.version.status)) throw gone;
     const r = await this.prisma.travelRequest.findUniqueOrThrow({
       where: { id: s.version.scenario.requestId },
     });
     if (!OPEN.includes(r.status)) throw gone;
+    return { s, r };
+  }
+
+  /** Destination photo for the print view. */
+  @Get('quotes/:id/proposal/cover')
+  async cover(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string, @Res() res: Response) {
+    const { v } = await this.version(id, user);
+    await this.sendCover(v.coverAttachmentId, res);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('public/proposals/:token/cover')
+  async publicCover(@Param('token') token: string, @Res() res: Response) {
+    const { s } = await this.share(token);
+    await this.sendCover(s.version.coverAttachmentId, res);
+  }
+
+  private async sendCover(attachmentId: string | null, res: Response) {
+    const a =
+      attachmentId && (await this.prisma.requestAttachment.findUnique({ where: { id: attachmentId } }));
+    // Only sniffed JPG/PNG are ever chosen as cover; anything else is never rendered inline.
+    if (!a || !a.mimeType.startsWith('image/')) throw new NotFoundException('Sin portada');
+    res
+      .set('X-Content-Type-Options', 'nosniff')
+      .set('Cache-Control', 'private, max-age=300')
+      .type(a.mimeType)
+      .send(Buffer.from(a.content));
+  }
+
+  /** The school's view. */
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('public/proposals/:token')
+  async open(@Param('token') token: string) {
+    const { s, r } = await this.share(token);
     await this.prisma.proposalShare.update({
       where: { id: s.id },
       data: { viewCount: { increment: 1 }, lastViewAt: new Date() },
     });
     const { request, id: _id, ...proposal } = clientProposal(s.version, r);
     const { id: _rid, ...publicRequest } = request;
-    return { ...proposal, request: publicRequest, expiresAt: s.expiresAt.toISOString() };
+    const a = s.version.acceptance;
+    return {
+      ...proposal,
+      request: publicRequest,
+      expiresAt: s.expiresAt.toISOString(),
+      canAccept: s.version.status === 'SENT' && r.status === 'SENT',
+      acceptance: a && {
+        signerName: a.signerName,
+        signerRole: a.signerRole,
+        acceptedAt: a.acceptedAt.toISOString(),
+      },
+    };
+  }
+
+  /**
+   * The school accepts online (V2 "firma del colegio"): records who, position, when and from where,
+   * and marks the request won with this version, under the same rule as the manual outcome:
+   * only a version actually sent, only while the request awaits an answer, one winner.
+   */
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('public/proposals/:token/accept')
+  async accept(
+    @Param('token') token: string,
+    @Req() req: Request,
+    @Body(new ZodPipe(AcceptProposal)) body: z.infer<typeof AcceptProposal>,
+  ) {
+    const { s, r } = await this.share(token);
+    if (s.version.status !== 'SENT' || r.status !== 'SENT')
+      throw new ConflictException({
+        code: 'NOT_ACCEPTABLE',
+        message: 'Esta propuesta ya no puede aceptarse en línea; contacta a tu ejecutivo',
+      });
+    const ip = (req.header('x-forwarded-for')?.split(',')[0] ?? req.ip ?? '').trim().slice(0, 64) || null;
+    const accepted = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.travelRequest.updateMany({
+        where: { id: r.id, status: 'SENT', wonVersionId: null },
+        data: { status: 'WON', wonVersionId: s.versionId, closedAt: new Date(), version: { increment: 1 } },
+      });
+      if (!count)
+        throw new ConflictException({ code: 'ALREADY_CLOSED', message: 'La solicitud ya tiene respuesta' });
+      const a = await tx.proposalAcceptance.create({
+        data: {
+          shareId: s.id,
+          versionId: s.versionId,
+          signerName: body.signerName,
+          signerRole: body.signerRole,
+          ip,
+          userAgent: req.header('user-agent')?.slice(0, 300) ?? null,
+        },
+      });
+      // Who signed stays in proposal_acceptances; the log keeps only the reference.
+      await audit(tx, {
+        actorUserId: null,
+        action: 'request.won',
+        entityType: 'TravelRequest',
+        entityId: r.id,
+        correlationId: req.correlationId,
+        diff: {
+          status: { from: 'SENT', to: 'WON' },
+          detail: { versionId: s.versionId, via: 'school_link', acceptanceId: a.id },
+        },
+      });
+      return a;
+    });
+    void this.notifier.notify({ kind: 'ACCEPTED', versionId: s.versionId }, '');
+    return { acceptedAt: accepted.acceptedAt.toISOString() };
   }
 }
