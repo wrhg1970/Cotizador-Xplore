@@ -59,6 +59,7 @@ model User {
   templates      QuoteTemplate[]
   fxRates        QuoteFxRate[]
   officialRates  OfficialRate[]
+  settings       AppSetting[]
   reviews        QuoteReview[]
   deliveries     ProposalDelivery[]
   rolePolicies   RolePolicy[]
@@ -499,4 +500,15 @@ model ProposalShare {
 
   @@index([versionId])
   @@map("proposal_shares")
+}
+
+/// Small admin-editable settings (contracts AlertSettings, …) keyed by name; the value is validated in the API.
+model AppSetting {
+  key         String   @id
+  value       Json
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@map("app_settings")
 }

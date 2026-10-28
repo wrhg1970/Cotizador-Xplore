@@ -239,7 +239,7 @@ function snapshotHash(v: FullVersion) {
 
 export type QuoteDto = ReturnType<typeof toDto>;
 
-function toDto(v: FullVersion) {
+export function toDto(v: FullVersion) {
   const rated = new Set(v.fxRates.map((f) => f.fromCurrency));
   const missingFx = [...new Set(v.lines.map((l) => l.currency))].filter(
     (c) => c !== v.saleCurrency && !rated.has(c),

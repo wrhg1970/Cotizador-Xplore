@@ -85,7 +85,8 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 
 ### Tareas programadas
 - `POST /official-rates/banxico` (administrador del sistema): publica los tipos de Banxico del día.
-- `POST /cron/daily` (sin sesión; header `X-Cron-Secret`): Banxico y avisos diarios. 404 si no hay `CRON_SECRET`.
+- `POST /cron/daily` (sin sesión; header `X-Cron-Secret`): Banxico y correo diario de pendientes atrasados (uno por persona, una vez al día). 404 si no hay `CRON_SECRET`.
+- `GET|PUT /settings/alerts`: umbrales en días (sin cotizar, autorización pendiente, enviada sin respuesta, anticipación de pagos); escribir solo administrador del sistema, auditado. `GET /dashboard` incluye `alerts` del usuario.
 
 ## Contratos de referencia
 ### Crear solicitud

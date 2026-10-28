@@ -9,6 +9,7 @@ import { D, type Dec, QuoteEngineError } from '@ee/quote-engine';
 import { engine } from '../quotes/quotes.controller.js';
 import type { z } from 'zod';
 import { ZodPipe } from '../zod.pipe.js';
+import { alertSettings, computeAlerts } from '../alerts/alerts.js';
 
 export type TaskKind =
   'SUBMIT_REQUEST' | 'ASSIGN' | 'QUOTE' | 'FIX_QUOTE' | 'APPROVE' | 'SEND' | 'RECORD_OUTCOME';
@@ -125,14 +126,20 @@ export class DashboardController {
 
   @Get()
   async get(@CurrentUser() user: AuthUser) {
-    const [tasks, offices, requests] = await Promise.all([
+    const [tasks, offices, requests, alerts] = await Promise.all([
       this.tasks(user),
       this.officeCounts(user),
       this.requests(user),
+      alertSettings(this.prisma).then((s) => computeAlerts(this.prisma, s)),
     ]);
     const byDue = (a: DashboardTask, b: DashboardTask) =>
       (a.dueDate ?? a.departureDate).localeCompare(b.dueDate ?? b.departureDate);
-    return { tasks: tasks.sort(byDue), offices, requests };
+    return {
+      tasks: tasks.sort(byDue),
+      offices,
+      requests,
+      alerts: alerts.filter((a) => a.userIds.includes(user.id)).map(({ userIds: _, ...a }) => a),
+    };
   }
 
   /**

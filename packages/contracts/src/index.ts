@@ -308,6 +308,21 @@ export const OfficialRateInput = z
   });
 export type OfficialRateInput = z.infer<typeof OfficialRateInput>;
 
+/** Days before each overdue alert fires (Administración → Alertas); 0 turns that alert off. */
+export const AlertSettings = z.strictObject({
+  unquotedDays: z.number().int().min(0).max(90),
+  reviewDays: z.number().int().min(0).max(90),
+  sentNoAnswerDays: z.number().int().min(0).max(180),
+  paymentReminderDays: z.number().int().min(0).max(60),
+});
+export type AlertSettings = z.infer<typeof AlertSettings>;
+export const DEFAULT_ALERT_SETTINGS: AlertSettings = {
+  unquotedDays: 3,
+  reviewDays: 2,
+  sentNoAnswerDays: 7,
+  paymentReminderDays: 5,
+};
+
 /** Registration + installments, per student; the schedule itself is computed by the engine. */
 export const PaymentPlanInput = z
   .strictObject({

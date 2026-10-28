@@ -15,6 +15,8 @@ import { PRISMA } from '../prisma.service.js';
 import { Public } from '../auth/session.guard.js';
 import { BANXICO, type Banxico } from '../rates/banxico.js';
 import { refreshFromBanxico } from '../rates/official-rates.controller.js';
+import { MAILER, type Mailer } from '../notify/notifier.js';
+import { sendDigest } from '../alerts/alerts.js';
 
 const same = (a: string, b: string) =>
   a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -30,6 +32,7 @@ export class CronController {
     @Inject(ENV) private readonly env: Env,
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(BANXICO) private readonly banxico: Banxico | null,
+    @Inject(MAILER) private readonly mailer: Mailer | null,
   ) {}
 
   @Post('daily')
@@ -44,6 +47,13 @@ export class CronController {
       } catch (e) {
         // The last official rate stays current; nothing is inferred.
         result.banxico = { error: e instanceof Error ? e.message : 'error' };
+      }
+    }
+    if (this.mailer) {
+      try {
+        result.alerts = await sendDigest(this.prisma, this.mailer, this.env.WEB_ORIGIN);
+      } catch (e) {
+        result.alerts = { error: e instanceof Error ? e.message : 'error' };
       }
     }
     return result;
