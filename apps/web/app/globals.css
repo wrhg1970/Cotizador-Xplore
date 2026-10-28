@@ -980,3 +980,21 @@ fieldset.editor {
   font-size: 0.7rem;
   padding-top: 0;
 }
+dialog.welcome {
+  max-width: min(560px, calc(100vw - 32px));
+  border: 0;
+  border-radius: var(--radius);
+  padding: 24px;
+  background: var(--surface);
+  color: var(--text);
+}
+dialog.welcome::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+dialog.welcome h2 {
+  margin-top: 0;
+}
+.guide ol,
+dialog.welcome ol {
+  padding-left: 20px;
+}

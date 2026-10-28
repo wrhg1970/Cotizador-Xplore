@@ -48,3 +48,8 @@ XLSX interno: resumen, líneas, unidades, cantidades, moneda original, tasa FX, 
 - El botón "Activar avisos" pide permiso de notificaciones. Con permiso, cada 5 minutos, mientras la app o una pestaña esté abierta, se avisa de tareas y atrasos nuevos; tocar el aviso abre la solicitud o cotización.
 - Con la app cerrada no llegan avisos al dispositivo (eso requiere Web Push); los correos siguen cubriendo ese caso.
 - El service worker no guarda páginas ni datos en el dispositivo.
+
+## Guía de uso y recorrido de bienvenida (2026-10-28)
+- "Ayuda" (junto a Cerrar sesión) abre `/guia`: pasos por rol (vendedor, cotizador, aprobador, coordinador, Finanzas, administrador); los roles de la persona aparecen primero con la marca "Tu rol".
+- La primera vez que alguien entra ve un recorrido de un paso por cada rol que tiene. Se marca como visto en el navegador (`ee-welcome-seen`); en otro equipo se muestra una vez más.
+- El texto vive en `apps/web/app/guia/content.ts`: si cambia un botón o el flujo, actualizarlo ahí.

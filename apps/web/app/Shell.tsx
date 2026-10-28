@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { api, isPublicPath } from './lib/api';
 import { Logo } from './Logo';
 import { useMe } from './lib/useMe';
+import { Welcome } from './Welcome';
 import { WorkNotifier } from './WorkNotifier';
 
 export function Shell({ children }: { children: ReactNode }) {
@@ -88,6 +89,9 @@ export function Shell({ children }: { children: ReactNode }) {
             </nav>
             <div className="user">
               {me && <WorkNotifier />}
+              <Link href="/guia" aria-current={current('/guia')}>
+                Ayuda
+              </Link>
               <button className="secondary" onClick={logout}>
                 Cerrar sesión
               </button>
@@ -100,6 +104,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
       )}
+      {!bare && me && <Welcome me={me} />}
       <main className={bare ? 'bare' : undefined}>{children}</main>
     </>
   );
