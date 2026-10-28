@@ -2,7 +2,7 @@ import { Controller, ForbiddenException, Get, Inject, Query } from '@nestjs/comm
 import { ExecutiveDashboardQuery, type RequestStatus, type RoleName } from '@ee/contracts';
 import type { Prisma, PrismaClient } from '@ee/db';
 import type { AuthUser } from '../auth/auth.types.js';
-import { officeScope, officesWithRole } from '../auth/authz.js';
+import { canSeeInternalCosts, officeScope, officesWithRole } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { D, type Dec, QuoteEngineError } from '@ee/quote-engine';
@@ -108,6 +108,48 @@ const mxnPerParticipant = (v: Parameters<typeof engine>[0]): Dec | null => {
   }
 };
 
+/** V2 commercial funnel: Nueva → En cotización → Aprobada → Enviada → Aceptada; the furthest step a request reached. */
+type Reached = 1 | 2 | 3 | 4 | 5;
+const reachedOf = (status: RequestStatus, versions: { status: string }[]): Reached => {
+  if (status === 'WON') return 5;
+  if (status === 'SENT' || status === 'LOST' || versions.some((v) => v.status === 'SENT')) return 4;
+  if (versions.some((v) => v.status === 'APPROVED')) return 3;
+  return status === 'QUOTING' || versions.length ? 2 : 1;
+};
+
+/** The version that best represents a request: the winner, else the most advanced quoted one. */
+const shownVersion = <V extends { id: string; status: string; updatedAt: Date }>(
+  versions: V[],
+  wonVersionId: string | null,
+): V | undefined =>
+  versions.find((v) => v.id === wonVersionId) ??
+  versions
+    .filter((v) => v.status in RANK)
+    .reduce<V | undefined>(
+      (best, v) =>
+        !best ||
+        RANK[v.status]! > RANK[best.status]! ||
+        (RANK[v.status] === RANK[best.status] && v.updatedAt > best.updatedAt)
+          ? v
+          : best,
+      undefined,
+    );
+
+/** Group price and commission in MXN; null when the version doesn't compute or has no MXN rate (never inferred). */
+const groupMxn = (v: Parameters<typeof engine>[0]): { volume: Dec; commission: Dec } | null => {
+  try {
+    const t = engine(v);
+    if (v.saleCurrency === 'MXN')
+      return { volume: t.pricePerParticipant.mul(v.participants), commission: t.groupMargin };
+    return t.pricePerParticipantMxn && t.groupMarginMxn
+      ? { volume: t.pricePerParticipantMxn.mul(v.participants), commission: t.groupMarginMxn }
+      : null;
+  } catch (e) {
+    if (e instanceof QuoteEngineError) return null;
+    throw e;
+  }
+};
+
 const stageOf = (status: RequestStatus, versions: { status: string }[]): Stage => {
   if (status === 'SENT' || status === 'WON') return 4;
   if (status !== 'QUOTING') return 1;
@@ -190,13 +232,33 @@ export class DashboardController {
           },
         },
         select: {
+          id: true,
+          folio: true,
+          groupName: true,
+          clientName: true,
+          program: true,
+          city: true,
+          countryCode: true,
+          departureDate: true,
+          dueDate: true,
           status: true,
           createdAt: true,
           participants: true,
+          chaperones: true,
+          staff: true,
+          budgetAmount: true,
+          budgetCurrency: true,
+          budgetBasis: true,
+          wonVersionId: true,
           office: { select: { id: true, code: true, name: true } },
-          scenarios: { select: { versions: { select: { status: true } } } },
+          scenarios: {
+            select: {
+              versions: { include: { lines: true, fxRates: true, deliveries: { select: { sentOn: true } } } },
+            },
+          },
           wonVersion: { include: { lines: true, fxRates: true } },
         },
+        orderBy: { createdAt: 'desc' },
       }),
       this.prisma.travelRequest.findMany({
         where: { ...offices, status: 'WON', departureDate: { gte: new Date(today), lte: soon } },
@@ -277,6 +339,44 @@ export class DashboardController {
         chaperones: r.chaperones,
       })),
       goals,
+      requests: rows.map((r) => {
+        const versions = r.scenarios.flatMap((s) => s.versions);
+        const shown = shownVersion(versions, r.wonVersionId);
+        const group = shown ? groupMxn(shown) : null;
+        const sent = versions.flatMap((v) => v.deliveries.map((d) => d.sentOn.getTime()));
+        const budget =
+          r.budgetAmount && r.budgetCurrency === 'MXN'
+            ? new D(r.budgetAmount.toString()).mul(r.budgetBasis === 'TOTAL' ? 1 : r.participants)
+            : null;
+        return {
+          id: r.id,
+          folio: r.folio,
+          groupName: r.groupName,
+          clientName: r.clientName,
+          program: r.program,
+          officeCode: r.office.code,
+          city: r.city,
+          countryCode: r.countryCode,
+          participants: r.participants,
+          chaperones: r.chaperones,
+          staff: r.staff,
+          scenarios: r.scenarios.length,
+          createdAt: day(r.createdAt)!,
+          departureDate: day(r.departureDate)!,
+          dueDate: day(r.dueDate),
+          firstSentOn: sent.length ? day(new Date(Math.min(...sent))) : null,
+          status: r.status,
+          stage: stageOf(r.status, versions),
+          reached: reachedOf(r.status, versions),
+          // Budget only when the school gave it in MXN: other currencies would need an inferred rate.
+          budgetMxn: budget?.toFixed(2) ?? null,
+          volumeMxn: group?.volume.toFixed(2) ?? null,
+          // Commission (margin over the sale price) only for roles that see internal costs in that office.
+          ...(canSeeInternalCosts(user, r.office.id) && {
+            commissionMxn: group?.commission.toFixed(2) ?? null,
+          }),
+        };
+      }),
     };
   }
 
@@ -357,17 +457,7 @@ export class DashboardController {
     });
     return rows.map((r) => {
       const versions = r.scenarios.flatMap((s) => s.versions);
-      const shown =
-        versions.find((v) => v.id === r.wonVersionId) ??
-        versions.reduce<(typeof versions)[number] | undefined>(
-          (best, v) =>
-            !best ||
-            RANK[v.status]! > RANK[best.status]! ||
-            (RANK[v.status] === RANK[best.status] && v.updatedAt > best.updatedAt)
-              ? v
-              : best,
-          undefined,
-        );
+      const shown = shownVersion(versions, r.wonVersionId);
       return {
         id: r.id,
         folio: r.folio,
