@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { ItineraryDay, QuoteLineInput } from '@ee/contracts';
+import { ItineraryDay, QuoteLineInput, RequestDraft } from '@ee/contracts';
 import ExcelJS from 'exceljs';
 import { z } from 'zod';
 
@@ -9,9 +9,12 @@ export const MAX_SHEET_BYTES = 3 * 1024 * 1024;
 
 export class SheetImportError extends Error {}
 
+/** quote = cost lines for a version; request = the trip data for a new request form. */
+export type SheetKind = 'quote' | 'request';
+
 /** Seam for tests; the Vertex implementation sends only the sheet text, never user or request data. */
 export interface SheetReader {
-  read(sheetText: string): Promise<unknown>;
+  read(sheetText: string, kind?: SheetKind): Promise<unknown>;
 }
 export const SHEET_READER = Symbol('SHEET_READER');
 
@@ -140,6 +143,35 @@ Reglas:
 - targetMarginRate solo si la hoja indica el % de comisión o margen; si no, null.
 - Ignora nombres de personas, correos y teléfonos.`;
 
+const REQUEST_SCHEMA = {
+  type: 'object',
+  properties: {
+    groupName: { type: ['string', 'null'], description: 'Nombre del grupo o del viaje' },
+    clientName: { type: ['string', 'null'], description: 'Escuela o cliente' },
+    program: { type: ['string', 'null'], description: 'Programa (campamento, inmersión, etc.)' },
+    city: { type: ['string', 'null'], description: 'Ciudad o ciudades de destino' },
+    countryCode: { type: ['string', 'null'], description: 'País de destino, código ISO de 2 letras' },
+    departureDate: { type: ['string', 'null'], description: 'Fecha de salida AAAA-MM-DD' },
+    returnDate: { type: ['string', 'null'], description: 'Fecha de regreso AAAA-MM-DD' },
+    participants: { type: ['integer', 'null'], description: 'Número de estudiantes' },
+    chaperones: { type: ['integer', 'null'], description: 'Chaperones de la escuela' },
+    staff: { type: ['integer', 'null'], description: 'Chaperones o staff de EE' },
+    requirements: { type: ['string', 'null'], description: 'Requerimientos y notas del viaje' },
+    warnings: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['warnings'],
+};
+
+const REQUEST_INSTRUCTION = `Eres asistente de Estudiantes Embajadores (viajes educativos grupales).
+Recibes una hoja de cálculo como celdas "A1: valor" (ficha de viaje, cotización o lista del colegio) y extraes los datos para dar de alta una solicitud de viaje.
+
+Reglas:
+- Solo datos que aparezcan en la hoja; si un dato no está o es ambiguo, déjalo en null y explícalo en warnings.
+- Fechas en formato AAAA-MM-DD. País como código ISO de 2 letras (Canadá = CA, Estados Unidos = US, Reino Unido = GB).
+- participants son estudiantes; no sumes adultos. chaperones son adultos de la escuela; staff son acompañantes de EE.
+- No incluyas costos, precios, nombres de personas, correos ni teléfonos en ningún campo.
+- requirements: resumen breve de requerimientos del viaje (hospedaje, actividades, comidas), sin datos personales.`;
+
 export class VertexSheetReader implements SheetReader {
   private readonly ai: GoogleGenAI;
 
@@ -151,15 +183,15 @@ export class VertexSheetReader implements SheetReader {
     this.ai = new GoogleGenAI({ vertexai: true, project, location });
   }
 
-  async read(sheetText: string): Promise<unknown> {
+  async read(sheetText: string, kind: SheetKind = 'quote'): Promise<unknown> {
     const res = await this.ai.models.generateContent({
       model: this.model,
       contents: `Contenido de la hoja:\n----\n${sheetText}\n----`,
       config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
+        systemInstruction: kind === 'request' ? REQUEST_INSTRUCTION : SYSTEM_INSTRUCTION,
         temperature: 0.1,
         responseMimeType: 'application/json',
-        responseJsonSchema: RESPONSE_SCHEMA,
+        responseJsonSchema: kind === 'request' ? REQUEST_SCHEMA : RESPONSE_SCHEMA,
         abortSignal: AbortSignal.timeout(60_000),
       },
     });
@@ -225,3 +257,41 @@ export function normalizeProposal(raw: unknown) {
   };
 }
 export type ImportProposal = ReturnType<typeof normalizeProposal>;
+
+/** Keeps only fields that pass the request form's own validation; the rest become warnings. */
+export function normalizeRequestDraft(raw: unknown) {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const warnings = (Array.isArray(o.warnings) ? o.warnings : [])
+    .filter((w): w is string => typeof w === 'string')
+    .map((w) => w.slice(0, 500));
+  const draft: Record<string, unknown> = {};
+  const shape = RequestDraft.shape;
+  for (const key of [
+    'groupName',
+    'clientName',
+    'program',
+    'city',
+    'countryCode',
+    'departureDate',
+    'returnDate',
+    'participants',
+    'chaperones',
+    'staff',
+    'requirements',
+  ] as const) {
+    const value = typeof o[key] === 'string' ? (o[key] as string).trim() : o[key];
+    if (value === null || value === undefined || value === '') continue;
+    const parsed = shape[key].safeParse(key === 'countryCode' ? String(value).toUpperCase() : value);
+    if (parsed.success) draft[key] = parsed.data;
+    else warnings.push(`No se usó el campo ${key}: el valor de la hoja no es válido`);
+  }
+  if (
+    draft.departureDate &&
+    draft.returnDate &&
+    (draft.returnDate as string) < (draft.departureDate as string)
+  ) {
+    delete draft.returnDate;
+    warnings.push('La fecha de regreso era anterior a la salida; revísala');
+  }
+  return { draft: draft as RequestDraft, warnings: warnings.slice(0, 30) };
+}

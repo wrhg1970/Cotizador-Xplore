@@ -31,5 +31,9 @@ export const isOfficeAdmin = (me: Me | null, officeId: string) =>
 export const canSeeQuotes = (me: Me | null, officeId: string) =>
   isSystemAdmin(me) || policiesIn(me, officeId).some((p) => p.viewInternalCosts);
 
+/** "Crear" / "Editar" / "Borrar" from the role matrix (authz.ts canDo). */
+export const can = (me: Me | null, officeId: string, action: 'canCreate' | 'canEdit' | 'canDelete') =>
+  isSystemAdmin(me) || policiesIn(me, officeId).some((p) => p.canView && p[action]);
+
 export const canExportXlsx = (me: Me | null, officeId: string) =>
   isSystemAdmin(me) || policiesIn(me, officeId).some((p) => p.exportInternalXlsx);

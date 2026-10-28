@@ -18,6 +18,10 @@ export interface Me {
 
 export interface RolePolicy {
   allOffices: boolean;
+  canView: boolean;
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
   viewInternalCosts: boolean;
   exportInternalXlsx: boolean;
   approvalLimitMxn: string | null;
@@ -82,6 +86,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'quote.version.created': 'Creó una versión',
   'quote.version.updated': 'Editó la cotización',
   'quote.import_previewed': 'Importó una hoja con IA (vista previa)',
+  'request.import_previewed': 'Importó una solicitud desde una hoja con IA (vista previa)',
   'quote.submitted_for_approval': 'Envió a autorización',
   'quote.approved': 'Autorizó la cotización',
   'quote.rejected_for_changes': 'Devolvió la cotización',
@@ -93,6 +98,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'role_policy.updated': 'Cambió permisos de un rol',
   'office.created': 'Creó una oficina',
   'user.role_granted': 'Dio un rol',
+  'user.offices_updated': 'Cambió las oficinas de un usuario',
   'user.role_revoked': 'Quitó un rol',
   'user.disabled': 'Desactivó un usuario',
   'auth.login': 'Inició sesión',

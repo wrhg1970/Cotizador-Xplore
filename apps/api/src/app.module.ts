@@ -16,7 +16,7 @@ import { QuoteTemplatesController } from './quotes/templates.controller.js';
 import { DashboardController } from './dashboard/dashboard.controller.js';
 import { RolePoliciesController } from './auth/role-policies.controller.js';
 import { AuditLogController } from './audit-log/audit-log.controller.js';
-import { SheetImportController } from './quotes/sheet-import.controller.js';
+import { RequestImportController, SheetImportController } from './quotes/sheet-import.controller.js';
 import { SHEET_READER, type SheetReader, VertexSheetReader } from './quotes/sheet-import.js';
 import { MAILER, type Mailer, Notifier, SmtpMailer } from './notify/notifier.js';
 import { UsersController } from './users/users.controller.js';
@@ -80,6 +80,7 @@ export class AppModule {
         RolePoliciesController,
         AuditLogController,
         SheetImportController,
+        RequestImportController,
       ],
       providers: [
         { provide: ENV, useValue: env },

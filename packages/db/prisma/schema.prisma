@@ -27,6 +27,10 @@ enum Role {
 model RolePolicy {
   role               Role     @id
   allOffices         Boolean  @default(false) @map("all_offices")
+  canView            Boolean  @default(true) @map("can_view")
+  canCreate          Boolean  @default(false) @map("can_create")
+  canEdit            Boolean  @default(false) @map("can_edit")
+  canDelete          Boolean  @default(false) @map("can_delete")
   viewInternalCosts  Boolean  @default(false) @map("view_internal_costs")
   exportInternalXlsx Boolean  @default(false) @map("export_internal_xlsx")
   approvalLimitMxn   Decimal? @map("approval_limit_mxn") @db.Decimal(14, 2)

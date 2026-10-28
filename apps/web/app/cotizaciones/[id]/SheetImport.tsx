@@ -13,10 +13,10 @@ export interface ImportProposal {
   warnings: string[];
 }
 
-const MAX_BYTES = 3 * 1024 * 1024;
+export const MAX_BYTES = 3 * 1024 * 1024;
 const BLOCK = Object.fromEntries(SHEET_BLOCKS.map((b) => [b.category, b.title]));
 
-const toBase64 = (file: File) =>
+export const toBase64 = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result).split(',', 2)[1] ?? '');

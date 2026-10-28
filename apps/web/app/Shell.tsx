@@ -53,11 +53,6 @@ export function Shell({ children }: { children: ReactNode }) {
                   Plantillas
                 </Link>
               )}
-              {me?.roles.some((r) => ['OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'].includes(r.role)) && (
-                <Link href="/bitacora" aria-current={current('/bitacora')}>
-                  Bitácora
-                </Link>
-              )}
               {me?.roles.some((r) => r.role === 'SYSTEM_ADMIN') && (
                 <Link href="/rubros" aria-current={current('/rubros')}>
                   Rubros

@@ -43,12 +43,23 @@ export type OfficeRoleInput = z.infer<typeof OfficeRoleInput>;
 
 export const InviteUser = z.strictObject({ email: Email, name: Name, officeId: z.uuid(), role: RoleName });
 export type InviteUser = z.infer<typeof InviteUser>;
+/** Offices a user works in (V2 "oficinas con acceso"); the user's privileges apply in each one. */
+export const UserOffices = z.strictObject({ officeIds: z.array(z.uuid()).min(1).max(200) });
+export type UserOffices = z.infer<typeof UserOffices>;
 
 /** What each role may do beyond its fixed workflow steps; SYSTEM_ADMIN always has everything. */
 export const RolePolicyInput = z
   .strictObject({
     /** Acts in every office, not only where it was granted (e.g. a national auditor). */
     allOffices: z.boolean(),
+    /** "Ver": sees the office's requests at all; without it the office is invisible to this role. */
+    canView: z.boolean(),
+    /** "Crear": opens new requests. */
+    canCreate: z.boolean(),
+    /** "Editar": edits requests and quotes it takes part in (requester, quoter or coordinator). */
+    canEdit: z.boolean(),
+    /** "Borrar": cancels requests and retires other people's templates (nothing is hard-deleted). */
+    canDelete: z.boolean(),
     /** Sees quotes with internal costs, margins and commissions. */
     viewInternalCosts: z.boolean(),
     /** Downloads the internal Excel; requires viewInternalCosts. */
@@ -134,6 +145,10 @@ const requestFields = {
   priority: Priority,
   dueDate: IsoDate.optional(),
 };
+
+/** Every request field, each optional: what a sheet importer may propose for the form. */
+export const RequestDraft = z.object(requestFields).partial();
+export type RequestDraft = z.infer<typeof RequestDraft>;
 
 const datesInOrder = (r: { departureDate?: string; returnDate?: string }) =>
   !r.departureDate || !r.returnDate || r.returnDate >= r.departureDate;
@@ -386,6 +401,8 @@ export const ListAuditLogsQuery = z.strictObject({
     .optional(),
   actorEmail: z.email().max(254).optional(),
   entityId: z.string().trim().max(64).optional(),
+  /** A request and every quote version under it. */
+  requestId: z.uuid().optional(),
   from: z.iso.date().optional(),
   to: z.iso.date().optional(),
   page: z.coerce.number().int().min(1).default(1),

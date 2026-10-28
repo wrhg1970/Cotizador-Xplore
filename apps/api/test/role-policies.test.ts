@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { EditableRole } from '@ee/contracts';
+import { DEFAULT_POLICIES } from '../src/auth/authz.js';
 import { loginAs, makeApp, makeOffice, makeUser, prisma } from './helpers.js';
 
 let ctx: Awaited<ReturnType<typeof makeApp>>;
@@ -9,14 +11,12 @@ let quoteId: string;
 let requestId: string;
 
 const api = () => ctx.http();
-const policy = (cookie: string, role: string, body: object) =>
-  api().put(`/api/v1/role-policies/${role}`).set('Cookie', cookie).send(body);
-const DEFAULT = {
-  allOffices: false,
-  viewInternalCosts: true,
-  exportInternalXlsx: true,
-  approvalLimitMxn: null,
-};
+/** PUTs the role's seeded defaults with `changes` on top. */
+const policy = (cookie: string, role: string, changes: object = {}) =>
+  api()
+    .put(`/api/v1/role-policies/${role}`)
+    .set('Cookie', cookie)
+    .send({ ...(DEFAULT_POLICIES[role as EditableRole] ?? DEFAULT_POLICIES.QUOTER), ...changes });
 
 beforeAll(async () => {
   ctx = await makeApp();
@@ -99,13 +99,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   // Policies are global: put the seeded defaults back for the other test files.
-  for (const role of ['QUOTER', 'APPROVER', 'OFFICE_ADMIN', 'AUDITOR'])
-    await policy(c.sysadmin, role, DEFAULT).expect(200);
-  await policy(c.sysadmin, 'ADVISOR', {
-    ...DEFAULT,
-    viewInternalCosts: false,
-    exportInternalXlsx: false,
-  }).expect(200);
+  for (const role of Object.keys(DEFAULT_POLICIES)) await policy(c.sysadmin, role).expect(200);
   await ctx.app.close();
   await prisma.$disconnect();
 });
@@ -122,15 +116,15 @@ describe('role policies (Sprint C)', () => {
     ]);
     expect(list.body.find((p: { role: string }) => p.role === 'ADVISOR').viewInternalCosts).toBe(false);
     await api().get('/api/v1/role-policies').set('Cookie', c.adminA).expect(403);
-    await policy(c.adminA, 'QUOTER', DEFAULT).expect(403);
-    await policy(c.sysadmin, 'SYSTEM_ADMIN', DEFAULT).expect(400);
-    await policy(c.sysadmin, 'QUOTER', { ...DEFAULT, viewInternalCosts: false }).expect(400); // Excel needs costs
-    await policy(c.sysadmin, 'QUOTER', { ...DEFAULT, approvalLimitMxn: '-1' }).expect(400);
-    await policy(c.sysadmin, 'QUOTER', { ...DEFAULT, extra: true }).expect(400);
+    await policy(c.adminA, 'QUOTER').expect(403);
+    await policy(c.sysadmin, 'SYSTEM_ADMIN').expect(400);
+    await policy(c.sysadmin, 'QUOTER', { viewInternalCosts: false }).expect(400); // Excel needs costs
+    await policy(c.sysadmin, 'QUOTER', { approvalLimitMxn: '-1' }).expect(400);
+    await policy(c.sysadmin, 'QUOTER', { extra: true }).expect(400);
   });
 
   it('approval limit blocks approving above it and is audited', async () => {
-    await policy(c.sysadmin, 'APPROVER', { ...DEFAULT, approvalLimitMxn: '500000' }).expect(200);
+    await policy(c.sysadmin, 'APPROVER', { approvalLimitMxn: '500000' }).expect(200);
     const v = await prisma.quoteVersion.findUniqueOrThrow({ where: { id: quoteId } });
     const denied = await api()
       .post(`/api/v1/quotes/${quoteId}/approve`)
@@ -144,7 +138,7 @@ describe('role policies (Sprint C)', () => {
     });
     expect(log?.diff).toMatchObject({ after: { approvalLimitMxn: '500000.00' } });
 
-    await policy(c.sysadmin, 'APPROVER', { ...DEFAULT, approvalLimitMxn: '600000' }).expect(200);
+    await policy(c.sysadmin, 'APPROVER', { approvalLimitMxn: '600000' }).expect(200);
     await api()
       .post(`/api/v1/quotes/${quoteId}/approve`)
       .set('Cookie', c.approver)
@@ -154,18 +148,18 @@ describe('role policies (Sprint C)', () => {
 
   it('internal costs and the internal Excel follow the policy', async () => {
     await api().get(`/api/v1/quotes/${quoteId}`).set('Cookie', c.advisor).expect(404);
-    await policy(c.sysadmin, 'ADVISOR', { ...DEFAULT, exportInternalXlsx: false }).expect(200);
+    await policy(c.sysadmin, 'ADVISOR', { viewInternalCosts: true }).expect(200);
     await api().get(`/api/v1/quotes/${quoteId}`).set('Cookie', c.advisor).expect(200);
     await api().get(`/api/v1/quotes/${quoteId}/export.xlsx`).set('Cookie', c.advisor).expect(403);
     await api().get(`/api/v1/quotes/${quoteId}/export.xlsx`).set('Cookie', c.quoter).expect(200);
 
-    await policy(c.sysadmin, 'QUOTER', { ...DEFAULT, exportInternalXlsx: false }).expect(200);
+    await policy(c.sysadmin, 'QUOTER', { exportInternalXlsx: false }).expect(200);
     await api().get(`/api/v1/quotes/${quoteId}/export.xlsx`).set('Cookie', c.quoter).expect(403);
   });
 
   it('a national auditor reads every office but cannot act as another role', async () => {
     await api().get(`/api/v1/requests/${requestId}`).set('Cookie', c.auditorB).expect(404);
-    await policy(c.sysadmin, 'AUDITOR', { ...DEFAULT, allOffices: true }).expect(200);
+    await policy(c.sysadmin, 'AUDITOR', { allOffices: true }).expect(200);
     await api().get(`/api/v1/requests/${requestId}`).set('Cookie', c.auditorB).expect(200);
     await api().get(`/api/v1/quotes/${quoteId}`).set('Cookie', c.auditorB).expect(200);
     const me = await api().get('/api/v1/me').set('Cookie', c.auditorB).expect(200);

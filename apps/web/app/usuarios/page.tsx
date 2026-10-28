@@ -16,6 +16,8 @@ interface UserRow {
   name: string;
   status: 'INVITED' | 'ACTIVE' | 'DISABLED';
   officeRoles: { id: string; role: RoleName }[];
+  /** All offices where the user has privileges; only sent to system admins. */
+  officeIds?: string[];
 }
 
 const STATUS = { INVITED: 'Invitado', ACTIVE: 'Activo', DISABLED: 'Desactivado' } as const;
@@ -129,6 +131,7 @@ export default function UsersPage() {
               <th>Estado</th>
               <th>Privilegios</th>
               <th>Agregar privilegio</th>
+              {isSysAdmin && <th>Oficinas con acceso</th>}
             </tr>
           </thead>
           <tbody>
@@ -176,6 +179,43 @@ export default function UsersPage() {
                       ))}
                   </select>
                 </td>
+                {isSysAdmin && u.officeIds && (
+                  <td>
+                    <details>
+                      <summary>
+                        {u.officeIds.length} {u.officeIds.length === 1 ? 'oficina' : 'oficinas'}
+                      </summary>
+                      <p className="muted" style={{ maxWidth: 260 }}>
+                        Sus privilegios aplican en todas las oficinas marcadas.
+                      </p>
+                      <fieldset
+                        aria-label={`Oficinas de ${u.name}`}
+                        style={{ border: 0, padding: 0, margin: 0 }}
+                      >
+                        {offices.map((o) => {
+                          const ids = u.officeIds ?? [];
+                          const on = ids.includes(o.id);
+                          return (
+                            <label key={o.id} style={{ display: 'block', fontWeight: 'normal' }}>
+                              <input
+                                type="checkbox"
+                                checked={on}
+                                disabled={on && ids.length === 1}
+                                onChange={() =>
+                                  void run(`/users/${u.id}/offices`, {
+                                    method: 'PUT',
+                                    body: { officeIds: on ? ids.filter((x) => x !== o.id) : [...ids, o.id] },
+                                  })
+                                }
+                              />{' '}
+                              {o.name}
+                            </label>
+                          );
+                        })}
+                      </fieldset>
+                    </details>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

@@ -35,10 +35,8 @@ test('the office admin reads the audit log of their office, filtered by record',
   const ctx = await browser.newContext();
   await ctx.addCookies([admin.cookie]);
   const page = await ctx.newPage();
-  await page.goto('/inicio');
-  await page.getByRole('link', { name: 'Bitácora' }).click();
-  await page.getByLabel('ID del registro').fill(req.id);
-  await page.getByRole('button', { name: 'Buscar' }).click();
+  await page.goto(`/solicitudes/${req.id}`);
+  await page.getByRole('link', { name: /Bitácora detallada/ }).click();
   const row = page.getByRole('row').filter({ hasText: 'Envió a cotización' });
   await expect(row).toContainText('Ana');
   await expect(row).toContainText(office.code);

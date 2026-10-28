@@ -13,6 +13,10 @@ interface Office {
 }
 
 const FLAG = {
+  canView: 'Ver',
+  canCreate: 'Crear',
+  canEdit: 'Editar',
+  canDelete: 'Borrar (cancelar)',
   allOffices: 'Todas las oficinas',
   viewInternalCosts: 'Ve costos internos',
   exportInternalXlsx: 'Descarga Excel interno',
@@ -84,9 +88,11 @@ export default function AdminPage() {
       <section aria-labelledby="permisos">
         <h2 id="permisos">Permisos por rol</h2>
         <p className="muted">
-          Los pasos del flujo (quién crea, cotiza, autoriza y envía) son fijos. Aquí se ajusta lo demás. El
-          administrador del sistema siempre puede todo. Nadie autoriza una cotización que preparó, sin
-          importar estos permisos. Cada cambio queda en la bitácora.
+          Ver: consulta las solicitudes de sus oficinas. Crear: abre solicitudes nuevas. Editar: modifica las
+          solicitudes y cotizaciones en las que participa. Borrar: cancela solicitudes y retira plantillas;
+          nada se elimina de verdad, todo queda en la bitácora. Los pasos del flujo (quién cotiza, autoriza y
+          envía) siguen fijos: nadie autoriza una cotización que preparó. El administrador del sistema siempre
+          puede todo. Las oficinas de cada persona se eligen en Usuarios.
         </p>
         <div className="table-wrap">
           <table>

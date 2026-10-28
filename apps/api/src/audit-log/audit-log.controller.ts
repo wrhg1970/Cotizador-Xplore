@@ -32,6 +32,12 @@ export class AuditLogController {
           select: { id: true },
         })
       : undefined;
+    const versions = q.requestId
+      ? await this.prisma.quoteVersion.findMany({
+          where: { scenario: { requestId: q.requestId } },
+          select: { id: true },
+        })
+      : [];
     const where: Prisma.AuditLogWhereInput = {
       AND: [
         scope === 'ALL' ? {} : { officeId: { in: scope } },
@@ -40,6 +46,7 @@ export class AuditLogController {
         // Unknown email: match nothing rather than ignoring the filter.
         q.actorEmail ? { actorUserId: actor?.id ?? '00000000-0000-0000-0000-000000000000' } : {},
         q.entityId ? { entityId: q.entityId } : {},
+        q.requestId ? { entityId: { in: [q.requestId, ...versions.map((v) => v.id)] } } : {},
         q.from ? { createdAt: { gte: new Date(`${q.from}T00:00:00Z`) } } : {},
         q.to ? { createdAt: { lt: new Date(new Date(`${q.to}T00:00:00Z`).getTime() + 86_400_000) } } : {},
       ],

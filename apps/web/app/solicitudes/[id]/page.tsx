@@ -12,7 +12,7 @@ import {
   STATUS_LABEL,
   type TravelRequestDto,
 } from '../../lib/types';
-import { canSeeQuotes, isOfficeAdmin, useMe } from '../../lib/useMe';
+import { can, canSeeQuotes, isOfficeAdmin, useMe } from '../../lib/useMe';
 import { type ProposalRow, Proposals } from '../Proposals';
 import { Scenarios } from '../Scenarios';
 
@@ -113,10 +113,11 @@ export default function RequestDetailPage() {
 
   const isRequester = me?.id === r.requester.id;
   const editable = ['DRAFT', 'SUBMITTED', 'QUOTING'].includes(r.status);
-  const canEdit = editable && (isRequester || admin || me?.id === r.assignee?.id);
+  const canEdit =
+    editable && can(me, r.office.id, 'canEdit') && (isRequester || admin || me?.id === r.assignee?.id);
   const canSubmit = r.status === 'DRAFT' && (isRequester || admin);
   const canAssign = admin && (r.status === 'SUBMITTED' || r.status === 'QUOTING');
-  const canCancel = admin && !['WON', 'LOST', 'CANCELLED'].includes(r.status);
+  const canCancel = can(me, r.office.id, 'canDelete') && !['WON', 'LOST', 'CANCELLED'].includes(r.status);
   const canRecordOutcome = r.status === 'SENT' && (admin || me?.id === r.assignee?.id);
   const sent = proposals.filter((p) => p.sent);
   const winner = proposals.find((p) => p.versionId === r.wonVersionId);
@@ -319,7 +320,9 @@ export default function RequestDetailPage() {
         <Scenarios
           requestId={r.id}
           officeId={r.office.id}
-          canWork={r.status === 'QUOTING' && (admin || me?.id === r.assignee?.id)}
+          canWork={
+            r.status === 'QUOTING' && can(me, r.office.id, 'canEdit') && (admin || me?.id === r.assignee?.id)
+          }
         />
       )}
 
@@ -344,7 +347,12 @@ export default function RequestDetailPage() {
       </section>
 
       <section aria-labelledby="historial">
-        <h2 id="historial">Historial</h2>
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <h2 id="historial">Historial</h2>
+          {me?.roles.some((x) => ['OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'].includes(x.role)) && (
+            <Link href={`/bitacora?requestId=${r.id}`}>Bitácora detallada (incluye cotizaciones)</Link>
+          )}
+        </div>
         <ol className="timeline">
           {tl?.events.map((e, i) => (
             <li key={i}>

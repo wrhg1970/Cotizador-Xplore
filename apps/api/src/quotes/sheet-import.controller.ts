@@ -21,19 +21,45 @@ import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
-import { canViewQuotes, canWorkQuotes } from '../requests/request-policy.js';
+import { canCreateIn, canViewQuotes, canWorkQuotes } from '../requests/request-policy.js';
 import { ZodPipe } from '../zod.pipe.js';
 import {
   fetchGoogleSheet,
   MAX_SHEET_BYTES,
   normalizeProposal,
+  normalizeRequestDraft,
   SHEET_READER,
   SheetImportError,
+  type SheetKind,
   type SheetReader,
   sheetToText,
 } from './sheet-import.js';
 
 const uuid = new ParseUUIDPipe({ version: '4' });
+
+const sourceOf = (body: ImportSheet) =>
+  body.sheetUrl ? 'google_sheet' : body.fileName?.toLowerCase().endsWith('.csv') ? 'csv' : 'xlsx';
+
+/** File or Google Sheet → text → model answer; user-facing problems surface as 400. */
+async function readSheet(reader: SheetReader, body: ImportSheet, kind: SheetKind, logger: Logger) {
+  try {
+    const file = body.fileBase64
+      ? Buffer.from(body.fileBase64, 'base64')
+      : await fetchGoogleSheet(body.sheetUrl!);
+    if (file.length > MAX_SHEET_BYTES) throw new SheetImportError('El archivo pesa más de 3 MB');
+    const text = await sheetToText(file, body.fileName ?? 'hoja.xlsx');
+    return await reader.read(text, kind).catch((err: unknown) => {
+      if (err instanceof SheetImportError) throw err;
+      // Provider errors may echo the prompt; log only the type.
+      logger.warn(`Vertex AI falló: ${err instanceof Error ? err.name : 'error'}`);
+      throw new BadGatewayException('No se pudo consultar la IA; intenta de nuevo en un momento');
+    });
+  } catch (e) {
+    if (e instanceof SheetImportError)
+      throw new BadRequestException({ code: 'SHEET_IMPORT', message: e.message });
+    throw e;
+  }
+}
 
 /**
  * Reads a cost sheet with AI and returns proposed lines for the editor. Nothing is saved here: the
@@ -71,41 +97,53 @@ export class SheetImportController {
       throw new ForbiddenException('Solo se importa en versiones en borrador o devueltas');
     if (!this.reader) throw new ServiceUnavailableException('El importador con IA no está configurado');
 
-    try {
-      const file = body.fileBase64
-        ? Buffer.from(body.fileBase64, 'base64')
-        : await fetchGoogleSheet(body.sheetUrl!);
-      if (file.length > MAX_SHEET_BYTES) throw new SheetImportError('El archivo pesa más de 3 MB');
-      const text = await sheetToText(file, body.fileName ?? 'hoja.xlsx');
-      const raw = await this.reader.read(text).catch((err: unknown) => {
-        if (err instanceof SheetImportError) throw err;
-        // Provider errors may echo the prompt; log only the type.
-        this.logger.warn(`Vertex AI falló: ${err instanceof Error ? err.name : 'error'}`);
-        throw new BadGatewayException('No se pudo consultar la IA; intenta de nuevo en un momento');
-      });
-      const proposal = normalizeProposal(raw);
-      await audit(this.prisma, {
-        actorUserId: user.id,
-        action: 'quote.import_previewed',
-        entityType: 'QuoteVersion',
-        entityId: v.id,
-        correlationId: req.correlationId,
-        // Counts only: the sheet itself may hold personal data and is never stored.
-        diff: {
-          source: body.sheetUrl
-            ? 'google_sheet'
-            : body.fileName?.toLowerCase().endsWith('.csv')
-              ? 'csv'
-              : 'xlsx',
-          lines: proposal.lines.length,
-          warnings: proposal.warnings.length,
-        },
-      });
-      return proposal;
-    } catch (e) {
-      if (e instanceof SheetImportError)
-        throw new BadRequestException({ code: 'SHEET_IMPORT', message: e.message });
-      throw e;
-    }
+    const proposal = normalizeProposal(await readSheet(this.reader, body, 'quote', this.logger));
+    await audit(this.prisma, {
+      actorUserId: user.id,
+      action: 'quote.import_previewed',
+      entityType: 'QuoteVersion',
+      entityId: v.id,
+      correlationId: req.correlationId,
+      // Counts only: the sheet itself may hold personal data and is never stored.
+      diff: { source: sourceOf(body), lines: proposal.lines.length, warnings: proposal.warnings.length },
+    });
+    return proposal;
+  }
+}
+
+/**
+ * New request from a sheet (V2 importer): proposes the form fields, nothing is saved. The advisor
+ * reviews them and creates the request with the normal, audited POST /requests.
+ */
+@Controller('requests')
+export class RequestImportController {
+  private readonly logger = new Logger(RequestImportController.name);
+
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    @Inject(SHEET_READER) private readonly reader: SheetReader | null,
+  ) {}
+
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('import')
+  async preview(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Body(new ZodPipe(ImportSheet)) body: ImportSheet,
+  ) {
+    if (!user.roles.some((r) => canCreateIn(user, r.officeId)))
+      throw new ForbiddenException('Tu rol no puede crear solicitudes');
+    if (!this.reader) throw new ServiceUnavailableException('El importador con IA no está configurado');
+    const result = normalizeRequestDraft(await readSheet(this.reader, body, 'request', this.logger));
+    await audit(this.prisma, {
+      actorUserId: user.id,
+      action: 'request.import_previewed',
+      entityType: 'User',
+      entityId: user.id,
+      correlationId: req.correlationId,
+      // Which fields were found, never their values.
+      diff: { source: sourceOf(body), fields: Object.keys(result.draft), warnings: result.warnings.length },
+    });
+    return result;
   }
 }
