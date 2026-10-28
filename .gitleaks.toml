@@ -1,0 +1,7 @@
+# Default gitleaks rules plus the test-only fixtures that look like secrets.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fixtures de pruebas, nunca credenciales reales"
+regexes = ['''cron-test-secret-0123456789abcdef0123''']
