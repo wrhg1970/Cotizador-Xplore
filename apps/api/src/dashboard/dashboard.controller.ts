@@ -108,7 +108,6 @@ const mxnPerParticipant = (v: Parameters<typeof engine>[0]): Dec | null => {
   }
 };
 
-export const stageOf = (status: RequestStatus, versions: { status: string }[]): Stage => {
 /** V2 commercial funnel: Nueva → En cotización → Aprobada → Enviada → Aceptada; the furthest step a request reached. */
 type Reached = 1 | 2 | 3 | 4 | 5;
 const reachedOf = (status: RequestStatus, versions: { status: string }[]): Reached => {
@@ -151,7 +150,7 @@ const groupMxn = (v: Parameters<typeof engine>[0]): { volume: Dec; commission: D
   }
 };
 
-const stageOf = (status: RequestStatus, versions: { status: string }[]): Stage => {
+export const stageOf = (status: RequestStatus, versions: { status: string }[]): Stage => {
   if (status === 'SENT' || status === 'WON') return 4;
   if (status !== 'QUOTING') return 1;
   if (versions.some((v) => v.status === 'APPROVED')) return 3;
