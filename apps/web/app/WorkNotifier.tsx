@@ -43,10 +43,26 @@ export function newItems(data: Dashboard, seen: Set<string> | null) {
   return { fresh: seen ? all.filter((i) => !seen.has(key(i))) : [], keys: all.map(key) };
 }
 
+/** Registers this browser for Web Push; false when the server has no VAPID key or the browser refuses. */
+async function subscribePush(): Promise<boolean> {
+  try {
+    const { publicKey } = await api<{ publicKey: string | null }>('/push/key');
+    if (!publicKey || !('PushManager' in window)) return false;
+    const reg = await navigator.serviceWorker.ready;
+    const sub =
+      (await reg.pushManager.getSubscription()) ??
+      (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: publicKey }));
+    const { endpoint, keys } = sub.toJSON();
+    await api('/push/subscriptions', { method: 'POST', body: { endpoint, keys } });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Device notifications for new tasks and overdue alerts.
- * shortcut: checks every 5 minutes only while the app (or a tab) is open; e-mail covers the closed case.
- * Upgrade to Web Push (VAPID keys + stored subscriptions) if people need notices with the app closed.
+ * Device notifications. With Web Push the server sends them even with the app closed; without it
+ * (no VAPID key, or an old browser) this falls back to checking every 5 minutes while the app is open.
  */
 export function WorkNotifier() {
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default');
@@ -58,6 +74,8 @@ export function WorkNotifier() {
 
   useEffect(() => {
     if (permission !== 'granted') return;
+    let stop = false;
+    let t: ReturnType<typeof setInterval> | undefined;
     const check = async () => {
       const data = await api<Dashboard>('/dashboard').catch(() => null);
       if (!data) return;
@@ -72,9 +90,15 @@ export function WorkNotifier() {
           data: { url: i.quoteId ? `/cotizaciones/${i.quoteId}` : `/solicitudes/${i.requestId}` },
         });
     };
-    void check();
-    const t = setInterval(() => void check(), EVERY_MS);
-    return () => clearInterval(t);
+    void subscribePush().then((pushed) => {
+      if (pushed || stop) return;
+      void check();
+      t = setInterval(() => void check(), EVERY_MS);
+    });
+    return () => {
+      stop = true;
+      clearInterval(t);
+    };
   }, [permission]);
 
   if (permission !== 'default') return null;

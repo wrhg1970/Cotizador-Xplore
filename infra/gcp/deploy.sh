@@ -157,13 +157,18 @@ CRON_SECRET_NAME="cotizador${SUFFIX}-cron-secret"
 exists gcloud secrets describe "$CRON_SECRET_NAME" ||
   openssl rand -hex 32 | tr -d '\n' | secret "$CRON_SECRET_NAME"
 
+# Web Push (avisos con la app cerrada): llave P-256 propia por ambiente, se crea sola la primera vez.
+VAPID_SECRET_NAME="cotizador${SUFFIX}-vapid-key"
+exists gcloud secrets describe "$VAPID_SECRET_NAME" ||
+  openssl ecparam -name prime256v1 -genkey -noout | secret "$VAPID_SECRET_NAME"
+
 echo "== API"
 # shortcut: la API queda pública para que web la alcance sin tokens de servicio;
 # las rutas ya exigen sesión. Pasar a ingress interno + VPC cuando haya más tráfico.
 gcloud run deploy "cotizador-api$SUFFIX" --image="$REPO/api:$TAG" --region="$REGION" --port=4000 \
   --allow-unauthenticated --add-cloudsql-instances="$CONN" \
   --set-env-vars="^|^NODE_ENV=production|API_PUBLIC_URL=$PUBLIC_URL|WEB_ORIGIN=$PUBLIC_URL|ALLOWED_GOOGLE_DOMAINS=$ALLOWED_GOOGLE_DOMAINS|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|VERTEX_PROJECT=$PROJECT_ID$MAIL_ENV$WT_ENV" \
-  --set-secrets=DATABASE_URL=$DB_SECRET:latest,SESSION_SECRET=$SESSION_SECRET_NAME:latest,GOOGLE_CLIENT_SECRET=cotizador-google-client-secret:latest,CRON_SECRET=$CRON_SECRET_NAME:latest$MAIL_SECRETS$WT_SECRETS$BMX_ENV
+  --set-secrets=DATABASE_URL=$DB_SECRET:latest,SESSION_SECRET=$SESSION_SECRET_NAME:latest,GOOGLE_CLIENT_SECRET=cotizador-google-client-secret:latest,CRON_SECRET=$CRON_SECRET_NAME:latest,VAPID_PRIVATE_KEY=$VAPID_SECRET_NAME:latest$MAIL_SECRETS$WT_SECRETS$BMX_ENV
 
 echo "== Web"
 gcloud run deploy "cotizador-web$SUFFIX" --image="$REPO/web$SUFFIX:$TAG" --region="$REGION" --port=3000 \

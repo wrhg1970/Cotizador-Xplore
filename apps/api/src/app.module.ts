@@ -28,6 +28,7 @@ import { ProposalShareController } from './quotes/share.controller.js';
 import { IntegrationsController, ReportsController } from './reports/reports.controller.js';
 import { HistoryController } from './history/history.controller.js';
 import { PaymentRemindersController } from './notify/payment-reminders.js';
+import { PUSH_SENDER, PushController, Pusher, type PushSender, VapidPushSender } from './notify/push.js';
 import { HttpWeTravel, type WeTravel, WETRAVEL } from './integrations/wetravel.js';
 import { BANXICO, type Banxico, HttpBanxico } from './rates/banxico.js';
 import { CronController } from './cron/cron.controller.js';
@@ -43,7 +44,18 @@ export class AppModule {
     mailerOverride?: Mailer,
     wetravelOverride?: WeTravel,
     banxicoOverride?: Banxico,
+    pushOverride?: PushSender,
   ): DynamicModule {
+    const push =
+      pushOverride ??
+      (env.VAPID_PRIVATE_KEY
+        ? new VapidPushSender(
+            env.VAPID_PRIVATE_KEY,
+            env.WEB_ORIGIN.startsWith('https:')
+              ? env.WEB_ORIGIN
+              : 'mailto:cotizador@estudiantesembajadores.com',
+          )
+        : null);
     const banxico = banxicoOverride ?? (env.BANXICO_TOKEN ? new HttpBanxico(env.BANXICO_TOKEN) : null);
     const wetravel =
       wetravelOverride ??
@@ -104,6 +116,7 @@ export class AppModule {
         IntegrationsController,
         HistoryController,
         PaymentRemindersController,
+        PushController,
         CronController,
         SettingsController,
         SchoolsController,
@@ -115,6 +128,8 @@ export class AppModule {
         { provide: MAILER, useValue: mailer },
         { provide: WETRAVEL, useValue: wetravel },
         { provide: BANXICO, useValue: banxico },
+        { provide: PUSH_SENDER, useValue: push },
+        Pusher,
         Notifier,
         prismaProvider,
         PrismaShutdown,

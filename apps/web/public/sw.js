@@ -2,6 +2,18 @@
 // No fetch handler on purpose: authenticated pages and costs are never cached on the device.
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+// Web Push from the server: folio, group and a link only (the API never puts prices in a push).
+self.addEventListener('push', (e) => {
+  const msg = e.data ? e.data.json() : {};
+  e.waitUntil(
+    self.registration.showNotification(msg.title || 'Cotizador EE', {
+      body: msg.body || 'Tienes un pendiente nuevo',
+      tag: msg.tag,
+      icon: '/pwa/icon-192.png',
+      data: { url: msg.url || '/inicio' },
+    }),
+  );
+});
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   const url = new URL(e.notification.data?.url || '/inicio', self.location.origin).href;

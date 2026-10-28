@@ -8,6 +8,7 @@ import type { Mail, Mailer } from '../src/notify/notifier.js';
 import type { SheetReader } from '../src/quotes/sheet-import.js';
 import type { WeTravel } from '../src/integrations/wetravel.js';
 import type { Banxico } from '../src/rates/banxico.js';
+import { GoneSubscription, type PushSender } from '../src/notify/push.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) throw new Error('DATABASE_URL es obligatorio para las pruebas de la API');
@@ -56,8 +57,9 @@ export async function makeApp(
   wetravel?: WeTravel,
   banxico?: Banxico,
   env = testEnv(),
+  push?: PushSender,
 ) {
-  const app: INestApplication = await createApp(env, oidc, reader, mailer, wetravel, banxico);
+  const app: INestApplication = await createApp(env, oidc, reader, mailer, wetravel, banxico, push);
   await app.init();
   return { app, oidc, http: () => request(app.getHttpServer()) };
 }
@@ -92,4 +94,15 @@ export async function loginAs(ctx: Awaited<ReturnType<typeof makeApp>>, email: s
     .map((c) => c.split(';')[0]!)
     .find((c) => c.startsWith('ee_session=') && c !== 'ee_session=');
   return { response: cb, cookie: session };
+}
+
+/** Records pushes; endpoints listed in `gone` answer like a push service whose device unsubscribed. */
+export class FakePush implements PushSender {
+  publicKey = 'BTEST';
+  sent: { endpoint: string; payload: Record<string, string> }[] = [];
+  gone = new Set<string>();
+  async send(sub: { endpoint: string }, payload: string) {
+    if (this.gone.has(sub.endpoint)) throw new GoneSubscription();
+    this.sent.push({ endpoint: sub.endpoint, payload: JSON.parse(payload) as Record<string, string> });
+  }
 }

@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
+import type { PushSender } from './notify/push.js';
 import { AppModule } from './app.module.js';
 import type { OidcProvider } from './auth/oidc.js';
 import type { Mailer } from './notify/notifier.js';
@@ -18,7 +19,8 @@ import { HttpExceptionFilter } from './http-exception.filter.js';
 const CORRELATION_ID = /^[A-Za-z0-9-]{1,64}$/;
 
 /** Routes that take a 3 MB file as base64: sheet imports and request attachments. */
-const IMPORT_ROUTE = /^\/api\/v1\/((quotes\/[^/]+|requests)\/import|requests\/[^/]+\/attachments)$/;
+const IMPORT_ROUTE =
+  /^\/api\/v1\/((quotes\/[^/]+|requests)\/import|requests\/[^/]+\/attachments|history\/preview)$/;
 
 export async function createApp(
   env: Env,
@@ -27,11 +29,15 @@ export async function createApp(
   mailer?: Mailer,
   wetravel?: WeTravel,
   banxico?: Banxico,
+  push?: PushSender,
 ): Promise<INestApplication> {
-  const app = await NestFactory.create(AppModule.forRoot(env, oidc, reader, mailer, wetravel, banxico), {
-    logger: env.NODE_ENV === 'test' ? false : undefined,
-    bodyParser: false,
-  });
+  const app = await NestFactory.create(
+    AppModule.forRoot(env, oidc, reader, mailer, wetravel, banxico, push),
+    {
+      logger: env.NODE_ENV === 'test' ? false : undefined,
+      bodyParser: false,
+    },
+  );
   // Express's 100 kB default everywhere except file uploads (3 MB file as base64).
   const json = express.json();
   const importJson = express.json({ limit: '4500kb' });

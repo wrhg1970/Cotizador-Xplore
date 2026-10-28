@@ -62,6 +62,11 @@ const Env = z.object({
     .string()
     .optional()
     .transform((v) => v || undefined),
+  // P-256 private key (PEM) for Web Push (VAPID); the public key is derived from it. Push is off when unset.
+  VAPID_PRIVATE_KEY: z
+    .string()
+    .optional()
+    .transform((v) => v || undefined),
   // Shared secret Cloud Scheduler sends to POST /cron/daily; the route answers 404 when unset.
   CRON_SECRET: z
     .string()

@@ -53,3 +53,7 @@ XLSX interno: resumen, líneas, unidades, cantidades, moneda original, tasa FX, 
 - "Ayuda" (junto a Cerrar sesión) abre `/guia`: pasos por rol (vendedor, cotizador, aprobador, coordinador, Finanzas, administrador); los roles de la persona aparecen primero con la marca "Tu rol".
 - La primera vez que alguien entra ve un recorrido de un paso por cada rol que tiene. Se marca como visto en el navegador (`ee-welcome-seen`); en otro equipo se muestra una vez más.
 - El texto vive en `apps/web/app/guia/content.ts`: si cambia un botón o el flujo, actualizarlo ahí.
+
+## Avisos con la app cerrada (Web Push, 2026-10-28)
+- Al pulsar "Activar avisos" el navegador registra el dispositivo; los avisos de asignación, autorización pendiente, devolución, autorización y aceptación del colegio llegan aunque la app esté cerrada (mismo contenido que el correo: folio, grupo y liga; nunca precios).
+- iPhone: solo funciona con la app instalada en la pantalla de inicio (iOS 16.4+). Si el servidor no tiene llave VAPID o el navegador no soporta push, se mantiene la revisión cada 5 minutos con la app abierta.
