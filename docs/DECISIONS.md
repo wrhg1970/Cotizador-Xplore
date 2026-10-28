@@ -75,3 +75,7 @@
 - Cuatro avisos: solicitud asignada (al cotizador), cotización por autorizar (a los autorizadores de la oficina, nunca a quien la preparó), cotización devuelta y cotización autorizada (al autor y al cotizador asignado). Nadie recibe aviso de su propia acción ni los usuarios deshabilitados.
 - Contenido mínimo: folio, grupo y liga. Envío después de la transacción, sin cola ni reintentos.
 - Dependencia `nodemailer` 10.1.7 (MIT-0, sin dependencias, mantenida). Se usa 10.1.7 porque las versiones anteriores tienen avisos de seguridad en el analizador de direcciones.
+
+## Oficinas de EE (2026-10-28)
+- Will pidió dar de alta todas las oficinas de estudiantesembajadores.com/oficinas. Se cargan con la migración `20261028030000_ee_offices` (23 oficinas, códigos cortos por ciudad). «Nuevo León» ya existe como `CORP` (Corporativo Nuevo León) y no se duplica. La página dice 25 oficinas, pero solo lista 24.
+- La migración salta códigos o nombres que ya existan y registra cada alta en la bitácora (`office.created`, sin actor).
