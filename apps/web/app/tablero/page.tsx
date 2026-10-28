@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { type FormEvent, useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
 import { fmtDate } from '../lib/types';
+import { canExportXlsx, useMe } from '../lib/useMe';
 
 interface Bucket {
   requests: number;
@@ -64,6 +65,8 @@ function Bar({ label, value, max }: { label: string; value: number; max: number 
 
 /** V2 executive dashboard: cohort of requests created in the period, client prices only. */
 export default function ExecutivePage() {
+  const me = useMe();
+  const canExport = !!me?.roles.some((r) => canExportXlsx(me, r.officeId));
   const [offices, setOffices] = useState<Office[]>([]);
   const [query, setQuery] = useState('');
   const [data, setData] = useState<Executive | null>(null);
@@ -83,6 +86,15 @@ export default function ExecutivePage() {
     const p = new URLSearchParams();
     for (const k of ['officeId', 'from', 'to']) if (f.get(k)) p.set(k, String(f.get(k)));
     setQuery(p.size ? `?${p}` : '');
+  }
+
+  /** Plain navigation: same-origin download carries the session cookie. Empty fields use the server's defaults. */
+  function download(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const p = new URLSearchParams();
+    for (const k of ['officeId', 'from', 'to']) if (f.get(k)) p.set(k, String(f.get(k)));
+    window.location.assign(`/api/v1/reports/financial.xlsx${p.size ? `?${p}` : ''}`);
   }
 
   const t = data?.totals;
@@ -114,6 +126,34 @@ export default function ExecutivePage() {
         </label>
         <button className="secondary">Aplicar</button>
       </form>
+      {canExport && (
+        <details className="card" style={{ marginBottom: 16 }}>
+          <summary>Reporte financiero (uso interno, con costos y comisión)</summary>
+          <form className="row" onSubmit={download} style={{ marginTop: 8 }}>
+            <label>
+              Oficina
+              <select name="officeId" defaultValue="">
+                <option value="">Todas las que puedo exportar</option>
+                {offices.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.code} · {o.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Salidas desde
+              <input name="from" type="date" />
+            </label>
+            <label>
+              Salidas hasta
+              <input name="to" type="date" />
+            </label>
+            <button className="secondary">Descargar Excel</button>
+          </form>
+          <p className="muted">Viajes ganados por fecha de salida; si no eliges fechas, el año en curso.</p>
+        </details>
+      )}
       {error && (
         <p className="error" role="alert">
           {error}

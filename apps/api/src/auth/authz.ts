@@ -52,6 +52,15 @@ export const officeScope = (user: AuthUser): string[] | 'ALL' =>
       .map((r) => r.role),
   );
 
+/** Office ids whose internal figures (costs, margin) the user may export, or 'ALL'. */
+export const exportScope = (user: AuthUser): string[] | 'ALL' =>
+  officesWithRole(
+    user,
+    grants(user)
+      .filter((r) => policy(user, r.role).exportInternalXlsx)
+      .map((r) => r.role),
+  );
+
 export type CrudAction = 'canCreate' | 'canEdit' | 'canDelete';
 
 /** "Crear" / "Editar" / "Borrar" from the role matrix; workflow rules (who quotes, who approves) still apply on top. */

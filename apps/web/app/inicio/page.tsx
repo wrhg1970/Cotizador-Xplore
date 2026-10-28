@@ -208,7 +208,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [filter, setFilter] = useState<Filter>('ALL');
-  const [compact, setCompact] = useState(false);
+  const [view, setView] = useState<'ROWS' | 'COMPACT' | 'KANBAN'>('ROWS');
   const [query, setQuery] = useState('');
 
   const tasksOf = (id: string) => data?.tasks.filter((t) => t.requestId === id) ?? [];
@@ -306,12 +306,17 @@ export default function DashboardPage() {
                 ))}
               </div>
               <div className="tabs" role="group" aria-label="Vista" style={{ margin: 0 }}>
-                <button type="button" aria-pressed={!compact} onClick={() => setCompact(false)}>
-                  Filas
-                </button>
-                <button type="button" aria-pressed={compact} onClick={() => setCompact(true)}>
-                  Tarjetas comprimidas
-                </button>
+                {(
+                  [
+                    ['ROWS', 'Filas'],
+                    ['COMPACT', 'Tarjetas comprimidas'],
+                    ['KANBAN', 'Tablero por etapa'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button key={key} type="button" aria-pressed={view === key} onClick={() => setView(key)}>
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
             <input
@@ -326,10 +331,28 @@ export default function DashboardPage() {
               <p className="muted">
                 {data.requests.length ? 'Nada coincide con el filtro.' : 'No tienes solicitudes abiertas.'}
               </p>
+            ) : view === 'KANBAN' ? (
+              <div className="kanban">
+                {STAGES.map((s) => {
+                  const col = shown.filter((r) => r.stage === s.stage);
+                  return (
+                    <section key={s.stage} aria-label={`Etapa ${s.name}`}>
+                      <h3>
+                        0{s.stage}. {s.name} <span className="muted">({col.length})</span>
+                      </h3>
+                      <div className="wcards compact">
+                        {col.map((r) => (
+                          <WorkCard key={r.id} r={r} tasks={tasksOf(r.id)} compact />
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
             ) : (
-              <div className={compact ? 'wcards compact' : 'wcards'}>
+              <div className={view === 'COMPACT' ? 'wcards compact' : 'wcards'}>
                 {shown.map((r) => (
-                  <WorkCard key={r.id} r={r} tasks={tasksOf(r.id)} compact={compact} />
+                  <WorkCard key={r.id} r={r} tasks={tasksOf(r.id)} compact={view === 'COMPACT'} />
                 ))}
               </div>
             )}

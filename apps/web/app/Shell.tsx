@@ -3,13 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { api } from './lib/api';
+import { api, isPublicPath } from './lib/api';
 import { Logo } from './Logo';
 import { useMe } from './lib/useMe';
 
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const onLogin = pathname.startsWith('/login');
+  const bare = isPublicPath(pathname);
   const me = useMe();
 
   const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefined);
@@ -27,7 +27,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {!onLogin && (
+      {!bare && (
         <header className="top">
           <div className="bar">
             <Link className="brand" href="/inicio">
@@ -41,6 +41,12 @@ export function Shell({ children }: { children: ReactNode }) {
                 Solicitudes
               </Link>
               <Link href="/solicitudes?assignedToMe=true">Mis tareas</Link>
+              <Link href="/aprobaciones" aria-current={current('/aprobaciones')}>
+                Aprobaciones
+              </Link>
+              <Link href="/enviadas" aria-current={current('/enviadas')}>
+                Enviadas
+              </Link>
               {me?.roles.some((r) => ['OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'].includes(r.role)) && (
                 <Link href="/tablero" aria-current={current('/tablero')}>
                   Dashboard ejecutivo
@@ -82,7 +88,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
       )}
-      <main className={onLogin ? 'bare' : undefined}>{children}</main>
+      <main className={bare ? 'bare' : undefined}>{children}</main>
     </>
   );
 }

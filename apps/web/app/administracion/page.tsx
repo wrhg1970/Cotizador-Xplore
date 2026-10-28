@@ -29,6 +29,7 @@ export default function AdminPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [offices, setOffices] = useState<Office[]>([]);
   const [rates, setRates] = useState<OfficialRateDto[]>([]);
+  const [integrations, setIntegrations] = useState<{ key: string; name: string; configured: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const isSysAdmin = !!me?.roles.some((r) => r.role === 'SYSTEM_ADMIN');
@@ -37,6 +38,7 @@ export default function AdminPage() {
     api<Row[]>('/role-policies').then(setRows, (e) => setError(errorText(e)));
     api<Office[]>('/offices').then(setOffices, (e) => setError(errorText(e)));
     api<OfficialRateDto[]>('/official-rates').then(setRates, (e) => setError(errorText(e)));
+    api<typeof integrations>('/integrations').then(setIntegrations, (e) => setError(errorText(e)));
   }, []);
   useEffect(() => {
     if (isSysAdmin) reload();
@@ -253,6 +255,27 @@ export default function AdminPage() {
           </label>
           <button>Agregar oficina</button>
         </form>
+      </section>
+
+      <section aria-labelledby="integraciones">
+        <h2 id="integraciones">Integraciones</h2>
+        <p className="muted">
+          Se activan al desplegar con su llave (Secret Manager); aquí solo se ve si están configuradas.
+        </p>
+        <ul>
+          {integrations.map((i) => (
+            <li key={i.key}>
+              <strong>{i.name}</strong> ·{' '}
+              {i.configured ? (
+                <span className="badge">Configurada</span>
+              ) : i.key === 'WISSIFY' ? (
+                <span className="muted">Pendiente: Wissify aún no comparte su API</span>
+              ) : (
+                <span className="muted">No configurada</span>
+              )}
+            </li>
+          ))}
+        </ul>
       </section>
     </>
   );

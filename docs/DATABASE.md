@@ -20,6 +20,7 @@
 - `Document`: tipo, storage key, checksum, versión y metadatos.
 - `ProposalDelivery`: versión enviada, destinatarios, canal, fecha, resultado.
 - Resultado con el cliente: columnas de `TravelRequest` (`won_version_id` único, `lost_reason`, `closed_at`), con CHECKs `WON` ⇔ versión ganadora y `LOST` ⇒ motivo. Sustituye a la tabla `ProposalOutcome` prevista.
+- `ProposalShare` (tabla `proposal_shares`, 2026-10-28): ligas para el colegio por versión: hash SHA-256 del token (único), caducidad, revocación, vistas y última vista, quién la creó. El token en claro nunca se guarda.
 - `OfficialRate` (tabla `official_rates`, 2026-10-28): tipos de cambio oficiales EE (de, a, tasa, fecha, fuente, quién publicó). Append-only por trigger; el vigente por par es el más reciente. Las cotizaciones copian el valor a `quote_fx_rates`, así que publicar uno nuevo no cambia nada existente.
 - `TravelRequest.specifications` (JSON, 2026-10-28): especificaciones del viaje validadas con `TripSpecs` (alojamiento, escuela receptora, cursos, traslados y alimentación, vuelos y excursiones, seguro y accesibilidad, no incluidos).
 - `IntegrationConnection`, `IntegrationJob`, `WebhookEvent`, `ExternalReference`.

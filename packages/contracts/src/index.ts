@@ -210,6 +210,9 @@ export const SetRequestTeam = z
     },
   );
 
+/** School link (V2 portal): days until it stops working. */
+export const CreateProposalShare = z.strictObject({ days: z.number().int().min(1).max(90).default(30) });
+
 export const VersionOnly = z.strictObject({ version: z.number().int().min(1) });
 export const AssignRequest = z.strictObject({ assigneeId: z.uuid(), version: z.number().int().min(1) });
 export const CancelRequest = z.strictObject({ reason: ShortText(1000), version: z.number().int().min(1) });
@@ -472,3 +475,7 @@ export const ExecutiveDashboardQuery = z
   })
   .refine((q) => !q.from || !q.to || q.from <= q.to, { message: 'El inicio no puede ser posterior al fin' });
 export type ExecutiveDashboardQuery = z.infer<typeof ExecutiveDashboardQuery>;
+
+/** Global lists (V2 "Aprobaciones" and "Propuestas enviadas"). */
+export const VersionListQuery = z.strictObject({ status: z.enum(['IN_REVIEW', 'SENT']) });
+export type VersionListQuery = z.infer<typeof VersionListQuery>;

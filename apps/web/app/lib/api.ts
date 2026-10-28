@@ -11,6 +11,10 @@ export class ApiError extends Error {
   }
 }
 
+/** Pages anyone may open without a session: the landing, login and the school's proposal link. */
+export const isPublicPath = (path: string) =>
+  path === '/' || path.startsWith('/login') || path.startsWith('/p/');
+
 /** Same-origin call to the API (proxied by next.config rewrites); the session cookie rides along. */
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   const res = await fetch(`/api/v1${path}`, {
@@ -19,7 +23,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
     credentials: 'same-origin',
   });
-  if (res.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+  if (res.status === 401 && typeof window !== 'undefined' && !isPublicPath(window.location.pathname)) {
     window.location.assign('/login');
   }
   if (!res.ok) {

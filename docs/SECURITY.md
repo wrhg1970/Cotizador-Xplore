@@ -24,7 +24,8 @@
 12. Webhooks: verificar firma, timestamp, ventana de replay, idempotencia y tamaño del cuerpo.
 13. Backups cifrados, retención definida y prueba periódica de restauración.
 14. Dependabot/auditoría de dependencias, SAST y escaneo de secretos en CI.
-15. Política de retención, borrado y acceso a datos personales aprobada por EE.
+15. Liga para el colegio (`/p/{token}`): token aleatorio de 256 bits mostrado una vez y guardado solo como hash; caducidad máxima 90 días, revocable; ruta pública con límite por IP y el mismo 404 para cualquier falla; solo sirve la propuesta sin costos de una versión autorizada de una solicitud abierta. Quien tenga la liga ve la propuesta: no compartirla en canales públicos.
+16. Política de retención, borrado y acceso a datos personales aprobada por EE.
 
 ## Roles y separación de funciones
 - El creador no aprueba su propia cotización.

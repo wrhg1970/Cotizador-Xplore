@@ -60,10 +60,15 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `POST /quotes/{quoteVersionId}/return`
 - `POST /quotes/{quoteVersionId}/send`
 - `POST /quotes/{quoteVersionId}/wetravel` — crea en WeTravel la liga de pago de la propuesta ganadora (solicitud `WON` y esta versión como ganadora). Solo el cotizador asignado o el coordinador. Responde `{wetravelUrl}`; `GET /requests/{id}` trae `wetravelUrl`. Errores: 403 si no es la ganadora, 409 `WETRAVEL_EXISTS` si ya hay liga, 400 si la cotización tiene avisos, 502 si WeTravel falla, 503 sin `WETRAVEL_API_KEY`
+- `GET|POST /quotes/{quoteVersionId}/shares`, `DELETE /quotes/{quoteVersionId}/shares/{shareId}` — liga para el colegio. Crear: `{days}` (1 a 90, por omisión 30), solo el cotizador asignado o el coordinador, con la versión autorizada o enviada y la solicitud en cotización, enviada o ganada. Responde `{id, token, expiresAt}`: el token se muestra **una sola vez** (se guarda solo su SHA-256). Listar no devuelve tokens; trae vistas y última vista. Revocar es inmediato. Auditoría `proposal.share_created|share_revoked` sin el token
+- `GET /public/proposals/{token}` — **público** (sin sesión), 30 por minuto por IP. Devuelve la misma propuesta sin costos que la vista de impresión, sin ids internos, más `expiresAt`. Cualquier falla (token mal formado, desconocido, caducado, revocado, versión ya no autorizada o solicitud cerrada) es el mismo 404
 - `POST /quotes/{quoteVersionId}/documents`
 - `GET /quotes/{quoteVersionId}/documents`
 
 ### Resultado y reportes
+- `GET /reports/versions?status=IN_REVIEW|SENT` — pantallas «Aprobaciones» y «Propuestas enviadas»: versiones de las oficinas que el usuario puede ver (hasta 200, las más recientes), con precio por estudiante al cliente (nunca costos), quién preparó, fecha y medio del último envío, estado de la solicitud y `canApprove` (misma regla que autorizar: «Autorizar viaje» y no haberla preparado ni ser el cotizador)
+- `GET /reports/financial.xlsx?officeId&from&to` — reporte financiero interno: viajes ganados por fecha de salida (por omisión el año en curso) con precio, venta, costo, comisión y % por viaje, más totales por moneda (no se convierten). Solo oficinas donde el rol tiene «Descarga Excel interno»; 403 fuera de ellas. Auditado como `report.financial_exported` con el periodo y el número de filas
+- `GET /integrations` — solo administrador del sistema: qué conectores están configurados (Google, correo, IA de hojas, WeTravel, Wissify), nunca las llaves
 - `POST /requests/{requestId}/outcome/accept`
 - `POST /requests/{requestId}/outcome/reject`
 - `POST /requests/{requestId}/outcome/expire`
