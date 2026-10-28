@@ -301,7 +301,7 @@ export const FxRateInput = z.strictObject({
   fromCurrency: CurrencyCode,
   rate: DecimalString.refine((r) => Number(r) > 0, 'El tipo de cambio debe ser mayor que cero'),
   rateDate: IsoDate,
-  source: ShortText(150),
+  source: z.string().trim().min(1, 'Indica la fuente del tipo de cambio (p. ej. Banxico)').max(150),
 });
 export type FxRateInput = z.infer<typeof FxRateInput>;
 

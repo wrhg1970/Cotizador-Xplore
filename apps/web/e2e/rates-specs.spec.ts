@@ -101,3 +101,49 @@ test('the request form keeps the trip specifications', async ({ browser }) => {
   await expect(page.getByText('Vuelos internacionales')).toBeVisible();
   await ctx.close();
 });
+
+test('a hand-typed rate is saved for the missing currency and survives a reload', async ({ browser }) => {
+  const office = await newOffice();
+  const advisor = await userWithSession(office.id, 'ADVISOR', 'Ana');
+  const quoter = await userWithSession(office.id, 'QUOTER', 'Quique');
+  const req = await prisma.travelRequest.create({
+    data: {
+      folio: `EE-2027-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+      officeId: office.id,
+      requesterId: advisor.user.id,
+      assigneeId: quoter.user.id,
+      status: 'QUOTING',
+      groupName: 'Tipo manual',
+      city: 'Roma',
+      countryCode: 'IT',
+      departureDate: new Date('2027-03-19'),
+      returnDate: new Date('2027-03-25'),
+      participants: 10,
+    },
+  });
+  const ctx = await browser.newContext();
+  await ctx.addCookies([quoter.cookie]);
+  const page = await ctx.newPage();
+  await page.goto(`/solicitudes/${req.id}`);
+  await page.getByLabel('Nombre del escenario').fill('Opción 1');
+  await page.getByLabel('Moneda de venta').selectOption('EUR');
+  await page.getByRole('button', { name: 'Nuevo escenario' }).click();
+  await page.getByRole('link', { name: 'Opción 1' }).click();
+  await page.getByLabel('Moneda 1', { exact: true }).selectOption('USD');
+  await page.getByLabel('Costo 1', { exact: true }).fill('1000');
+  const bar = page.getByRole('region', { name: 'Totales del viaje' });
+  await expect(bar).toContainText('Falta tipo de cambio USD → EUR');
+
+  // "Agregar" proposes the missing currency with a source, so the save is accepted.
+  await page.getByRole('button', { name: 'Agregar tipo de cambio' }).click();
+  await expect(page.getByRole('combobox', { name: 'De', exact: true })).toHaveValue('USD');
+  await page.getByLabel('Tipo de cambio', { exact: true }).fill('0.9');
+  await expect(bar).toContainText('900.00');
+  await page.getByRole('button', { name: 'Guardar y calcular' }).click();
+  await expect(bar).toContainText('Guardado');
+
+  await page.reload();
+  await expect(page.getByLabel('Tipo de cambio', { exact: true })).toHaveValue('0.9');
+  await expect(page.getByLabel('Fuente', { exact: true })).toHaveValue('Captura manual');
+  await ctx.close();
+});

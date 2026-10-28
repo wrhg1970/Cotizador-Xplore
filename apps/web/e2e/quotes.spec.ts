@@ -55,7 +55,13 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await expect(page.getByText('este viaje: 17')).toBeVisible();
   await page.getByLabel('% Comisión (sobre el precio final)').fill('18');
   await page.getByLabel('Tipo de cambio a MXN (aproximado)').fill('20.39');
+  // Totals update while typing, with the server's formulas, before anything is saved.
+  const bar = page.getByRole('region', { name: 'Totales del viaje' });
+  await expect(bar).toContainText('5141.00');
+  await expect(bar).toContainText('104825.00 MXN');
+  await expect(bar).toContainText('Cambios sin guardar');
   await page.getByRole('button', { name: 'Guardar y calcular' }).click();
+  await expect(bar).toContainText('Guardado');
   // 4020 + (17 × 50 + 50) × 2 ÷ 10 + 150 ÷ 10 = 4215 → 4215 / 0.82 = 5140.24 → 5141
   const sheetTab = page.getByRole('tab', { name: 'Hoja EE' });
   const conceptsTab = page.getByRole('tab', { name: 'Grupo y conceptos' });

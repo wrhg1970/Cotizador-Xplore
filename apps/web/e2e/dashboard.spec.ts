@@ -78,7 +78,7 @@ test('system admin changes a role policy and creates an office', async ({ browse
   await row.getByRole('button', { name: `Editar ${code}` }).click();
   const edit = page.locator('form').filter({ has: page.getByRole('button', { name: 'Guardar' }) });
   await edit.getByLabel('Nombre').fill('Monterrey Centro');
-  await edit.getByRole('button', { name: 'Guardar' }).click();
+  await edit.getByRole('button', { name: 'Guardar', exact: true }).click();
   await expect(page.getByRole('status')).toHaveText(`Oficina ${code} guardada`);
   await expect(row).toContainText('Monterrey Centro');
   await row.getByRole('button', { name: `Desactivar ${code}` }).click();
