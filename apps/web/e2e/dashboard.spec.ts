@@ -71,7 +71,22 @@ test('system admin changes a role policy and creates an office', async ({ browse
   await page.getByLabel('Nombre', { exact: true }).fill('Oficina Monterrey');
   await page.getByRole('button', { name: 'Agregar oficina' }).click();
   await expect(page.getByRole('status')).toHaveText(`Oficina ${code} creada`);
-  await expect(page.getByText(`${code} · Oficina Monterrey`)).toBeVisible();
+  const row = page.getByRole('row', { name: new RegExp(code) });
+  await expect(row).toContainText('Oficina Monterrey');
+
+  // Edit, deactivate and, since it is empty, delete.
+  await row.getByRole('button', { name: `Editar ${code}` }).click();
+  const edit = page.locator('form').filter({ has: page.getByRole('button', { name: 'Guardar' }) });
+  await edit.getByLabel('Nombre').fill('Monterrey Centro');
+  await edit.getByRole('button', { name: 'Guardar' }).click();
+  await expect(page.getByRole('status')).toHaveText(`Oficina ${code} guardada`);
+  await expect(row).toContainText('Monterrey Centro');
+  await row.getByRole('button', { name: `Desactivar ${code}` }).click();
+  await expect(row).toContainText('Desactivada');
+  page.once('dialog', (d) => void d.accept());
+  await row.getByRole('button', { name: `Borrar ${code}` }).click();
+  await expect(page.getByRole('status')).toHaveText(`Oficina ${code} borrada`);
+  await expect(page.getByRole('row', { name: new RegExp(code) })).toHaveCount(0);
   await ctx.close();
 });
 
