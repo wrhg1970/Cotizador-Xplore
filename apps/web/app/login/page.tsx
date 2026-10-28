@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 import { Logo } from '../Logo';
 
 const ERRORS: Record<string, string> = {
+  SESSION_EXPIRED: 'Tu sesión se cerró por inactividad. Vuelve a entrar con Google.',
   NOT_INVITED: 'Tu cuenta no ha sido invitada. Pide acceso al administrador de tu oficina.',
   DISABLED: 'Tu cuenta está desactivada.',
   DOMAIN_NOT_ALLOWED: 'Usa tu cuenta de Google de Estudiantes Embajadores.',

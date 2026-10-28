@@ -32,6 +32,7 @@ Todas van en el gestor de secretos del proveedor, nunca en la imagen ni en el re
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - `ALLOWED_GOOGLE_DOMAINS`: dominios de Google Workspace separados por coma.
 - `SESSION_SECRET`: `openssl rand -hex 32`.
+- `SESSION_IDLE_MINUTES` (opcional, 5 a 720, por defecto 120): minutos sin actividad antes de cerrar la sesión.
 - `VERTEX_PROJECT` (opcional): proyecto de Google Cloud para el importador con IA; sin él, el importador responde 503. `VERTEX_LOCATION` (por defecto `global`) y `VERTEX_MODEL` (por defecto `gemini-3.8-flash`). `deploy.sh` lo configura solo y da a la cuenta de servicio el rol `roles/aiplatform.user`.
 - Avisos por correo (opcional): `SMTP_HOST`, `SMTP_PORT` (465 por defecto; otro puerto exige STARTTLS), `SMTP_USER`, `SMTP_PASSWORD` y `MAIL_FROM` (por defecto `SMTP_USER`). Sin host, usuario o contraseña los avisos quedan apagados y el flujo funciona igual.
 - `BANXICO_TOKEN` (opcional): token del SIE de Banxico para traer USD/MXN (FIX, serie SF43718) y EUR/MXN (SF46410) como tipos de cambio oficiales. Sin él, solo se capturan a mano.

@@ -13,7 +13,7 @@
 1. OIDC con Google; validar `issuer`, `audience`, `state`, `nonce`, expiración y redirect URI exacta.
 2. Lista de dominios permitidos más control de acceso explícito. Un dominio válido no equivale automáticamente a rol de administrador.
 3. RBAC + scope por oficina y recurso en cada endpoint.
-4. Cookies `HttpOnly`, `Secure`, `SameSite`; rotación/expiración de sesión y CSRF según arquitectura.
+4. Cookies `HttpOnly`, `Secure`, `SameSite`; rotación/expiración de sesión y CSRF según arquitectura. Sesión de 12 h como máximo y cierre por inactividad tras `SESSION_IDLE_MINUTES` (120 por defecto) sin ninguna petición; la web lleva a login con el aviso "Tu sesión se cerró por inactividad".
 5. HTTPS obligatorio; cifrado en reposo administrado por proveedor.
 6. Secrets manager; `.env` ignorado por Git.
 7. DTO con allowlist, límites de tamaño, normalización y validación de entrada.
@@ -43,7 +43,7 @@ Registrar, contener, revocar credenciales, preservar evidencia, evaluar alcance,
 
 ## Checklist antes de producción
 - [ ] Revisión de seguridad independiente.
-- [ ] Pruebas IDOR/BOLA y separación por oficina.
+- [x] Pruebas IDOR/BOLA y separación por oficina (`apps/api/test/permissions-audit.test.ts`, 2026-10-28: 29 rutas por id y 12 listados/reportes, para los 5 roles de oficina, con control positivo).
 - [ ] OAuth y sesión revisados.
 - [ ] Pruebas de autorización de PDF/XLSX.
 - [ ] Restauración de backup probada.

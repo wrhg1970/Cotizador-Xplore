@@ -26,6 +26,8 @@ const Env = z.object({
         .filter(Boolean),
     ),
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET debe tener al menos 32 caracteres'),
+  /** Minutes without any request before a session is closed (inactivity lock). */
+  SESSION_IDLE_MINUTES: z.coerce.number().int().min(5).max(720).default(120),
   // Sheet importer (Gemini on Vertex AI, credentials from the runtime service account); off when unset.
   VERTEX_PROJECT: z
     .string()

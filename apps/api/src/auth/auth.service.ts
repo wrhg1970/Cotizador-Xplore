@@ -91,7 +91,16 @@ export class AuthService {
       where: { tokenHash: hashToken(token) },
       include: { user: { include: { officeRoles: { include: { office: true } } } } },
     });
-    if (!session || session.expiresAt <= new Date() || session.user.status !== 'ACTIVE') return null;
+    const now = Date.now();
+    if (!session || session.expiresAt.getTime() <= now || session.user.status !== 'ACTIVE') return null;
+    const idle = now - session.lastSeenAt.getTime();
+    if (idle > this.env.SESSION_IDLE_MINUTES * 60_000) {
+      await this.prisma.session.deleteMany({ where: { id: session.id } });
+      return null;
+    }
+    // One write per minute at most: enough precision for an idle limit counted in minutes.
+    if (idle > 60_000)
+      await this.prisma.session.update({ where: { id: session.id }, data: { lastSeenAt: new Date(now) } });
     const { user } = session;
     const policies = await this.prisma.rolePolicy.findMany();
     return {
