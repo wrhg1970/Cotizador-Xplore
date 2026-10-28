@@ -89,15 +89,25 @@ export class AuthService {
   async userForToken(token: string): Promise<AuthUser | null> {
     const session = await this.prisma.session.findUnique({
       where: { tokenHash: hashToken(token) },
-      include: { user: { include: { officeRoles: { include: { office: true } } } } },
+      include: {
+        user: {
+          include: {
+            officeRoles: { include: { office: true } },
+            agency: { include: { offices: { select: { id: true } }, rolePolicies: true } },
+          },
+        },
+      },
     });
     if (!session || session.expiresAt <= new Date() || session.user.status !== 'ACTIVE') return null;
     const { user } = session;
-    const policies = await this.prisma.rolePolicy.findMany();
+    if (!user.agency.active) return null;
+    const policies = user.agency.rolePolicies;
     return {
       id: user.id,
       email: user.email,
       name: user.name,
+      agencyId: user.agencyId,
+      agencyOfficeIds: user.agency.offices.map((o) => o.id),
       roles: user.officeRoles
         .filter((r) => r.office.active)
         .map((r) => ({ officeId: r.officeId, role: r.role })),

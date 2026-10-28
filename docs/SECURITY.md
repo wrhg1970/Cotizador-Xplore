@@ -12,7 +12,7 @@
 ## Controles obligatorios
 1. OIDC con Google; validar `issuer`, `audience`, `state`, `nonce`, expiración y redirect URI exacta.
 2. Lista de dominios permitidos más control de acceso explícito. Un dominio válido no equivale automáticamente a rol de administrador.
-3. RBAC + scope por oficina y recurso en cada endpoint.
+3. RBAC + scope por agencia, oficina y recurso en cada endpoint. Aislamiento multi-agencia: la sesión carga la agencia del usuario y sus oficinas (`agencyOfficeIds`); `officeScope`/`officesWithRole` devuelven siempre una lista de oficinas de esa agencia (ya no existe «todas»), `hasOfficeRole` y demás reglas nunca aceptan una oficina ajena aunque el usuario sea administrador del sistema, y los catálogos/configuración de agencia se consultan con `agency_id` del usuario. Una agencia desactivada pierde el acceso en la siguiente petición. Pruebas: `apps/api/test/agency-isolation.test.ts`.
 4. Cookies `HttpOnly`, `Secure`, `SameSite`; rotación/expiración de sesión y CSRF según arquitectura.
 5. HTTPS obligatorio; cifrado en reposo administrado por proveedor.
 6. Secrets manager; `.env` ignorado por Git.
@@ -42,7 +42,7 @@ Registrar, contener, revocar credenciales, preservar evidencia, evaluar alcance,
 
 ## Checklist antes de producción
 - [ ] Revisión de seguridad independiente.
-- [ ] Pruebas IDOR/BOLA y separación por oficina.
+- [ ] Pruebas IDOR/BOLA y separación por oficina y por agencia.
 - [ ] OAuth y sesión revisados.
 - [ ] Pruebas de autorización de PDF/XLSX.
 - [ ] Restauración de backup probada.

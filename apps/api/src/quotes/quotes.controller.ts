@@ -30,6 +30,7 @@ import {
 } from '@ee/contracts';
 import {
   Prisma,
+  EE_AGENCY_ID,
   type PrismaClient,
   type ProposalDelivery,
   type QuoteFxRate,
@@ -483,7 +484,7 @@ export class QuotesController {
         ? QuoteLineInput.array().parse(template.lines)
         : (
             await tx.conceptTemplate.findMany({
-              where: { active: true, isBase: true },
+              where: { agencyId: user.agencyId, active: true, isBase: true },
               orderBy: [{ category: 'asc' }, { position: 'asc' }, { label: 'asc' }],
             })
           ).map((t) => ({
@@ -826,7 +827,7 @@ export class QuotesController {
     @Param('id', uuid) id: string,
     @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
   ) {
-    const rules = await approvalRules(this.prisma);
+    const rules = await approvalRules(this.prisma, user.agencyId);
     let auto: string | null = null;
     const dto = await this.review(user, req, id, body.rowVersion, 'quote.submitted_for_approval', (v, r) => {
       this.assertWork(user, r);
@@ -863,7 +864,7 @@ export class QuotesController {
     @Param('id', uuid) id: string,
     @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
   ) {
-    const rules = await approvalRules(this.prisma);
+    const rules = await approvalRules(this.prisma, user.agencyId);
     let final = true;
     const dto = await this.review(user, req, id, body.rowVersion, 'quote.approved', (v, r) => {
       this.assertReviewer(user, v, r);
@@ -947,7 +948,9 @@ export class QuotesController {
     await this.request(this.prisma, id, user);
     const r = await this.prisma.travelRequest.findUniqueOrThrow({ where: { id } });
     if (!r.wetravelLinkId) throw new NotFoundException('La solicitud no tiene liga de WeTravel');
-    if (!this.wetravel) throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
+    // shortcut: the server's WeTravel key is EE's account; other agencies need their own key first (multi-agency step 5).
+    if (!this.wetravel || user.agencyId !== EE_AGENCY_ID)
+      throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
     try {
       return await this.wetravel.linkPayments(r.wetravelLinkId);
     } catch (e) {
@@ -971,7 +974,9 @@ export class QuotesController {
         code: 'WETRAVEL_EXISTS',
         message: `Ya existe la liga: ${r.wetravelUrl}`,
       });
-    if (!this.wetravel) throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
+    // shortcut: the server's WeTravel key is EE's account; other agencies need their own key first (multi-agency step 5).
+    if (!this.wetravel || user.agencyId !== EE_AGENCY_ID)
+      throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
     const dto = toDto(v);
     if (!dto.totals || dto.warnings.length)
       throw new BadRequestException('La cotización tiene avisos pendientes (tipo de cambio o plan de pagos)');

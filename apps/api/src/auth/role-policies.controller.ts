@@ -21,7 +21,7 @@ import { CurrentUser } from './session.guard.js';
 
 const role = new ParseEnumPipe(EditableRole.enum);
 
-/** Configurable permissions per role; only system admins see or change them, every change is audited. */
+/** Configurable permissions per role and agency; only its system admins see or change them, every change is audited. */
 @Controller('role-policies')
 export class RolePoliciesController {
   constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
@@ -29,7 +29,7 @@ export class RolePoliciesController {
   @Get()
   async list(@CurrentUser() user: AuthUser) {
     if (!isSystemAdmin(user)) throw new ForbiddenException('Solo un administrador del sistema');
-    const rows = await this.prisma.rolePolicy.findMany();
+    const rows = await this.prisma.rolePolicy.findMany({ where: { agencyId: user.agencyId } });
     return EditableRole.options.map((r) => {
       const row = rows.find((x) => x.role === r);
       return { role: r, ...(row ? toPolicy(row) : DEFAULT_POLICIES[r]) };
@@ -45,15 +45,16 @@ export class RolePoliciesController {
   ) {
     if (!isSystemAdmin(user)) throw new ForbiddenException('Solo un administrador del sistema');
     return this.prisma.$transaction(async (tx) => {
-      const before = await tx.rolePolicy.findUnique({ where: { role: r } });
+      const key = { agencyId_role: { agencyId: user.agencyId, role: r } };
+      const before = await tx.rolePolicy.findUnique({ where: key });
       const data = {
         ...body,
         approvalLimitMxn: body.approvalLimitMxn === null ? null : new Prisma.Decimal(body.approvalLimitMxn),
         updatedById: user.id,
       };
       const after = await tx.rolePolicy.upsert({
-        where: { role: r },
-        create: { role: r, ...data },
+        where: key,
+        create: { agencyId: user.agencyId, role: r, ...data },
         update: data,
       });
       await audit(tx, {

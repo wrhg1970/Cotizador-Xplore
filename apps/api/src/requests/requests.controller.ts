@@ -215,16 +215,10 @@ export class RequestsController {
     const adminOffices = officesWithRole(user, ['OFFICE_ADMIN']);
     const where: Prisma.TravelRequestWhereInput = {
       AND: [
-        scope === 'ALL' ? {} : { officeId: { in: scope } },
-        scope === 'ALL'
-          ? {}
-          : {
-              OR: [
-                { status: { not: 'DRAFT' } },
-                { requesterId: user.id },
-                adminOffices === 'ALL' ? {} : { officeId: { in: adminOffices } },
-              ],
-            },
+        { officeId: { in: scope } },
+        {
+          OR: [{ status: { not: 'DRAFT' } }, { requesterId: user.id }, { officeId: { in: adminOffices } }],
+        },
         q.officeId ? { officeId: q.officeId } : {},
         q.status ? { status: q.status } : {},
         q.assignedToMe === 'true' ? { assigneeId: user.id } : {},

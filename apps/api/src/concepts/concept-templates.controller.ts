@@ -32,7 +32,7 @@ const duplicate = (e: unknown) => {
   throw e;
 };
 
-/** Catalog of EE sheet concepts: everyone reads the active ones, only system admins maintain it. */
+/** The agency's catalog of sheet concepts: everyone reads the active ones, only its system admins maintain it. */
 @Controller('concept-templates')
 export class ConceptTemplatesController {
   constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
@@ -40,9 +40,9 @@ export class ConceptTemplatesController {
   @Get()
   list(@CurrentUser() user: AuthUser) {
     return this.prisma.conceptTemplate.findMany({
-      where: isSystemAdmin(user) ? {} : { active: true },
+      where: { agencyId: user.agencyId, ...(isSystemAdmin(user) ? {} : { active: true }) },
       orderBy: [{ category: 'asc' }, { position: 'asc' }, { label: 'asc' }],
-      omit: { createdAt: true, updatedAt: true },
+      omit: { agencyId: true, createdAt: true, updatedAt: true },
     });
   }
 
@@ -55,7 +55,7 @@ export class ConceptTemplatesController {
     if (!isSystemAdmin(user)) throw new ForbiddenException('Solo un administrador del sistema');
     return this.prisma
       .$transaction(async (tx) => {
-        const t = await tx.conceptTemplate.create({ data: body });
+        const t = await tx.conceptTemplate.create({ data: { ...body, agencyId: user.agencyId } });
         await audit(tx, {
           actorUserId: user.id,
           action: 'concept_template.created',
@@ -79,7 +79,7 @@ export class ConceptTemplatesController {
     if (!isSystemAdmin(user)) throw new ForbiddenException('Solo un administrador del sistema');
     return this.prisma
       .$transaction(async (tx) => {
-        const before = await tx.conceptTemplate.findUnique({ where: { id } });
+        const before = await tx.conceptTemplate.findFirst({ where: { id, agencyId: user.agencyId } });
         if (!before) throw new NotFoundException('Rubro no encontrado');
         const t = await tx.conceptTemplate.update({ where: { id }, data: body });
         await audit(tx, {

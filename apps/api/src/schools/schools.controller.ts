@@ -51,18 +51,13 @@ export class SchoolsController {
     const admin = officesWithRole(user, ['OFFICE_ADMIN']);
     return {
       clientName: { not: null },
-      ...(scope === 'ALL' ? {} : { officeId: { in: scope } }),
-      OR: [
-        { status: { not: 'DRAFT' } },
-        { requesterId: user.id },
-        admin === 'ALL' ? {} : { officeId: { in: admin } },
-      ],
+      officeId: { in: scope },
+      OR: [{ status: { not: 'DRAFT' } }, { requesterId: user.id }, { officeId: { in: admin } }],
     };
   }
 
   private assertMember(user: AuthUser, officeId: string) {
-    const scope = officeScope(user);
-    if (scope !== 'ALL' && !scope.includes(officeId)) throw new NotFoundException('Colegio no encontrado');
+    if (!officeScope(user).includes(officeId)) throw new NotFoundException('Colegio no encontrado');
   }
 
   // shortcut: grouped in memory; fine for hundreds of requests per office, move to SQL GROUP BY beyond that.

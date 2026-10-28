@@ -27,8 +27,8 @@ export const ALERT_LABEL: Record<AlertKind, string> = {
 
 export const ALERTS_KEY = 'alerts';
 
-export const alertSettings = (prisma: PrismaClient) =>
-  getSetting(prisma, ALERTS_KEY, AlertSettings, DEFAULT_ALERT_SETTINGS);
+export const alertSettings = (prisma: PrismaClient, agencyId: string) =>
+  getSetting(prisma, agencyId, ALERTS_KEY, AlertSettings, DEFAULT_ALERT_SETTINGS);
 
 const DAY = 86_400_000;
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -38,19 +38,22 @@ const daysBetween = (from: Date, to: Date) =>
 const plural = (n: number) => (n === 1 ? '1 día' : `${n} días`);
 const uniq = (ids: (string | null)[]) => [...new Set(ids.filter((x): x is string => !!x))];
 
-// shortcut: scans every open request on each call; fine for pilot volumes, add a per-office filter if it slows down.
-/** Everything overdue as of `now`, per the thresholds; a threshold of 0 turns that alert off. */
+// shortcut: scans every open request of the offices on each call; fine for pilot volumes, page it if it slows down.
+/** Everything overdue as of `now` in these offices (one agency's), per its thresholds; 0 turns an alert off. */
 export async function computeAlerts(
   prisma: PrismaClient,
+  officeIds: string[],
   s: AlertSettings,
   now = new Date(),
 ): Promise<Alert[]> {
   const alerts: Alert[] = [];
+  const inOffices = { officeId: { in: officeIds } };
   const cutoff = (days: number) => new Date(startOfDay(now).getTime() - (days - 1) * DAY);
 
   if (s.unquotedDays) {
     const rows = await prisma.travelRequest.findMany({
       where: {
+        ...inOffices,
         status: { in: ['SUBMITTED', 'QUOTING'] },
         createdAt: { lt: cutoff(s.unquotedDays) },
         scenarios: { none: { versions: { some: { status: { in: ['IN_REVIEW', 'APPROVED', 'SENT'] } } } } },
@@ -77,7 +80,11 @@ export async function computeAlerts(
 
   if (s.reviewDays) {
     const rows = await prisma.quoteVersion.findMany({
-      where: { status: 'IN_REVIEW', updatedAt: { lt: cutoff(s.reviewDays) } },
+      where: {
+        status: 'IN_REVIEW',
+        updatedAt: { lt: cutoff(s.reviewDays) },
+        scenario: { request: inOffices },
+      },
       select: {
         id: true,
         updatedAt: true,
@@ -115,7 +122,7 @@ export async function computeAlerts(
 
   if (s.sentNoAnswerDays) {
     const rows = await prisma.travelRequest.findMany({
-      where: { status: 'SENT' },
+      where: { ...inOffices, status: 'SENT' },
       select: {
         id: true,
         folio: true,
@@ -146,7 +153,7 @@ export async function computeAlerts(
 
   if (s.paymentReminderDays) {
     const rows = await prisma.travelRequest.findMany({
-      where: { status: 'WON', wonVersionId: { not: null } },
+      where: { ...inOffices, status: 'WON', wonVersionId: { not: null } },
       select: {
         id: true,
         folio: true,
@@ -180,14 +187,48 @@ export async function computeAlerts(
 const DIGEST_KEY = 'alerts.lastDigest';
 
 /**
- * One email per person with everything overdue, at most once per day (a retried job is a no-op).
+ * One email per person with everything overdue, agency by agency with its own thresholds,
+ * at most once per day per agency (a retried job is a no-op).
  * Same rule as the other notices: folio, group, what is pending and a link; no prices.
  */
 export async function sendDigest(prisma: PrismaClient, mailer: Mailer, webOrigin: string, now = new Date()) {
+  const agencies = await prisma.agency.findMany({
+    where: { active: true },
+    select: { id: true, offices: { select: { id: true } } },
+  });
+  const totals = { alerts: 0, sent: 0, of: 0, skipped: 0 };
+  for (const a of agencies) {
+    const r = await sendAgencyDigest(
+      prisma,
+      mailer,
+      webOrigin,
+      a.id,
+      a.offices.map((o) => o.id),
+      now,
+    );
+    if ('skipped' in r) totals.skipped++;
+    else {
+      totals.alerts += r.alerts;
+      totals.sent += r.sent;
+      totals.of += r.of;
+    }
+  }
+  return totals;
+}
+
+async function sendAgencyDigest(
+  prisma: PrismaClient,
+  mailer: Mailer,
+  webOrigin: string,
+  agencyId: string,
+  officeIds: string[],
+  now: Date,
+) {
   const today = iso(now);
-  const last = await prisma.appSetting.findUnique({ where: { key: DIGEST_KEY } });
+  const key = { agencyId_key: { agencyId, key: DIGEST_KEY } };
+  const last = await prisma.appSetting.findUnique({ where: key });
   if (last?.value === today) return { skipped: 'already sent today' };
-  const alerts = await computeAlerts(prisma, await alertSettings(prisma), now);
+  const alerts = await computeAlerts(prisma, officeIds, await alertSettings(prisma, agencyId), now);
   const users = await prisma.user.findMany({
     where: { id: { in: uniq(alerts.flatMap((a) => a.userIds)) }, status: { not: 'DISABLED' } },
     select: { id: true, email: true },
@@ -217,8 +258,8 @@ export async function sendDigest(prisma: PrismaClient, mailer: Mailer, webOrigin
     }
   }
   await prisma.appSetting.upsert({
-    where: { key: DIGEST_KEY },
-    create: { key: DIGEST_KEY, value: today },
+    where: key,
+    create: { agencyId, key: DIGEST_KEY, value: today },
     update: { value: today },
   });
   return { alerts: alerts.length, sent, of: users.length };

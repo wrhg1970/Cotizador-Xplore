@@ -46,7 +46,7 @@ export class UsersController {
   offices(@CurrentUser() user: AuthUser) {
     const scope = officeScope(user);
     return this.prisma.office.findMany({
-      where: { active: true, ...(scope === 'ALL' ? {} : { id: { in: scope } }) },
+      where: { active: true, id: { in: scope } },
       select: { id: true, code: true, name: true },
       orderBy: { name: 'asc' },
     });
@@ -60,9 +60,12 @@ export class UsersController {
   ) {
     if (!isSystemAdmin(user)) throw new ForbiddenException();
     return this.prisma.$transaction(async (tx) => {
-      if (await tx.office.findUnique({ where: { code: body.code } }))
+      if (await tx.office.findFirst({ where: { agencyId: user.agencyId, code: body.code } }))
         throw new ConflictException('Código duplicado');
-      const office = await tx.office.create({ data: body, select: { id: true, code: true, name: true } });
+      const office = await tx.office.create({
+        data: { ...body, agencyId: user.agencyId },
+        select: { id: true, code: true, name: true },
+      });
       await audit(tx, {
         actorUserId: user.id,
         action: 'office.created',
@@ -75,11 +78,12 @@ export class UsersController {
     });
   }
 
-  /** Administration: every office, inactive ones too, with what hangs from it. */
+  /** Administration: every office of the agency, inactive ones too, with what hangs from it. */
   @Get('offices/all')
   async allOffices(@CurrentUser() user: AuthUser) {
     if (!isSystemAdmin(user)) throw new ForbiddenException();
     const rows = await this.prisma.office.findMany({
+      where: { agencyId: user.agencyId },
       select: {
         id: true,
         code: true,
@@ -101,12 +105,12 @@ export class UsersController {
   ) {
     if (!isSystemAdmin(user)) throw new ForbiddenException();
     return this.prisma.$transaction(async (tx) => {
-      const before = await tx.office.findUnique({ where: { id } });
+      const before = await tx.office.findFirst({ where: { id, agencyId: user.agencyId } });
       if (!before) throw new NotFoundException('Oficina no encontrada');
       if (
         body.code &&
         body.code !== before.code &&
-        (await tx.office.findUnique({ where: { code: body.code } }))
+        (await tx.office.findFirst({ where: { agencyId: user.agencyId, code: body.code } }))
       )
         throw new ConflictException('Código duplicado');
       const office = await tx.office.update({
@@ -132,8 +136,8 @@ export class UsersController {
   async deleteOffice(@CurrentUser() user: AuthUser, @Req() req: Request, @Param('id', uuid) id: string) {
     if (!isSystemAdmin(user)) throw new ForbiddenException();
     await this.prisma.$transaction(async (tx) => {
-      const office = await tx.office.findUnique({
-        where: { id },
+      const office = await tx.office.findFirst({
+        where: { id, agencyId: user.agencyId },
         include: { _count: { select: { requests: true, userRoles: true, templates: true } } },
       });
       if (!office) throw new NotFoundException('Oficina no encontrada');
@@ -192,14 +196,17 @@ export class UsersController {
       const current = await tx.userOfficeRole.findMany({
         where: { userId: id, role: { not: 'SYSTEM_ADMIN' } },
       });
-      if (!(await tx.user.findUnique({ where: { id } }))) throw new NotFoundException();
+      if (!(await tx.user.findFirst({ where: { id, agencyId: user.agencyId } })))
+        throw new NotFoundException();
       const roles = [...new Set(current.map((g) => g.role))];
       if (!roles.length)
         throw new BadRequestException({
           code: 'NO_ROLES',
           message: 'Asígnale primero un privilegio en alguna oficina',
         });
-      const active = await tx.office.count({ where: { id: { in: officeIds }, active: true } });
+      const active = await tx.office.count({
+        where: { id: { in: officeIds }, agencyId: user.agencyId, active: true },
+      });
       if (active !== officeIds.length) throw new NotFoundException('Oficina no encontrada');
       await tx.userOfficeRole.deleteMany({
         where: { userId: id, role: { not: 'SYSTEM_ADMIN' }, officeId: { notIn: officeIds } },
@@ -238,12 +245,16 @@ export class UsersController {
     }
     return this.prisma.$transaction(async (tx) => {
       await this.assertOffice(tx, body.officeId);
-      const invited = await tx.user.upsert({
-        where: { email: body.email },
-        update: {},
-        create: { email: body.email, name: body.name },
-        select: { id: true, email: true, name: true, status: true },
-      });
+      const select = { id: true, email: true, name: true, status: true, agencyId: true } as const;
+      const { agencyId, ...invited } =
+        (await tx.user.findUnique({ where: { email: body.email }, select })) ??
+        (await tx.user.create({
+          data: { email: body.email, name: body.name, agencyId: user.agencyId },
+          select,
+        }));
+      // A Google account belongs to one agency; the message doesn't say which.
+      if (agencyId !== user.agencyId)
+        throw new ConflictException({ code: 'OTHER_AGENCY', message: 'Ese correo no se puede invitar' });
       await this.grant(tx, user, req, invited.id, body.officeId, body.role);
       return invited;
     });
@@ -260,7 +271,8 @@ export class UsersController {
     if (!canGrantRole(user, body.officeId, body.role)) throw new ForbiddenException();
     await this.prisma.$transaction(async (tx) => {
       await this.assertOffice(tx, body.officeId);
-      if (!(await tx.user.findUnique({ where: { id } }))) throw new NotFoundException();
+      if (!(await tx.user.findFirst({ where: { id, agencyId: user.agencyId } })))
+        throw new NotFoundException();
       await this.grant(tx, user, req, id, body.officeId, body.role);
     });
     return { ok: true };
@@ -300,7 +312,10 @@ export class UsersController {
     if (!isSystemAdmin(user)) throw new ForbiddenException();
     if (id === user.id) throw new ForbiddenException('No puedes desactivarte a ti mismo');
     await this.prisma.$transaction(async (tx) => {
-      const { count } = await tx.user.updateMany({ where: { id }, data: { status: 'DISABLED' } });
+      const { count } = await tx.user.updateMany({
+        where: { id, agencyId: user.agencyId },
+        data: { status: 'DISABLED' },
+      });
       if (!count) throw new NotFoundException();
       await tx.session.deleteMany({ where: { userId: id } });
       await audit(tx, {

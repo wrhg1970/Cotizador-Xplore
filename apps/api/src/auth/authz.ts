@@ -19,7 +19,7 @@ export const DEFAULT_POLICIES: Record<EditableRole, RolePolicyInput> = {
   AUDITOR: { ...base, ...internal, canCreate: false, canEdit: false, canDelete: false },
 };
 
-/** SYSTEM_ADMIN in any office is global (PRD F-01); every other role is scoped to its office. */
+/** SYSTEM_ADMIN covers its whole agency (PRD F-01); every other role is scoped to its office. */
 export const isSystemAdmin = (user: AuthUser): boolean => user.roles.some((r) => r.role === 'SYSTEM_ADMIN');
 
 const policy = (user: AuthUser, role: EditableRole): RolePolicyInput =>
@@ -28,32 +28,41 @@ const policy = (user: AuthUser, role: EditableRole): RolePolicyInput =>
 type Grant = OfficeRole & { role: EditableRole };
 const grants = (user: AuthUser): Grant[] => user.roles.filter((r): r is Grant => r.role !== 'SYSTEM_ADMIN');
 
+/** Offices of another agency never match, whatever the role (tenant isolation). */
+const inAgency = (user: AuthUser, officeId: string) => user.agencyOfficeIds.includes(officeId);
+
 /** Grants of the user that act in this office: granted there, or national by policy. */
 const grantsIn = (user: AuthUser, officeId: string): Grant[] =>
-  grants(user).filter((r) => r.officeId === officeId || policy(user, r.role).allOffices);
+  inAgency(user, officeId)
+    ? grants(user).filter((r) => r.officeId === officeId || policy(user, r.role).allOffices)
+    : [];
+
+const adminIn = (user: AuthUser, officeId: string) => isSystemAdmin(user) && inAgency(user, officeId);
 
 export const hasOfficeRole = (user: AuthUser, officeId: string, roles: readonly RoleName[]): boolean =>
-  isSystemAdmin(user) || grantsIn(user, officeId).some((r) => roles.includes(r.role));
+  adminIn(user, officeId) || grantsIn(user, officeId).some((r) => roles.includes(r.role));
 
-/** Office ids where the user holds one of the roles, or 'ALL'. */
-export const officesWithRole = (user: AuthUser, roles: readonly RoleName[]): string[] | 'ALL' => {
-  if (isSystemAdmin(user)) return 'ALL';
-  const held = grants(user).filter((r) => roles.includes(r.role));
-  if (held.some((r) => policy(user, r.role).allOffices)) return 'ALL';
+/** System admin, or one of the roles is national by policy: acts on the whole agency. */
+export const agencyWide = (user: AuthUser, roles: readonly RoleName[]): boolean =>
+  isSystemAdmin(user) || grants(user).some((r) => roles.includes(r.role) && policy(user, r.role).allOffices);
+
+/** Office ids of the user's agency where they hold one of the roles. */
+export const officesWithRole = (user: AuthUser, roles: readonly RoleName[]): string[] => {
+  if (agencyWide(user, roles)) return user.agencyOfficeIds;
+  const held = grants(user).filter((r) => roles.includes(r.role) && inAgency(user, r.officeId));
   return [...new Set(held.map((r) => r.officeId))];
 };
 
-/** Office ids the user may read ("Ver"), or 'ALL'. Repositories must filter by this (IDOR/BOLA). */
-export const officeScope = (user: AuthUser): string[] | 'ALL' =>
-  officesWithRole(
-    user,
-    grants(user)
-      .filter((r) => policy(user, r.role).canView)
-      .map((r) => r.role),
-  );
+const viewRoles = (user: AuthUser): RoleName[] =>
+  grants(user)
+    .filter((r) => policy(user, r.role).canView)
+    .map((r) => r.role);
 
-/** Office ids whose internal figures (costs, margin) the user may export, or 'ALL'. */
-export const exportScope = (user: AuthUser): string[] | 'ALL' =>
+/** Office ids the user may read ("Ver"), always inside their agency. Repositories must filter by this (IDOR/BOLA). */
+export const officeScope = (user: AuthUser): string[] => officesWithRole(user, viewRoles(user));
+
+/** Office ids whose internal figures (costs, margin) the user may export. */
+export const exportScope = (user: AuthUser): string[] =>
   officesWithRole(
     user,
     grants(user)
@@ -65,19 +74,19 @@ export type CrudAction = 'canCreate' | 'canEdit' | 'canDelete';
 
 /** "Crear" / "Editar" / "Borrar" from the role matrix; workflow rules (who quotes, who approves) still apply on top. */
 export const canDo = (user: AuthUser, officeId: string, action: CrudAction): boolean =>
-  isSystemAdmin(user) ||
+  adminIn(user, officeId) ||
   grantsIn(user, officeId).some((r) => policy(user, r.role).canView && policy(user, r.role)[action]);
 
 /** Internal costs, margins and commissions (PRD §PDF); configurable per role. */
 export const canSeeInternalCosts = (user: AuthUser, officeId: string): boolean =>
-  isSystemAdmin(user) || grantsIn(user, officeId).some((r) => policy(user, r.role).viewInternalCosts);
+  adminIn(user, officeId) || grantsIn(user, officeId).some((r) => policy(user, r.role).viewInternalCosts);
 
-/** Global internal catalogs (suppliers, their rates): anyone who sees internal costs in some office. */
+/** Agency internal catalogs (suppliers, their rates): anyone who sees internal costs in some office. */
 export const seesAnyInternalCosts = (user: AuthUser): boolean =>
   isSystemAdmin(user) || grants(user).some((r) => policy(user, r.role).viewInternalCosts);
 
 export const canExportInternalXlsx = (user: AuthUser, officeId: string): boolean =>
-  isSystemAdmin(user) || grantsIn(user, officeId).some((r) => policy(user, r.role).exportInternalXlsx);
+  adminIn(user, officeId) || grantsIn(user, officeId).some((r) => policy(user, r.role).exportInternalXlsx);
 
 /** Highest group price in MXN the user may approve; null = no limit. */
 export const approvalLimitMxn = (user: AuthUser): string | null =>
@@ -87,7 +96,8 @@ export const approvalLimitMxn = (user: AuthUser): string | null =>
 const OFFICE_GRANTABLE: readonly RoleName[] = ['ADVISOR', 'QUOTER', 'APPROVER', 'AUDITOR'];
 
 export const canGrantRole = (user: AuthUser, officeId: string, role: RoleName): boolean =>
-  isSystemAdmin(user) || (OFFICE_GRANTABLE.includes(role) && hasOfficeRole(user, officeId, ['OFFICE_ADMIN']));
+  adminIn(user, officeId) ||
+  (OFFICE_GRANTABLE.includes(role) && hasOfficeRole(user, officeId, ['OFFICE_ADMIN']));
 
 /** role_policies row → contract shape; amounts travel as strings to keep decimals exact. */
 export const toPolicy = (p: {

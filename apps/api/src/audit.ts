@@ -10,6 +10,8 @@ export interface AuditEntry {
   correlationId: string;
   /** Only for entities the DB trigger can't map to an office (it fills TravelRequest, QuoteVersion…). */
   officeId?: string;
+  /** Only when there is no office and no actor (scheduled jobs); the DB trigger fills it otherwise. */
+  agencyId?: string;
   /** Redacted: never tokens, secrets or full personal payloads. */
   diff?: Prisma.InputJsonValue;
 }

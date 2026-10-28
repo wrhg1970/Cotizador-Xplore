@@ -13,7 +13,15 @@ import {
 
 const A = '00000000-0000-4000-8000-00000000000a';
 const B = '00000000-0000-4000-8000-00000000000b';
-const user = (roles: AuthUser['roles']): AuthUser => ({ id: 'u', email: 'u@x', name: 'U', roles });
+const C = '00000000-0000-4000-8000-00000000000c'; // office of another agency
+const user = (roles: AuthUser['roles']): AuthUser => ({
+  id: 'u',
+  email: 'u@x',
+  name: 'U',
+  agencyId: 'ag',
+  agencyOfficeIds: [A, B],
+  roles,
+});
 
 describe('authz', () => {
   it('scopes office roles to their office', () => {
@@ -27,7 +35,22 @@ describe('authz', () => {
   it('system admin is global', () => {
     const admin = user([{ officeId: A, role: 'SYSTEM_ADMIN' }]);
     expect(hasOfficeRole(admin, B, ['APPROVER'])).toBe(true);
-    expect(officeScope(admin)).toBe('ALL');
+    expect(officeScope(admin)).toEqual([A, B]);
+  });
+
+  it('never reaches an office of another agency, whatever the role or policy', () => {
+    const admin = user([{ officeId: A, role: 'SYSTEM_ADMIN' }]);
+    const national = {
+      ...user([{ officeId: A, role: 'AUDITOR' }]),
+      policies: { ...DEFAULT_POLICIES, AUDITOR: { ...DEFAULT_POLICIES.AUDITOR, allOffices: true } },
+    };
+    for (const u of [admin, national]) {
+      expect(hasOfficeRole(u, C, ['AUDITOR', 'OFFICE_ADMIN'])).toBe(false);
+      expect(canSeeInternalCosts(u, C)).toBe(false);
+      expect(canExportInternalXlsx(u, C)).toBe(false);
+      expect(officeScope(u)).not.toContain(C);
+    }
+    expect(canGrantRole(admin, C, 'QUOTER')).toBe(false);
   });
 
   it('office admin grants only non-admin roles in own office', () => {
@@ -56,7 +79,7 @@ describe('authz', () => {
       APPROVER: { ...DEFAULT_POLICIES.APPROVER, approvalLimitMxn: '500000.00' },
     };
     const auditor = { ...user([{ officeId: A, role: 'AUDITOR' }]), policies };
-    expect(officeScope(auditor)).toBe('ALL');
+    expect(officeScope(auditor)).toEqual([A, B]);
     expect(hasOfficeRole(auditor, B, ['AUDITOR'])).toBe(true);
     expect(hasOfficeRole(auditor, B, ['QUOTER'])).toBe(false);
     expect(canSeeInternalCosts(auditor, B)).toBe(true);

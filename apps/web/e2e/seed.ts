@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { createPrismaClient, type Role } from '@ee/db';
+import { createPrismaClient, EE_AGENCY_ID, type Role } from '@ee/db';
 
 export const prisma = createPrismaClient(process.env.DATABASE_URL!);
 
@@ -7,6 +7,7 @@ export const prisma = createPrismaClient(process.env.DATABASE_URL!);
 export async function userWithSession(officeId: string, role: Role, name: string) {
   const user = await prisma.user.create({
     data: {
+      agencyId: EE_AGENCY_ID,
       email: `${randomUUID()}@e2e.example`,
       name,
       status: 'ACTIVE',
@@ -26,5 +27,9 @@ export async function userWithSession(officeId: string, role: Role, name: string
 
 export const newOffice = () =>
   prisma.office.create({
-    data: { code: `E2E-${randomUUID().slice(0, 6)}`.toUpperCase(), name: `Oficina E2E` },
+    data: {
+      agencyId: EE_AGENCY_ID,
+      code: `E2E-${randomUUID().slice(0, 6)}`.toUpperCase(),
+      name: `Oficina E2E`,
+    },
   });

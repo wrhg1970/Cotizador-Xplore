@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import { createPrismaClient, type Role } from '@ee/db';
+import { createPrismaClient, EE_AGENCY_ID, type Role } from '@ee/db';
 import request from 'supertest';
 import type { IdClaims, LoginChecks, OidcProvider } from '../src/auth/oidc.js';
 import { createApp } from '../src/app.js';
@@ -64,17 +64,24 @@ export async function makeApp(
 
 export const uniq = () => crypto.randomUUID().slice(0, 8);
 
-export async function makeOffice() {
-  return prisma.office.create({ data: { code: `T-${uniq()}`.toUpperCase(), name: 'Oficina prueba' } });
+export async function makeOffice(agencyId = EE_AGENCY_ID) {
+  return prisma.office.create({
+    data: { agencyId, code: `T-${uniq()}`.toUpperCase(), name: 'Oficina prueba' },
+  });
+}
+
+export async function makeAgency() {
+  return prisma.agency.create({ data: { code: `AG-${uniq()}`.toUpperCase(), name: 'Agencia prueba' } });
 }
 
 export async function makeUser(
   roles: { officeId: string; role: Role }[],
   status: 'INVITED' | 'ACTIVE' = 'INVITED',
+  agencyId = EE_AGENCY_ID,
 ) {
   const email = `u-${uniq()}@${DOMAIN}`;
   return prisma.user.create({
-    data: { email, name: 'Usuario', status, officeRoles: { create: roles } },
+    data: { agencyId, email, name: 'Usuario', status, officeRoles: { create: roles } },
   });
 }
 

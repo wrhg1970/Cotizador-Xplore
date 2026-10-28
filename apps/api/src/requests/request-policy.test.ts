@@ -4,7 +4,14 @@ import { canAssign, canCancel, canEdit, canSubmit, canView, type RequestRef } fr
 
 const A = '00000000-0000-4000-8000-00000000000a';
 const B = '00000000-0000-4000-8000-00000000000b';
-const u = (id: string, roles: AuthUser['roles']): AuthUser => ({ id, email: `${id}@x`, name: id, roles });
+const u = (id: string, roles: AuthUser['roles']): AuthUser => ({
+  id,
+  email: `${id}@x`,
+  name: id,
+  agencyId: 'ag',
+  agencyOfficeIds: [A, B],
+  roles,
+});
 const advisor = u('adv', [{ officeId: A, role: 'ADVISOR' }]);
 const otherAdvisor = u('adv2', [{ officeId: A, role: 'ADVISOR' }]);
 const quoter = u('quo', [{ officeId: A, role: 'QUOTER' }]);

@@ -42,7 +42,7 @@ const rateDto = (r: Prisma.SupplierRateGetPayload<object>) => ({
 const changes = (before: Record<string, unknown>, body: Record<string, string | boolean | null>) =>
   Object.fromEntries(Object.entries(body).map(([k, to]) => [k, { from: String(before[k] ?? ''), to }]));
 
-/** Supplier / DMC catalog: internal (costs), read by roles that see costs, maintained by system admins. */
+/** The agency's supplier / DMC catalog: internal (costs), read by roles that see costs, maintained by its system admins. */
 @Controller()
 export class SuppliersController {
   constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
@@ -56,11 +56,14 @@ export class SuppliersController {
     if (!seesAnyInternalCosts(user)) throw new ForbiddenException('Tu rol no ve costos internos');
     const all = isSystemAdmin(user);
     const rows = await this.prisma.supplier.findMany({
-      where: all ? {} : { active: true },
+      where: { agencyId: user.agencyId, ...(all ? {} : { active: true }) },
       orderBy: { name: 'asc' },
       include: { rates: { where: all ? {} : { active: true }, orderBy: { description: 'asc' } } },
     });
-    return rows.map(({ rates, createdAt: _c, updatedAt: _u, ...s }) => ({ ...s, rates: rates.map(rateDto) }));
+    return rows.map(({ rates, agencyId: _a, createdAt: _c, updatedAt: _u, ...s }) => ({
+      ...s,
+      rates: rates.map(rateDto),
+    }));
   }
 
   @Post('suppliers')
@@ -72,7 +75,7 @@ export class SuppliersController {
     this.admin(user);
     return this.prisma
       .$transaction(async (tx) => {
-        const s = await tx.supplier.create({ data: body });
+        const s = await tx.supplier.create({ data: { ...body, agencyId: user.agencyId } });
         await audit(tx, {
           actorUserId: user.id,
           action: 'supplier.created',
@@ -96,7 +99,7 @@ export class SuppliersController {
     this.admin(user);
     return this.prisma
       .$transaction(async (tx) => {
-        const before = await tx.supplier.findUnique({ where: { id } });
+        const before = await tx.supplier.findFirst({ where: { id, agencyId: user.agencyId } });
         if (!before) throw new NotFoundException('Proveedor no encontrado');
         await tx.supplier.update({ where: { id }, data: body });
         await audit(tx, {
@@ -122,7 +125,7 @@ export class SuppliersController {
   ) {
     this.admin(user);
     return this.prisma.$transaction(async (tx) => {
-      if (!(await tx.supplier.findUnique({ where: { id: supplierId } })))
+      if (!(await tx.supplier.findFirst({ where: { id: supplierId, agencyId: user.agencyId } })))
         throw new NotFoundException('Proveedor no encontrado');
       const r = await tx.supplierRate.create({
         data: { ...body, supplierId, validUntil: toDate(body.validUntil) },
@@ -148,7 +151,9 @@ export class SuppliersController {
   ) {
     this.admin(user);
     return this.prisma.$transaction(async (tx) => {
-      const before = await tx.supplierRate.findUnique({ where: { id } });
+      const before = await tx.supplierRate.findFirst({
+        where: { id, supplier: { agencyId: user.agencyId } },
+      });
       if (!before) throw new NotFoundException('Tarifa no encontrada');
       const r = await tx.supplierRate.update({
         where: { id },
