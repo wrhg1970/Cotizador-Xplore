@@ -41,6 +41,8 @@ export interface TravelRequestDto {
   groupName: string;
   clientName: string | null;
   program: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
   city: string;
   countryCode: string;
   departureDate: string;
@@ -50,6 +52,7 @@ export interface TravelRequestDto {
   staff: number;
   budget: Budget | null;
   requirements: string | null;
+  commercialNotes: string | null;
   specifications: TripSpecs | null;
   priority: 'LOW' | 'NORMAL' | 'HIGH';
   dueDate: string | null;
@@ -78,10 +81,13 @@ export const SPEC_LABEL: Record<keyof TripSpecs, string> = {
   accommodation: 'Alojamiento',
   receivingSchool: 'Escuela / proveedor receptor',
   courses: 'Cursos y actividades',
-  transfersMeals: 'Traslados y alimentación',
-  flightsExcursions: 'Vuelos y excursiones',
+  meals: 'Plan de alimentación',
+  transfersMeals: 'Traslados y transporte local',
+  flightsExcursions: 'Vuelos, visitas y excursiones',
   insuranceAccessibility: 'Seguro y accesibilidad',
+  included: 'Servicios incluidos',
   notIncluded: 'Servicios no incluidos',
+  extra: 'Campos adicionales',
 };
 
 export const STATUS_LABEL: Record<RequestStatus, string> = {

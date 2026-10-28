@@ -228,6 +228,9 @@ model TravelRequest {
   groupName      String              @map("group_name")
   clientName     String?             @map("client_name")
   program        String?
+  /// Person at the school who asked for the trip.
+  contactName    String?             @map("contact_name")
+  contactEmail   String?             @map("contact_email")
   city           String
   countryCode    String              @map("country_code") @db.Char(2)
   departureDate  DateTime            @map("departure_date") @db.Date
@@ -239,6 +242,8 @@ model TravelRequest {
   budgetCurrency String?             @map("budget_currency") @db.Char(3)
   budgetBasis    BudgetBasis?        @map("budget_basis")
   requirements   String?
+  /// Internal commercial comments; never on the client proposal.
+  commercialNotes String?            @map("commercial_notes")
   /// Structured trip details (contracts TripSpecs).
   specifications Json?
   priority       Priority            @default(NORMAL)

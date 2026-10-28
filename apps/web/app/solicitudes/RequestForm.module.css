@@ -1,0 +1,259 @@
+/* Three-step request wizard (V2 model): navy header, step tabs, compact grid, sticky action bar. */
+.wizard {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 28px rgb(16 35 63 / 0.08);
+}
+
+.head {
+  /* Fixed brand navy in both themes, like the totals bar. */
+  background: #00457f;
+  color: #ffffff;
+  padding: 18px 24px 16px;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.head h1 {
+  font-size: 1.45rem;
+  margin: 0 0 4px;
+  color: inherit;
+}
+.head p {
+  margin: 0;
+  font-size: 0.85rem;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  opacity: 0.9;
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--subtle);
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  background: transparent;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-align: left;
+  padding: 12px 20px;
+  min-height: 48px;
+}
+.tab b {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+.tab:hover {
+  color: var(--text);
+  background: transparent;
+}
+.tab[aria-selected='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+.body {
+  padding: 20px 24px;
+}
+.body label {
+  font-size: 0.82rem;
+}
+.body input,
+.body select {
+  min-height: 40px;
+  padding: 6px 12px;
+}
+
+.grid3 {
+  display: grid;
+  gap: 12px 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.grid2 {
+  display: grid;
+  gap: 12px 24px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.body [hidden] {
+  display: none;
+}
+.body input[type='file'] {
+  padding: 8px 12px;
+  font-size: 0.82rem;
+}
+.wide {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 12px 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.wide textarea {
+  min-height: 72px;
+}
+.counts {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.money {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 96px;
+}
+
+.section {
+  border-top: 1px solid var(--border);
+  margin-top: 18px;
+  padding-top: 14px;
+}
+.subhead {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  letter-spacing: 0;
+  margin: 0 0 8px;
+}
+.addRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.addRow input {
+  flex: 1 1 160px;
+}
+.dark {
+  background: #00457f;
+  border-color: #00457f;
+  color: #ffffff;
+  white-space: nowrap;
+}
+.items {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.items li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px 4px 4px 12px;
+  font-size: 0.9rem;
+}
+.remove {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+.remove:hover {
+  color: var(--danger);
+  background: transparent;
+}
+
+.summary {
+  border: 1px solid var(--border);
+  background: var(--subtle);
+  border-radius: 14px;
+  padding: 16px 20px;
+}
+.sumHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+.sumHead small {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.sumHead strong {
+  font-size: 1.05rem;
+}
+.right {
+  text-align: right;
+}
+.mono {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+.facts {
+  display: grid;
+  gap: 12px 20px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+.facts dt {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.facts dd {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.spacer {
+  flex: 1;
+}
+.notice {
+  color: var(--ok);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 760px) {
+  .head,
+  .body,
+  .foot {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .tab {
+    padding: 10px 8px;
+    font-size: 0.75rem;
+  }
+  .grid3,
+  .grid2,
+  .wide,
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Three rows of buttons would cover the form on a phone. */
+  .foot {
+    position: static;
+  }
+  .foot button {
+    flex: 1 1 auto;
+  }
+  .spacer {
+    display: none;
+  }
+}

@@ -126,9 +126,13 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
   "chaperones": 2,
   "staff": 0,
   "budget": { "amount": "5150.00", "currency": "GBP", "basis": "PER_PARTICIPANT" },
-  "comments": "Sol Camps"
+  "contactName": "Mtra. Claudia Morales",
+  "contactEmail": "cmorales@colegio.example",
+  "commercialNotes": "Cliente recurrente (interno)",
+  "specifications": { "accommodation": "Residencia", "included": "Seguro\nKit EE", "notIncluded": "Visas", "extra": "Rango de edad: 14 a 18 años" }
 }
 ```
+`contactName`, `contactEmail` y `commercialNotes` son opcionales; la auditoría solo anota que cambiaron. En `specifications`, `included` y `notIncluded` llevan un servicio por línea y `extra` un "Nombre: valor" por línea.
 
 ### Aprobar versión
 ```json

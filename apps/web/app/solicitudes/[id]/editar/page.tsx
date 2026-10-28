@@ -15,7 +15,6 @@ export default function EditRequestPage() {
   }, [id]);
   return (
     <>
-      <h1>Editar {r?.folio}</h1>
       {error && <p className="error">{error}</p>}
       {r && <RequestForm existing={r} />}
     </>

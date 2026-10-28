@@ -293,6 +293,12 @@ export default function RequestDetailPage() {
               <dd>{r.program}</dd>
             </>
           )}
+          {(r.contactName || r.contactEmail) && (
+            <>
+              <dt>Contacto en la escuela</dt>
+              <dd>{[r.contactName, r.contactEmail].filter(Boolean).join(' · ')}</dd>
+            </>
+          )}
           <dt>Prioridad</dt>
           <dd>{PRIORITY_LABEL[r.priority]}</dd>
           <dt>Fecha límite</dt>
@@ -358,6 +364,12 @@ export default function RequestDetailPage() {
           <>
             <h2>Requerimientos</h2>
             <p style={{ whiteSpace: 'pre-wrap' }}>{r.requirements}</p>
+          </>
+        )}
+        {r.commercialNotes && (
+          <>
+            <h2>Comentarios comerciales</h2>
+            <p style={{ whiteSpace: 'pre-wrap' }}>{r.commercialNotes}</p>
           </>
         )}
         {r.specifications && (

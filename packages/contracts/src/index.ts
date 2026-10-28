@@ -145,6 +145,11 @@ export const TripSpecs = z.strictObject({
   flightsExcursions: OptionalText(2000),
   insuranceAccessibility: OptionalText(2000),
   notIncluded: OptionalText(2000),
+  meals: OptionalText(2000),
+  /** One included service per line. */
+  included: OptionalText(4000),
+  /** Configurable extra fields, one "Nombre: valor" per line. */
+  extra: OptionalText(4000),
 });
 export type TripSpecs = z.infer<typeof TripSpecs>;
 
@@ -152,6 +157,8 @@ const requestFields = {
   groupName: ShortText(150),
   clientName: OptionalText(150),
   program: OptionalText(150),
+  contactName: OptionalText(150),
+  contactEmail: z.email().max(200).optional(),
   city: ShortText(150),
   countryCode: CountryCode,
   departureDate: IsoDate,
@@ -161,6 +168,7 @@ const requestFields = {
   staff: z.number().int().min(0).max(MAX_GROUP_SIZE),
   budget: Budget.nullable().optional(),
   requirements: OptionalText(4000),
+  commercialNotes: OptionalText(4000),
   priority: Priority,
   dueDate: IsoDate.optional(),
   specifications: TripSpecs.nullable().optional(),
