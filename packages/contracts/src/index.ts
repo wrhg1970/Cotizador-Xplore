@@ -452,6 +452,8 @@ export const UpdateQuote = z
     fxRates: z.array(FxRateInput).max(10).optional(),
     paymentPlan: PaymentPlanInput.nullable().optional(),
     ...proposalContent,
+    /** Price per group size on the client's proposal (prices only). */
+    showVolumePrices: z.boolean().optional(),
     rowVersion: z.number().int().min(1),
   })
   .refine((q) => !(q.targetMarginRate && q.targetPricePerParticipant), {

@@ -173,6 +173,8 @@ export function clientProposal(v: FullVersion, r: TravelRequest, brand: AgencyBr
     itinerary: dto.itinerary ?? [],
     exclusions: dto.exclusions,
     hasCover: !!v.coverAttachmentId,
+    // Prices only (no costs); shown when whoever quotes ticks it.
+    volumePrices: v.showVolumePrices ? dto.volumePrices : null,
     // Only the winning proposal carries the payment link, the same one WeTravel's checkout shows.
     paymentUrl: r.wonVersionId === v.id ? r.wetravelUrl : null,
     brand: {
@@ -303,6 +305,7 @@ export function snapshotHash(v: FullVersion) {
     'coverAttachmentId',
   ] as const;
   for (const k of added) if (rest[k] === null) delete rest[k];
+  if (!rest.showVolumePrices) delete (rest as { showVolumePrices?: boolean }).showVolumePrices;
   const { exclusions, ...kept } = rest;
   return calculationHash({
     ...kept,
@@ -341,6 +344,7 @@ export function toDto(v: FullVersion) {
     itinerary: v.itinerary ? ItineraryDay.array().parse(v.itinerary) : null,
     exclusions: v.exclusions,
     coverAttachmentId: v.coverAttachmentId,
+    showVolumePrices: v.showVolumePrices,
     paymentSchedule: pay.payments,
     freePlaces: v.studentsPerFreePlace ? freePlaces(v.participants, v.studentsPerFreePlace) : null,
     lines: v.lines.map((l) => ({
@@ -409,6 +413,7 @@ async function copyVersion(tx: Tx, src: FullVersion, scenarioId: string, number:
       itinerary: src.itinerary ?? Prisma.DbNull,
       exclusions: src.exclusions,
       coverAttachmentId: src.coverAttachmentId,
+      showVolumePrices: src.showVolumePrices,
       createdById: userId,
       lines: {
         create: src.lines.map(({ id: _i, versionId: _v, ...l }) => l),

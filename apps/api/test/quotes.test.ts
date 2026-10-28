@@ -567,6 +567,32 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
     });
   });
 
+  it('volume prices reach the proposal only when ticked, and quote events reach the timeline', async () => {
+    const v = (await newScenario(c.quoter).expect(201)).body.latest;
+    const saved = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ ...option1, rowVersion: 1 })
+      .expect(200);
+    const hidden = await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', c.advisor).expect(200);
+    expect(hidden.body.volumePrices).toBeNull();
+    const shown = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ showVolumePrices: true, rowVersion: saved.body.rowVersion })
+      .expect(200);
+    expect(shown.body.showVolumePrices).toBe(true);
+    const p = await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', c.advisor).expect(200);
+    expect(p.body.volumePrices).toEqual(shown.body.volumePrices);
+    expect(JSON.stringify(p.body)).not.toMatch(/unitCost|margin|cost/i);
+    // Quote edits show in the request timeline for those who see quotes, never for advisors.
+    const tl = async (cookie: string) =>
+      (await api().get(`/api/v1/requests/${requestId}/timeline`).set('Cookie', cookie).expect(200)).body
+        .events as { id: string; action: string }[];
+    expect((await tl(c.quoter)).some((e) => e.action === 'quote.version.updated' && e.id)).toBe(true);
+    expect((await tl(c.advisor)).some((e) => e.action === 'quote.version.updated')).toBe(false);
+  });
+
   it('a registration that no longer fits the price warns and blocks approval', async () => {
     const v = (await newScenario(c.quoter).expect(201)).body.latest;
     const res = await api()

@@ -352,6 +352,8 @@ model QuoteVersion {
   /// Destination photo on the proposal: an image attachment of the same request.
   coverAttachmentId    String?             @map("cover_attachment_id") @db.Uuid
   coverAttachment      RequestAttachment?  @relation(fields: [coverAttachmentId], references: [id], onDelete: Restrict)
+  /// Shows the price-per-group-size table (prices only, no costs) on the client's proposal.
+  showVolumePrices     Boolean             @default(false) @map("show_volume_prices")
   /// Optimistic concurrency token for edits.
   rowVersion           Int                 @default(1) @map("row_version")
   createdById          String              @map("created_by_id") @db.Uuid
