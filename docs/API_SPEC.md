@@ -142,6 +142,10 @@ El servidor verifica permiso, aprobación vigente, hash, destinatarios y documen
 ## Integración futura XploreTogether
 Evento/operación sugerida: `proposal.accepted` con `requestId`, `scenarioId`, `quoteVersionId`, folio, destino, fechas, cantidades, moneda, precio final aprobado y referencias documentales. Evitar transferir costes internos si el receptor no los necesita. Contrato versionado y consentimiento/permisos de datos requeridos.
 
+## Histórico (2026-10-28, solo administrador del sistema)
+- `POST /history/preview` `{fileName, fileBase64}`: lee un Excel de cotización EE (pestañas "Consolidado" y "Opción N") por sus etiquetas, sin IA; devuelve grupo, cliente, destino, fechas, staff, opciones (moneda, TC a MXN, participantes, % comisión, precio final) y la oficina que coincide por nombre. No guarda nada.
+- `POST /history` (`ImportHistory`): crea la solicitud cerrada (WON/LOST/SENT) con una versión enviada por opción. 409 `HISTORY_DUPLICATE` si ya existe (misma oficina, grupo, cliente y fecha de salida). Audita `request.history_imported`.
+
 ## Seguridad de endpoints
 - AuthN obligatoria; AuthZ por endpoint y recurso.
 - Validación de entrada/salida.

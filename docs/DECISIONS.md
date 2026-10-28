@@ -133,3 +133,9 @@
 - El administrador del sistema edita código y nombre, y desactiva o reactiva oficinas desde Administración.
 - «Borrar» es real solo si la oficina está vacía. Si tiene solicitudes, usuarios o plantillas se desactiva: deja de aparecer para nuevas solicitudes y para dar privilegios, pero conserva su historial y sigue visible para quien ya trabajaba ahí.
 - Cambiar el código no cambia folios: el folio no lleva el código de la oficina.
+
+## Histórico de cotizaciones (2026-10-28)
+- Se migra a nivel precio: cada "Opción N" del Excel EE es una versión con una sola línea "Costo por alumno (histórico, sin desglose)" = precio final × (1 − % comisión), así el motor reproduce el precio de la hoja (redondeado hacia arriba). No se migra el desglose de costos.
+- Excepción documentada a "toda cotización requiere aprobación": las versiones históricas se autorizaron fuera del cotizador; quedan con una autorización sin revisor y el comentario "Histórico: autorizado fuera del cotizador (importó …)", más un envío con canal Otro.
+- Fechas: la solicitud, la versión, la autorización y el resultado quedan con la fecha de envío que captura el administrador, para que el Dashboard y la meta anual cuenten el año correcto. El folio usa ese año.
+- Sin migración de esquema (no choca con multi-agencia). No se usa IA: el lector es determinista por etiquetas.

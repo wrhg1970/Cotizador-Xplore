@@ -261,7 +261,7 @@ function sheet(v: FullVersion) {
 }
 
 /** What an approval vouches for: every input and the resulting figures (US-071, US-075). */
-function snapshotHash(v: FullVersion) {
+export function snapshotHash(v: FullVersion) {
   const {
     id: _i,
     scenarioId: _s,
