@@ -6,6 +6,7 @@ import { createApp } from '../src/app.js';
 import { loadEnv } from '../src/env.js';
 import type { Mail, Mailer } from '../src/notify/notifier.js';
 import type { SheetReader } from '../src/quotes/sheet-import.js';
+import type { WeTravel } from '../src/integrations/wetravel.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) throw new Error('DATABASE_URL es obligatorio para las pruebas de la API');
@@ -47,8 +48,13 @@ export class FakeMailer implements Mailer {
   }
 }
 
-export async function makeApp(oidc = new FakeOidc(), reader?: SheetReader, mailer?: Mailer) {
-  const app: INestApplication = await createApp(testEnv(), oidc, reader, mailer);
+export async function makeApp(
+  oidc = new FakeOidc(),
+  reader?: SheetReader,
+  mailer?: Mailer,
+  wetravel?: WeTravel,
+) {
+  const app: INestApplication = await createApp(testEnv(), oidc, reader, mailer, wetravel);
   await app.init();
   return { app, oidc, http: () => request(app.getHttpServer()) };
 }

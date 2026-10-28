@@ -49,6 +49,7 @@ export interface TravelRequestDto {
   wonVersionId: string | null;
   lostReason: string | null;
   closedAt: string | null;
+  wetravelUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -74,6 +75,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'request.cancelled': 'Canceló la solicitud',
   'request.won': 'Registró la solicitud como ganada',
   'request.lost': 'Registró la solicitud como perdida',
+  'request.wetravel_link': 'Creó la liga de pago en WeTravel',
   'request.commented': 'Comentó',
   'quote.scenario.created': 'Creó un escenario',
   'quote.scenario.duplicated': 'Duplicó un escenario',

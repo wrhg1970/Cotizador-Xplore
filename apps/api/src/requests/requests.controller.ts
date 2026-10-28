@@ -93,6 +93,7 @@ function toDto(r: Row) {
     wonVersionId: r.wonVersionId,
     lostReason: r.lostReason,
     closedAt: r.closedAt?.toISOString() ?? null,
+    wetravelUrl: r.wetravelUrl,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   };

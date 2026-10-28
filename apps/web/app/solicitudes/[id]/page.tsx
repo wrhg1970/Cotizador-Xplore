@@ -81,6 +81,20 @@ export default function RequestDetailPage() {
     }
   }
 
+  async function wetravel() {
+    if (!r?.wonVersionId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/quotes/${r.wonVersionId}/wetravel`, { method: 'POST' });
+      await reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function comment(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -263,6 +277,20 @@ export default function RequestDetailPage() {
             <>
               <dt>Propuesta ganadora</dt>
               <dd>{winner ? `${winner.scenarioName} · v${winner.number}` : 'Registrada'}</dd>
+              <dt>Liga de pago WeTravel</dt>
+              <dd>
+                {r.wetravelUrl ? (
+                  <a href={r.wetravelUrl} target="_blank" rel="noopener noreferrer">
+                    {r.wetravelUrl}
+                  </a>
+                ) : admin || me?.id === r.assignee?.id ? (
+                  <button type="button" className="secondary" disabled={busy} onClick={() => void wetravel()}>
+                    Crear liga de pago en WeTravel
+                  </button>
+                ) : (
+                  'Sin crear'
+                )}
+              </dd>
             </>
           )}
           {r.lostReason && (

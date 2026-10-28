@@ -20,6 +20,7 @@ import { SheetImportController } from './quotes/sheet-import.controller.js';
 import { SHEET_READER, type SheetReader, VertexSheetReader } from './quotes/sheet-import.js';
 import { MAILER, type Mailer, Notifier, SmtpMailer } from './notify/notifier.js';
 import { UsersController } from './users/users.controller.js';
+import { HttpWeTravel, type WeTravel, WETRAVEL } from './integrations/wetravel.js';
 
 @Module({})
 export class AppModule {
@@ -28,7 +29,11 @@ export class AppModule {
     oidcOverride?: OidcProvider,
     readerOverride?: SheetReader,
     mailerOverride?: Mailer,
+    wetravelOverride?: WeTravel,
   ): DynamicModule {
+    const wetravel =
+      wetravelOverride ??
+      (env.WETRAVEL_API_KEY ? new HttpWeTravel(env.WETRAVEL_API_URL, env.WETRAVEL_API_KEY) : null);
     const mailer =
       mailerOverride ??
       (env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASSWORD
@@ -81,6 +86,7 @@ export class AppModule {
         { provide: OIDC, useValue: oidc },
         { provide: SHEET_READER, useValue: reader },
         { provide: MAILER, useValue: mailer },
+        { provide: WETRAVEL, useValue: wetravel },
         Notifier,
         prismaProvider,
         PrismaShutdown,
