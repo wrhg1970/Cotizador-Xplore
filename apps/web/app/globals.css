@@ -1,27 +1,41 @@
 :root {
-  --bg: #f7f7f5;
+  --bg: #f4f5f7;
   --surface: #ffffff;
-  --text: #1c1c1a;
-  --muted: #5f5e5a;
-  --border: #dcdbd6;
-  --accent: #1d4ed8;
+  --text: #10233f;
+  --muted: #3d4e66;
+  --subtle: #f1f3f6;
+  --border: #d8dee6;
+  --accent: #c2410c;
+  --accent-strong: #9a3412;
+  --accent-soft: #fff1e8;
   --accent-text: #ffffff;
+  --ink: #10233f;
+  --ink-text: #ffffff;
   --danger: #b42318;
-  --ok: #067647;
-  --focus: #f59e0b;
+  --ok: #11683f;
+  --focus: #2f6fbf;
+  --radius: 18px;
+  --font-body: var(--font-sans, system-ui), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-head: var(--font-display, system-ui), system-ui, sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #151514;
-    --surface: #1f1f1d;
-    --text: #ecebe7;
-    --muted: #a3a29c;
-    --border: #3a3936;
-    --accent: #6d9bff;
-    --accent-text: #0b0b0a;
+    --bg: #0c1626;
+    --surface: #14223a;
+    --text: #e8edf4;
+    --muted: #a9b6c8;
+    --subtle: #1c2c47;
+    --border: #2c3d5a;
+    --accent: #f08a5d;
+    --accent-strong: #f6a982;
+    --accent-soft: #3a2218;
+    --accent-text: #10233f;
+    --ink: #e8edf4;
+    --ink-text: #10233f;
     --danger: #ff8a7a;
     --ok: #5fd39a;
+    --focus: #8bb8f0;
     color-scheme: dark;
   }
 }
@@ -30,53 +44,100 @@
 }
 body {
   margin: 0;
-  font:
-    15px/1.5 system-ui,
-    -apple-system,
-    'Segoe UI',
-    sans-serif;
+  font: 15px/1.5 var(--font-body);
+  font-variant-numeric: tabular-nums;
   background: var(--bg);
   color: var(--text);
 }
 a {
-  color: var(--accent);
+  color: var(--accent-strong);
 }
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 header.top {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 24px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
+header.top .bar {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 12px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
 header.top nav {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 4px;
   align-items: center;
 }
+header.top nav a {
+  color: var(--muted);
+  font-weight: 600;
+  text-decoration: none;
+  padding: 10px 12px;
+  border-radius: 999px;
+}
+header.top nav a:hover,
+header.top nav a[aria-current='page'] {
+  color: var(--text);
+  background: var(--subtle);
+}
+header.top .user button {
+  padding: 8px 14px;
+}
+main.bare {
+  max-width: none;
+  padding: 0;
+}
+header.top .user {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand {
+  font-family: var(--font-head);
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  text-decoration: none;
+}
+.brand span {
+  color: var(--accent);
+}
 main {
-  max-width: 1200px;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 32px 24px 48px;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--font-head);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 h1 {
-  font-size: 1.5rem;
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
   margin: 0 0 16px;
 }
 h2 {
-  font-size: 1.1rem;
-  margin: 24px 0 8px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 28px 0 10px;
 }
 .card {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: var(--radius);
+  padding: 20px 24px;
 }
 .row {
   display: flex;
@@ -104,10 +165,11 @@ input,
 select,
 textarea {
   font: inherit;
-  padding: 8px 10px;
+  min-height: 44px;
+  padding: 8px 12px;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
+  border-radius: 12px;
+  background: var(--surface);
   color: var(--text);
   min-width: 0;
 }
@@ -118,9 +180,10 @@ textarea {
 button,
 .button {
   font: inherit;
-  font-weight: 600;
-  padding: 8px 14px;
-  border-radius: 6px;
+  font-weight: 700;
+  min-height: 44px;
+  padding: 10px 20px;
+  border-radius: 999px;
   cursor: pointer;
   border: 1px solid var(--accent);
   background: var(--accent);
@@ -130,8 +193,9 @@ button,
 }
 button.secondary,
 .button.secondary {
-  background: transparent;
-  color: var(--accent);
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
 }
 button.danger {
   background: transparent;
@@ -155,27 +219,32 @@ table {
   width: 100%;
   border-collapse: collapse;
   background: var(--surface);
+  border-radius: var(--radius);
 }
 th,
 td {
   text-align: left;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--subtle);
   white-space: nowrap;
 }
 thead th {
   position: sticky;
   top: 0;
   background: var(--surface);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--muted);
 }
 .badge {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  background: var(--subtle);
   font-size: 0.8rem;
+  font-weight: 700;
 }
 dl.facts {
   display: grid;
@@ -239,7 +308,7 @@ tr.total td {
 }
 tr.total.strong th,
 tr.total.strong td {
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  background: var(--accent-soft);
 }
 table.compare tbody th[scope='row'] {
   font-weight: 400;
@@ -250,4 +319,159 @@ label.inline {
   align-items: center;
   gap: 8px;
   font-weight: 400;
+}
+button:not(:disabled):hover,
+.button:hover {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: var(--accent-text);
+}
+button.secondary:not(:disabled):hover,
+.button.secondary:hover {
+  background: var(--subtle);
+  border-color: var(--border);
+  color: var(--text);
+}
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--ink-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+/* Login: headline beside a dark panel; the panel stacks under it on phones. */
+.login {
+  min-height: 100vh;
+  display: flex;
+  flex-wrap: wrap;
+  background: var(--surface);
+}
+.login > section {
+  flex: 1 1 420px;
+  padding: 48px clamp(24px, 5vw, 56px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 24px;
+}
+.login h1 {
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  line-height: 0.98;
+  max-width: 13ch;
+  margin: 0;
+}
+.login .lead {
+  font-size: 1.15rem;
+  color: var(--muted);
+  max-width: 34rem;
+  margin: 0;
+}
+.login .button {
+  align-self: flex-start;
+  padding: 14px 28px;
+  font-size: 1rem;
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--ink-text);
+}
+.login .panel {
+  background: #10233f;
+  color: #ffffff;
+  align-items: center;
+}
+.login .panel p {
+  font-family: var(--font-head);
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.25;
+  max-width: 22ch;
+  margin: 0;
+}
+.login .panel p span {
+  color: #f9b48a;
+}
+
+.greeting {
+  margin-bottom: 28px;
+}
+.greeting h1 {
+  font-size: clamp(2.25rem, 5vw, 3rem);
+  margin-bottom: 8px;
+}
+.greeting p {
+  font-size: 1.15rem;
+  color: var(--muted);
+  margin: 0;
+  max-width: 48rem;
+}
+.greeting strong {
+  color: var(--accent-strong);
+}
+
+/* Client proposal: one white sheet, big title and price. */
+article.proposal {
+  max-width: 880px;
+  margin: 0 auto;
+  background: var(--surface);
+  border-radius: 28px;
+  padding: clamp(24px, 5vw, 48px);
+}
+article.proposal .kicker {
+  color: var(--accent-strong);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.85rem;
+  margin: 24px 0 8px;
+}
+article.proposal h1 {
+  font-size: clamp(2.5rem, 7vw, 4.25rem);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+article.proposal .price {
+  font-family: var(--font-head);
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 800;
+  color: var(--accent-strong);
+}
+article.proposal h2 {
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+article.proposal ol.timeline li {
+  border: 0;
+  border-left: 2px solid var(--border);
+  padding: 0 0 16px 20px;
+  position: relative;
+}
+article.proposal ol.timeline li::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+@media print {
+  body {
+    background: #ffffff;
+  }
+  article.proposal {
+    padding: 0;
+    border-radius: 0;
+  }
+}
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
+  min-height: 0;
 }

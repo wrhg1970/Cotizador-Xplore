@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
 import type { RequestStatus } from '@ee/contracts';
 import { fmtDate, STATUS_LABEL } from '../lib/types';
+import { useMe } from '../lib/useMe';
 
 type TaskKind = 'SUBMIT_REQUEST' | 'ASSIGN' | 'QUOTE' | 'FIX_QUOTE' | 'APPROVE' | 'SEND' | 'RECORD_OUTCOME';
 
@@ -43,7 +44,13 @@ const conversion = (s: Partial<Record<RequestStatus, number>>) => {
   return answered ? `${Math.round((won / answered) * 100)}%` : '—';
 };
 
+const greeting = () => {
+  const h = new Date().getHours();
+  return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+};
+
 export default function DashboardPage() {
+  const me = useMe();
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,8 +60,25 @@ export default function DashboardPage() {
 
   return (
     <>
-      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
-        <h1 style={{ margin: 0 }}>Mi trabajo</h1>
+      <div className="row greeting" style={{ justifyContent: 'space-between' }}>
+        <div>
+          <h1>{me ? `${greeting()}, ${me.name.split(' ')[0]}.` : 'Mi trabajo'}</h1>
+          {data && (
+            <p>
+              {data.tasks.length === 0 ? (
+                'No tienes pendientes por ahora.'
+              ) : (
+                <>
+                  Tienes{' '}
+                  <strong>
+                    {data.tasks.length === 1 ? '1 pendiente' : `${data.tasks.length} pendientes`}
+                  </strong>{' '}
+                  en tus solicitudes.
+                </>
+              )}
+            </p>
+          )}
+        </div>
         <Link className="button" href="/solicitudes/nueva">
           Nueva solicitud
         </Link>
@@ -71,7 +95,7 @@ export default function DashboardPage() {
               Te toca ({data.tasks.length})
             </h2>
             {data.tasks.length === 0 ? (
-              <p className="muted">No tienes pendientes. 🎉</p>
+              <p className="muted">No tienes pendientes.</p>
             ) : (
               <div className="table-wrap">
                 <table>

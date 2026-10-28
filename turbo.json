@@ -7,6 +7,7 @@
       "env": ["API_ORIGIN", "NEXT_OUTPUT"]
     },
     "typecheck": { "dependsOn": ["^build"] },
+    "@ee/db#typecheck": { "dependsOn": ["build"] },
     "lint": {},
     "test": { "dependsOn": ["^build"], "env": ["DATABASE_URL"] },
     "dev": { "dependsOn": ["^build"], "cache": false, "persistent": true }
