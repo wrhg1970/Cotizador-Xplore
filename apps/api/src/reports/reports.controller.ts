@@ -49,7 +49,8 @@ export class ReportsController {
   ) {
     const rows = await this.prisma.quoteVersion.findMany({
       where: {
-        status: q.status ?? { not: 'SUPERSEDED' },
+        status:
+          q.status === 'APPROVAL' ? { in: ['IN_REVIEW', 'APPROVED'] } : (q.status ?? { not: 'SUPERSEDED' }),
         scenario: { request: { ...inOffices(officeScope(user)), status: { not: 'CANCELLED' } } },
       },
       orderBy: { updatedAt: 'desc' },
@@ -58,6 +59,7 @@ export class ReportsController {
         lines: true,
         fxRates: true,
         createdBy: { select: { name: true } },
+        reviews: { orderBy: { createdAt: 'asc' }, select: { decision: true } },
         deliveries: { orderBy: { sentOn: 'desc' }, take: 1, select: { sentOn: true, channel: true } },
         scenario: {
           select: {
@@ -67,11 +69,12 @@ export class ReportsController {
                 id: true,
                 folio: true,
                 groupName: true,
+                clientName: true,
                 status: true,
                 officeId: true,
                 assigneeId: true,
                 departureDate: true,
-                office: { select: { code: true } },
+                office: { select: { code: true, name: true } },
               },
             },
           },
@@ -84,6 +87,8 @@ export class ReportsController {
     );
     return visible.map((v) => {
       const r = v.scenario.request;
+      const t = calc(v);
+      const lastReturn = v.reviews.findLastIndex((x) => x.decision === 'RETURNED');
       return {
         id: v.id,
         status: v.status,
@@ -92,12 +97,24 @@ export class ReportsController {
           id: r.id,
           folio: r.folio,
           groupName: r.groupName,
+          clientName: r.clientName,
           status: r.status,
           officeCode: r.office.code,
+          officeName: r.office.name,
           departureDate: day(r.departureDate),
         },
+        scenarioName: v.scenario.name,
+        number: v.number,
         participants: v.participants,
-        price: calc(v)?.pricePerParticipant.toFixed(2) ?? null,
+        chaperones: v.chaperones,
+        price: t?.pricePerParticipant.toFixed(2) ?? null,
+        groupPrice: t?.groupPrice.toFixed(2) ?? null,
+        // Internal figure: only for roles that see costs in that office.
+        ...(canSeeInternalCosts(user, r.officeId) && {
+          marginRate: t && t.groupPrice.gt(0) ? t.groupMargin.div(t.groupPrice).toFixed(4) : null,
+        }),
+        /** Signatures given since the last return; 1 while a two-signature version waits for the second. */
+        signatures: v.reviews.slice(lastReturn + 1).filter((x) => x.decision === 'APPROVED').length,
         currency: v.saleCurrency,
         preparedBy: v.createdBy.name,
         updatedAt: v.updatedAt.toISOString(),

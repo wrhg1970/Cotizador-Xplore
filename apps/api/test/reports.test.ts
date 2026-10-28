@@ -134,7 +134,9 @@ describe('global approvals and sent proposals', () => {
       }[];
     const forApprover = (await list(c.approver)).find((v) => v.id === q.versionId);
     expect(forApprover).toMatchObject({ price: '1220.00', canApprove: true, request: { status: 'QUOTING' } });
-    expect(JSON.stringify(forApprover)).not.toMatch(/cost|margin|recipients/i);
+    expect(JSON.stringify(forApprover)).not.toMatch(/cost|recipients/i);
+    const forAdvisor = (await list(c.advisor)).find((v) => v.id === q.versionId);
+    expect(JSON.stringify(forAdvisor)).not.toMatch(/cost|margin|recipients/i); // no cost view
     expect((await list(c.quoter)).find((v) => v.id === q.versionId)?.canApprove).toBe(false); // own work
     expect((await list(c.advisor)).find((v) => v.id === q.versionId)?.canApprove).toBe(false);
     expect((await list(c.adminB)).some((v) => v.id === q.versionId)).toBe(false); // other office
@@ -157,6 +159,60 @@ describe('global approvals and sent proposals', () => {
     expect((await all(c.quoter)).find((v) => v.id === draft.id)?.status).toBe('DRAFT');
     expect((await all(c.advisor)).some((v) => v.id === draft.id)).toBe(false); // working copy, no cost view
     await api().get('/api/v1/reports/versions?status=IN_REVIEW').expect(401);
+  });
+
+  it('approvals tray: pending and authorized versions with group total, margin and signatures', async () => {
+    const pending = await inReview('Bandeja pendiente');
+    const done = await inReview('Bandeja aprobada');
+    await act(c.approver, done.versionId, 'approve', { rowVersion: done.rowVersion }).expect(201);
+    const tray = (
+      await api().get('/api/v1/reports/versions?status=APPROVAL').set('Cookie', c.approver).expect(200)
+    ).body as { id: string; status: string }[];
+    expect(tray.find((v) => v.id === pending.versionId)).toMatchObject({
+      status: 'IN_REVIEW',
+      scenarioName: 'Opción',
+      number: 1,
+      participants: 10,
+      chaperones: 0,
+      groupPrice: '12200.00',
+      marginRate: '0.1803',
+      signatures: 0,
+      request: { groupName: 'Bandeja pendiente' },
+    });
+    expect(tray.find((v) => v.id === done.versionId)).toMatchObject({ status: 'APPROVED', signatures: 1 });
+    const advisorTray = (
+      await api().get('/api/v1/reports/versions?status=APPROVAL').set('Cookie', c.advisor).expect(200)
+    ).body as { id: string }[];
+    expect(advisorTray.find((v) => v.id === pending.versionId)).not.toHaveProperty('marginRate');
+  });
+
+  it('committee page: policy per scenario, reject goes back to the quoter and is audited apart', async () => {
+    const q = await inReview('Dictamen');
+    const scenarios = (
+      await api().get(`/api/v1/requests/${q.requestId}/scenarios`).set('Cookie', c.approver).expect(200)
+    ).body as { preparedBy: string; policy: string }[];
+    expect(scenarios[0]).toMatchObject({ policy: 'Una firma de «Autorizar viaje»' });
+    expect(scenarios[0]!.preparedBy).toBeTruthy();
+    await act(c.quoter, q.versionId, 'return', {
+      rowVersion: q.rowVersion,
+      comment: 'No',
+      reject: true,
+    }).expect(403); // own work
+    const r = (
+      await act(c.approver, q.versionId, 'return', {
+        rowVersion: q.rowVersion,
+        comment: 'Margen insuficiente',
+        reject: true,
+      }).expect(201)
+    ).body as { status: string; reviews: { decision: string; comment: string }[] };
+    expect(r.status).toBe('RETURNED');
+    expect(r.reviews.at(-1)).toMatchObject({
+      decision: 'RETURNED',
+      comment: 'Rechazada: Margen insuficiente',
+    });
+    expect(await prisma.auditLog.count({ where: { action: 'quote.rejected', entityId: q.versionId } })).toBe(
+      1,
+    );
   });
 
   it('lists sent proposals with the delivery date and channel', async () => {

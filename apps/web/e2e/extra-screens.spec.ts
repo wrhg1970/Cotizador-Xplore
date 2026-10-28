@@ -57,11 +57,6 @@ test('approvals list, Kanban by stage and integrations status', async ({ browser
   const ctx = await browser.newContext();
   await ctx.addCookies([approver.cookie]);
   const page = await ctx.newPage();
-  await page.goto('/aprobaciones');
-  const row = page.getByRole('row', { name: new RegExp(req.folio) });
-  await expect(row).toContainText('5000.00 EUR');
-  await expect(row.getByRole('link', { name: 'Revisar y autorizar →' })).toBeVisible();
-
   await page.goto('/inicio');
   await page.getByRole('button', { name: 'Tablero por etapa' }).click();
   await expect(
@@ -69,6 +64,21 @@ test('approvals list, Kanban by stage and integrations status', async ({ browser
       .getByRole('region', { name: 'Etapa Cotizada' })
       .getByRole('article', { name: new RegExp(req.folio) }),
   ).toBeVisible();
+
+  await page.goto('/aprobaciones');
+  const row = page.getByRole('row', { name: new RegExp(req.folio) });
+  await expect(row).toContainText('5,000.00 EUR');
+  await expect(row).toContainText('50,000.00 EUR'); // group total
+  await expect(row).toContainText('18.00%');
+  await row.getByRole('link', { name: 'Dictaminar →' }).click();
+  await expect(page.getByRole('heading', { name: /Comparador de diferencias/ })).toBeVisible();
+  const card = page.getByRole('region', { name: 'Opción 1 v1' });
+  await expect(card).toContainText('Una firma de «Autorizar viaje»');
+  page.once('dialog', (d) => void d.accept('Rentabilidad verificada'));
+  await card.getByRole('button', { name: 'Aprobar v1' }).click();
+  await expect(card).toContainText('Estado: Aprobada');
+  await expect(card.getByRole('listitem')).toContainText('Aprobar (v1) por Aurora · Rentabilidad verificada');
+
   await ctx.close();
 
   const admCtx = await browser.newContext();
