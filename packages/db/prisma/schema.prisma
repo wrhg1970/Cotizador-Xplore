@@ -557,3 +557,39 @@ model SchoolContact {
   @@index([officeId, schoolKey])
   @@map("school_contacts")
 }
+
+/// Supplier / DMC catalog (block 10). Internal: only roles that see costs read it.
+model Supplier {
+  id        String         @id @default(uuid()) @db.Uuid
+  name      String         @unique
+  kind      String?
+  country   String?
+  email     String?
+  phone     String?
+  notes     String?
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  rates     SupplierRate[]
+
+  @@map("suppliers")
+}
+
+/// A supplier's rate; adding it to a quote copies the values into the line, so later edits never change sent quotes.
+model SupplierRate {
+  id          String       @id @default(uuid()) @db.Uuid
+  supplierId  String       @map("supplier_id") @db.Uuid
+  description String
+  category    LineCategory
+  unitCost    Decimal      @map("unit_cost") @db.Decimal(18, 4)
+  currency    String       @db.Char(3)
+  validUntil  DateTime?    @map("valid_until") @db.Date
+  notes       String?
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  supplier    Supplier     @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  @@index([supplierId])
+  @@map("supplier_rates")
+}

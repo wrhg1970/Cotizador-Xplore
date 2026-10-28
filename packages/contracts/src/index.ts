@@ -477,6 +477,38 @@ export const UpdateConceptTemplate = z
   .partial();
 export type UpdateConceptTemplate = z.infer<typeof UpdateConceptTemplate>;
 
+/** Supplier / DMC catalog (internal): rates pre-fill quote lines, the quote keeps its own copy. */
+export const SupplierInput = z.strictObject({
+  name: ShortText(200),
+  kind: OptionalText(100),
+  country: OptionalText(100),
+  email: z.email().max(320).optional(),
+  phone: OptionalText(50),
+  notes: OptionalText(2000),
+});
+export type SupplierInput = z.infer<typeof SupplierInput>;
+export const UpdateSupplier = SupplierInput.extend({ active: z.boolean() })
+  .partial()
+  .refine((b) => Object.keys(b).length > 0, 'Nada que actualizar');
+export type UpdateSupplier = z.infer<typeof UpdateSupplier>;
+
+export const SupplierRateInput = z.strictObject({
+  description: ShortText(300),
+  category: LineCategory,
+  unitCost: DecimalString.refine((a) => !a.startsWith('-'), 'No puede ser negativo'),
+  currency: CurrencyCode,
+  validUntil: IsoDate.optional(),
+  notes: OptionalText(1000),
+});
+export type SupplierRateInput = z.infer<typeof SupplierRateInput>;
+export const UpdateSupplierRate = SupplierRateInput.extend({
+  active: z.boolean(),
+  validUntil: IsoDate.nullable(),
+})
+  .partial()
+  .refine((b) => Object.keys(b).length > 0, 'Nada que actualizar');
+export type UpdateSupplierRate = z.infer<typeof UpdateSupplierRate>;
+
 /** Approval actions carry the rowVersion the reviewer looked at (US-071, US-142). */
 export const ReviewQuote = z.strictObject({
   rowVersion: z.number().int().min(1),

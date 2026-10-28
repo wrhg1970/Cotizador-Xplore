@@ -337,3 +337,25 @@ export const ROLE_LABEL: Record<RoleName, string> = {
   SYSTEM_ADMIN: 'Administrador del sistema',
   AUDITOR: 'Auditor (solo lectura)',
 };
+
+export interface SupplierRateDto {
+  id: string;
+  description: string;
+  category: LineCategory;
+  unitCost: string;
+  currency: CurrencyCode;
+  validUntil: string | null;
+  notes: string | null;
+  active: boolean;
+}
+export interface SupplierDto {
+  id: string;
+  name: string;
+  kind: string | null;
+  country: string | null;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
+  active: boolean;
+  rates: SupplierRateDto[];
+}

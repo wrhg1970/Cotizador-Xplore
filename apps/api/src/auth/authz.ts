@@ -72,6 +72,10 @@ export const canDo = (user: AuthUser, officeId: string, action: CrudAction): boo
 export const canSeeInternalCosts = (user: AuthUser, officeId: string): boolean =>
   isSystemAdmin(user) || grantsIn(user, officeId).some((r) => policy(user, r.role).viewInternalCosts);
 
+/** Global internal catalogs (suppliers, their rates): anyone who sees internal costs in some office. */
+export const seesAnyInternalCosts = (user: AuthUser): boolean =>
+  isSystemAdmin(user) || grants(user).some((r) => policy(user, r.role).viewInternalCosts);
+
 export const canExportInternalXlsx = (user: AuthUser, officeId: string): boolean =>
   isSystemAdmin(user) || grantsIn(user, officeId).some((r) => policy(user, r.role).exportInternalXlsx);
 

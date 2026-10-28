@@ -23,6 +23,7 @@ import {
   type OfficialRateDto,
   type QuoteDto,
   type QuoteLineDto,
+  type SupplierDto,
   type TravelRequestDto,
 } from '../../lib/types';
 import { canExportXlsx, isOfficeAdmin, useMe } from '../../lib/useMe';
@@ -65,6 +66,7 @@ export default function QuoteEditorPage() {
   const [targetPrice, setTargetPrice] = useState('');
   const [byPrice, setByPrice] = useState(false);
   const [catalog, setCatalog] = useState<ConceptTemplateDto[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
   const [officialRates, setOfficialRates] = useState<OfficialRateDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -88,6 +90,8 @@ export default function QuoteEditorPage() {
       (e) => setError(errorText(e)),
     );
     api<ConceptTemplateDto[]>('/concept-templates').then(setCatalog, () => setCatalog([]));
+    // Roles without internal costs get 403: they simply see no supplier rates.
+    api<SupplierDto[]>('/suppliers').then(setSuppliers, () => setSuppliers([]));
     api<OfficialRateDto[]>('/official-rates').then(setOfficialRates, () => setOfficialRates([]));
   }, [id, load]);
 
@@ -546,6 +550,11 @@ export default function QuoteEditorPage() {
               const options = catalog.filter(
                 (c) => c.category === b.category && c.active && !used.has(c.label),
               );
+              const rates = suppliers.flatMap((sup) =>
+                sup.rates
+                  .filter((r) => r.category === b.category && (!r.validUntil || r.validUntil >= today()))
+                  .map((r) => ({ ...r, supplier: sup.name })),
+              );
               return (
                 <div key={b.category} style={{ marginBottom: 16 }}>
                   <h3 style={{ marginBottom: 4 }}>{b.title}</h3>
@@ -654,6 +663,33 @@ export default function QuoteEditorPage() {
                         {options.map((o) => (
                           <option key={o.id} value={o.id}>
                             {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {rates.length > 0 && (
+                      <select
+                        aria-label={`Tarifa de proveedor: ${b.title}`}
+                        value=""
+                        onChange={(e) => {
+                          const r = rates.find((o) => o.id === e.target.value);
+                          if (!r) return;
+                          set({
+                            lines: [
+                              ...draft.lines,
+                              {
+                                ...blankLine(r.currency, b.category, r.description),
+                                unitCost: r.unitCost,
+                                costSource: r.supplier,
+                              },
+                            ],
+                          });
+                        }}
+                      >
+                        <option value="">Agregar tarifa de proveedor…</option>
+                        {rates.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.supplier}: {r.description} ({r.unitCost} {r.currency})
                           </option>
                         ))}
                       </select>

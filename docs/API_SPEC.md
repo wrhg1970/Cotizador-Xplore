@@ -97,6 +97,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `GET /requests/{id}/wetravel/payments`: lo pagado por el grupo en WeTravel (en vivo).
 - `GET /quotes/{id}/compare`: cambios contra la versión anterior del mismo escenario.
 - `GET /schools`, `GET /schools/detail?officeId&key`, `POST /schools/contacts`, `DELETE /schools/contacts/{id}`: ficha por colegio (agrupa por nombre del cliente normalizado, por oficina).
+- `GET /suppliers` (roles que ven costos internos), `POST /suppliers`, `PATCH /suppliers/{id}`, `POST /suppliers/{id}/rates`, `PATCH /supplier-rates/{id}` (solo administrador del sistema, auditado): catálogo de proveedores/DMC y tarifas; el editor copia la tarifa al concepto (`costSource` = proveedor).
 
 ## Contratos de referencia
 ### Crear solicitud

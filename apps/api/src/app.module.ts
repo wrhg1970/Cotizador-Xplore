@@ -10,6 +10,7 @@ import { HealthController } from './health.controller.js';
 import { PrismaShutdown, prismaProvider } from './prisma.service.js';
 import { CatalogsController } from './catalogs.controller.js';
 import { ConceptTemplatesController } from './concepts/concept-templates.controller.js';
+import { SuppliersController } from './suppliers/suppliers.controller.js';
 import { OfficeQuotersController, RequestsController } from './requests/requests.controller.js';
 import { QuotesController } from './quotes/quotes.controller.js';
 import { QuoteTemplatesController } from './quotes/templates.controller.js';
@@ -85,6 +86,7 @@ export class AppModule {
         OfficeQuotersController,
         CatalogsController,
         ConceptTemplatesController,
+        SuppliersController,
         QuotesController,
         QuoteTemplatesController,
         DashboardController,
