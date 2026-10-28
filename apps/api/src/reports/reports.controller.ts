@@ -7,7 +7,13 @@ import { D, type Dec, QuoteEngineError } from '@ee/quote-engine';
 import type { z } from 'zod';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
-import { exportScope, hasOfficeRole, isSystemAdmin, officeScope } from '../auth/authz.js';
+import {
+  canSeeInternalCosts,
+  exportScope,
+  hasOfficeRole,
+  isSystemAdmin,
+  officeScope,
+} from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { ENV, type Env } from '../env.js';
 import { PRISMA } from '../prisma.service.js';
@@ -43,7 +49,7 @@ export class ReportsController {
   ) {
     const rows = await this.prisma.quoteVersion.findMany({
       where: {
-        status: q.status,
+        status: q.status ?? { not: 'SUPERSEDED' },
         scenario: { request: { ...inOffices(officeScope(user)), status: { not: 'CANCELLED' } } },
       },
       orderBy: { updatedAt: 'desc' },
@@ -72,10 +78,15 @@ export class ReportsController {
         },
       },
     });
-    return rows.map((v) => {
+    const working = ['DRAFT', 'RETURNED'];
+    const visible = rows.filter(
+      (v) => !working.includes(v.status) || canSeeInternalCosts(user, v.scenario.request.officeId),
+    );
+    return visible.map((v) => {
       const r = v.scenario.request;
       return {
         id: v.id,
+        status: v.status,
         label: `${v.scenario.name} · v${v.number}`,
         request: {
           id: r.id,

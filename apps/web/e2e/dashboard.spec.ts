@@ -103,7 +103,7 @@ test('executive dashboard: office admins see the indicators, advisors get no lin
   await ctx.addCookies([advisor.cookie]);
   const page = await ctx.newPage();
   await page.goto('/inicio');
-  await expect(page.getByRole('link', { name: 'Mi trabajo' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Inicio' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Dashboard ejecutivo' })).toHaveCount(0);
   await ctx.clearCookies();
   await ctx.addCookies([admin.cookie]);

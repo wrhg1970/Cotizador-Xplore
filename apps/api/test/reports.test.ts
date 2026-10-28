@@ -140,6 +140,22 @@ describe('global approvals and sent proposals', () => {
     expect((await list(c.adminB)).some((v) => v.id === q.versionId)).toBe(false); // other office
     expect((await list(c.approver, 'SENT')).some((v) => v.id === q.versionId)).toBe(false);
     await api().get('/api/v1/reports/versions?status=DRAFT').set('Cookie', c.approver).expect(400);
+    const all = async (cookie: string) =>
+      (await api().get('/api/v1/reports/versions').set('Cookie', cookie).expect(200)).body as {
+        id: string;
+        status: string;
+      }[];
+    expect((await all(c.approver)).find((v) => v.id === q.versionId)?.status).toBe('IN_REVIEW');
+    expect((await all(c.adminB)).some((v) => v.id === q.versionId)).toBe(false); // other office
+    const draft = (
+      await api()
+        .post(`/api/v1/requests/${q.requestId}/scenarios`)
+        .set('Cookie', c.quoter)
+        .send({ name: 'Borrador', saleCurrency: 'EUR' })
+        .expect(201)
+    ).body.latest as { id: string };
+    expect((await all(c.quoter)).find((v) => v.id === draft.id)?.status).toBe('DRAFT');
+    expect((await all(c.advisor)).some((v) => v.id === draft.id)).toBe(false); // working copy, no cost view
     await api().get('/api/v1/reports/versions?status=IN_REVIEW').expect(401);
   });
 

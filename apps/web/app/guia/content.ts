@@ -26,7 +26,7 @@ export const GUIDES: RoleGuide[] = [
     title: 'Cotizador',
     summary: 'Arma los escenarios con la hoja EE y los manda a autorizar.',
     steps: [
-      'En Mis tareas están las solicitudes que te asignaron.',
+      'En Inicio, el filtro "Mi turno hoy" muestra las solicitudes donde te toca actuar.',
       'Crea un escenario: primero los tipos de cambio (botón "Usar tipos de cambio oficiales"), luego los rubros por bloque; la barra de abajo muestra los totales en vivo.',
       'Usa plantillas y proveedores para no capturar dos veces; duplica un escenario para comparar opciones.',
       'Cuando esté lista, pulsa "Enviar a autorización". No puedes autorizar tu propia cotización.',
