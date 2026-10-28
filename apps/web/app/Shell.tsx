@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { api, isPublicPath } from './lib/api';
 import { Logo } from './Logo';
 import { useMe } from './lib/useMe';
+import { WorkNotifier } from './WorkNotifier';
 
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -86,6 +87,7 @@ export function Shell({ children }: { children: ReactNode }) {
               )}
             </nav>
             <div className="user">
+              {me && <WorkNotifier />}
               <button className="secondary" onClick={logout}>
                 Cerrar sesión
               </button>
