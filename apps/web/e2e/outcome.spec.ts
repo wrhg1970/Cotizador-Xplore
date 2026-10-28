@@ -43,9 +43,9 @@ test('the quoter records which sent proposal the client accepted', async ({ brow
   const page = await ctx.newPage();
   await page.goto('/inicio');
   await page
-    .getByRole('row')
+    .getByRole('article')
     .filter({ hasText: req.folio })
-    .getByRole('link', { name: 'Registrar respuesta del cliente' })
+    .getByRole('link', { name: 'Registrar respuesta del colegio →' })
     .click();
   await expect(page.getByLabel('Propuesta aceptada')).toHaveValue(/.+/);
   await page.getByRole('button', { name: 'Ganada' }).click();

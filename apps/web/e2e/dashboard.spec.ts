@@ -29,12 +29,21 @@ test('"Mi trabajo" lists what is waiting on the user and links to it', async ({ 
   const page = await ctx.newPage();
   await page.goto('/');
   await expect(page).toHaveURL(/\/inicio$/);
-  const row = page.getByRole('row').filter({ hasText: folio });
-  await expect(row).toContainText('Tablero Roma 2027');
+  const card = page.getByRole('article', { name: `${folio} Tablero Roma 2027` });
+  await expect(card).toContainText('Etapa actual: 01. Solicitada');
+  await expect(card).toContainText('Rol: Cotizador titular');
+  await expect(card).toContainText('Requiere tu acción');
+  await page.getByRole('button', { name: 'Comité / apoyo (0)' }).click();
+  await expect(card).toBeHidden();
+  await page.getByRole('button', { name: /^Mi turno hoy/ }).click();
+  await page.getByRole('searchbox', { name: 'Buscar' }).fill(folio.toLowerCase());
+  await expect(card).toBeVisible();
+  await page.getByRole('button', { name: 'Tarjetas comprimidas' }).click();
+  await expect(card.getByText('Requiere tu acción')).toBeHidden();
   await expect(page.getByRole('row', { name: `${office.code} · Oficina E2E` })).toHaveText(
     `${office.code} · Oficina E2E0010000—`,
   );
-  await row.getByRole('link', { name: 'Cotizar' }).click();
+  await card.getByRole('link', { name: 'Cotizar →' }).click();
   await expect(page).toHaveURL(new RegExp(`/solicitudes/${req.id}$`));
   await ctx.close();
 });
@@ -63,5 +72,28 @@ test('system admin changes a role policy and creates an office', async ({ browse
   await page.getByRole('button', { name: 'Agregar oficina' }).click();
   await expect(page.getByRole('status')).toHaveText(`Oficina ${code} creada`);
   await expect(page.getByText(`${code} · Oficina Monterrey`)).toBeVisible();
+  await ctx.close();
+});
+
+test('executive dashboard: office admins see the indicators, advisors get no link', async ({ browser }) => {
+  const office = await newOffice();
+  const admin = await userWithSession(office.id, 'OFFICE_ADMIN', 'Olga');
+  const advisor = await userWithSession(office.id, 'ADVISOR', 'Ana');
+  const ctx = await browser.newContext();
+  await ctx.addCookies([advisor.cookie]);
+  const page = await ctx.newPage();
+  await page.goto('/inicio');
+  await expect(page.getByRole('link', { name: 'Mi trabajo' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Dashboard ejecutivo' })).toHaveCount(0);
+  await ctx.clearCookies();
+  await ctx.addCookies([admin.cookie]);
+  await page.goto('/inicio');
+  await page.getByRole('link', { name: 'Dashboard ejecutivo' }).click();
+  await expect(page.getByRole('heading', { name: 'Dashboard ejecutivo' })).toBeVisible();
+  await expect(page.getByLabel('Indicadores')).toContainText('Conversión');
+  await page.getByLabel('Creadas desde').fill('2020-01-01');
+  await page.getByLabel('hasta').fill('2020-12-31');
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(page.getByLabel('Indicadores')).toContainText('Solicitudes0');
   await ctx.close();
 });

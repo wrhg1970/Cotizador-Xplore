@@ -409,3 +409,13 @@ export const ListAuditLogsQuery = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 export type ListAuditLogsQuery = z.infer<typeof ListAuditLogsQuery>;
+
+/** Executive dashboard: requests created in [from, to], optionally one office. */
+export const ExecutiveDashboardQuery = z
+  .strictObject({
+    officeId: z.uuid().optional(),
+    from: z.iso.date().optional(),
+    to: z.iso.date().optional(),
+  })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, { message: 'El inicio no puede ser posterior al fin' });
+export type ExecutiveDashboardQuery = z.infer<typeof ExecutiveDashboardQuery>;

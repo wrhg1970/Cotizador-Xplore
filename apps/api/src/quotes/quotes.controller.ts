@@ -118,7 +118,8 @@ function schedule(v: FullVersion, price: Dec | null) {
   }
 }
 
-const engine = (v: FullVersion) =>
+/** Pure engine run over a stored version; also used by "Mi trabajo" for the headline price. */
+export const engine = (v: QuoteVersion & { lines: QuoteLine[]; fxRates: QuoteFxRate[] }) =>
   calculateQuote({
     ...v,
     targetMarginRate: new D(v.targetMarginRate.toString()),
