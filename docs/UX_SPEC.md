@@ -57,3 +57,9 @@ XLSX interno: resumen, líneas, unidades, cantidades, moneda original, tasa FX, 
 ## Avisos con la app cerrada (Web Push, 2026-10-28)
 - Al pulsar "Activar avisos" el navegador registra el dispositivo; los avisos de asignación, autorización pendiente, devolución, autorización y aceptación del colegio llegan aunque la app esté cerrada (mismo contenido que el correo: folio, grupo y liga; nunca precios).
 - iPhone: solo funciona con la app instalada en la pantalla de inicio (iOS 16.4+). Si el servidor no tiene llave VAPID o el navegador no soporta push, se mantiene la revisión cada 5 minutos con la app abierta.
+
+## Celular y modo oscuro (revisión 2026-10-28)
+- Se revisaron las 21 pantallas a 390 px y 1280 px, en claro y oscuro, con capturas.
+- En celular el menú se pliega detrás de "Menú"; las tablas anchas se desplazan dentro de sí mismas; campos y filtros no rebasan la pantalla.
+- Corregido: el botón "Imprimir o guardar PDF" quedaba tapado por la portada de la propuesta (en ambos temas); el bloque "Seguro por diseño" de la portada se veía como un bloque blanco en modo oscuro (ahora azul marca).
+- `apps/web/e2e/mobile.spec.ts` falla si alguna pantalla vuelve a desplazarse de lado a 390 px, en claro u oscuro.

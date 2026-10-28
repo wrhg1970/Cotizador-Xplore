@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { api, isPublicPath } from './lib/api';
 import { Logo } from './Logo';
 import { useMe } from './lib/useMe';
@@ -13,6 +13,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const bare = isPublicPath(pathname);
   const me = useMe();
+  // Phones: the 12 links would fill the first screen, so they fold behind "Menú".
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => setMenuOpen(false), [pathname]);
 
   const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefined);
   const initials = me?.name
@@ -35,7 +38,16 @@ export function Shell({ children }: { children: ReactNode }) {
             <Link className="brand" href="/inicio">
               <Logo height={44} />
             </Link>
-            <nav aria-label="Principal">
+            <button
+              type="button"
+              className="secondary menu-toggle"
+              aria-expanded={menuOpen}
+              aria-controls="menu-principal"
+              onClick={() => setMenuOpen(!menuOpen)}
+            >
+              Menú
+            </button>
+            <nav id="menu-principal" aria-label="Principal" className={menuOpen ? 'open' : undefined}>
               <Link href="/inicio" aria-current={current('/inicio')}>
                 Mi trabajo
               </Link>
