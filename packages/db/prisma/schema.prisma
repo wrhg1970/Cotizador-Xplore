@@ -42,25 +42,28 @@ model RolePolicy {
 }
 
 model User {
-  id           String             @id @default(uuid()) @db.Uuid
-  email        String             @unique
-  googleSub    String?            @unique @map("google_sub")
-  name         String
-  status       UserStatus         @default(INVITED)
-  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
-  officeRoles  UserOfficeRole[]
-  sessions     Session[]
-  requested    TravelRequest[]    @relation("requester")
-  assigned     TravelRequest[]    @relation("assignee")
-  comments     RequestComment[]
-  scenarios    QuoteScenario[]
-  versions     QuoteVersion[]
-  templates    QuoteTemplate[]
-  fxRates      QuoteFxRate[]
-  reviews      QuoteReview[]
-  deliveries   ProposalDelivery[]
-  rolePolicies RolePolicy[]
+  id            String              @id @default(uuid()) @db.Uuid
+  email         String              @unique
+  googleSub     String?             @unique @map("google_sub")
+  name          String
+  status        UserStatus          @default(INVITED)
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  officeRoles   UserOfficeRole[]
+  sessions      Session[]
+  requested     TravelRequest[]     @relation("requester")
+  assigned      TravelRequest[]     @relation("assignee")
+  comments      RequestComment[]
+  scenarios     QuoteScenario[]
+  versions      QuoteVersion[]
+  templates     QuoteTemplate[]
+  fxRates       QuoteFxRate[]
+  officialRates OfficialRate[]
+  reviews       QuoteReview[]
+  deliveries    ProposalDelivery[]
+  rolePolicies  RolePolicy[]
+  attachments   RequestAttachment[]
+  memberships   RequestMember[]
 
   @@map("users")
 }
@@ -150,47 +153,51 @@ enum Priority {
 
 /// Checks (dates, counts, budget all-or-nothing) are enforced in the migration SQL too.
 model TravelRequest {
-  id             String           @id @default(uuid()) @db.Uuid
-  folio          String           @unique
-  officeId       String           @map("office_id") @db.Uuid
-  requesterId    String           @map("requester_id") @db.Uuid
-  assigneeId     String?          @map("assignee_id") @db.Uuid
-  status         RequestStatus    @default(DRAFT)
-  groupName      String           @map("group_name")
-  clientName     String?          @map("client_name")
+  id             String              @id @default(uuid()) @db.Uuid
+  folio          String              @unique
+  officeId       String              @map("office_id") @db.Uuid
+  requesterId    String              @map("requester_id") @db.Uuid
+  assigneeId     String?             @map("assignee_id") @db.Uuid
+  status         RequestStatus       @default(DRAFT)
+  groupName      String              @map("group_name")
+  clientName     String?             @map("client_name")
   program        String?
   city           String
-  countryCode    String           @map("country_code") @db.Char(2)
-  departureDate  DateTime         @map("departure_date") @db.Date
-  returnDate     DateTime         @map("return_date") @db.Date
+  countryCode    String              @map("country_code") @db.Char(2)
+  departureDate  DateTime            @map("departure_date") @db.Date
+  returnDate     DateTime            @map("return_date") @db.Date
   participants   Int
-  chaperones     Int              @default(0)
-  staff          Int              @default(0)
-  budgetAmount   Decimal?         @map("budget_amount") @db.Decimal(18, 4)
-  budgetCurrency String?          @map("budget_currency") @db.Char(3)
-  budgetBasis    BudgetBasis?     @map("budget_basis")
+  chaperones     Int                 @default(0)
+  staff          Int                 @default(0)
+  budgetAmount   Decimal?            @map("budget_amount") @db.Decimal(18, 4)
+  budgetCurrency String?             @map("budget_currency") @db.Char(3)
+  budgetBasis    BudgetBasis?        @map("budget_basis")
   requirements   String?
-  priority       Priority         @default(NORMAL)
-  dueDate        DateTime?        @map("due_date") @db.Date
-  cancelReason   String?          @map("cancel_reason")
+  /// Structured trip details (contracts TripSpecs).
+  specifications Json?
+  priority       Priority            @default(NORMAL)
+  dueDate        DateTime?           @map("due_date") @db.Date
+  cancelReason   String?             @map("cancel_reason")
   /// Sent version the client accepted; unique, so a request has one winner and a version wins only once (PRD F-06).
-  wonVersionId   String?          @unique @map("won_version_id") @db.Uuid
+  wonVersionId   String?             @unique @map("won_version_id") @db.Uuid
   /// Why the client declined (LOST); required by a CHECK in the migration.
-  lostReason     String?          @map("lost_reason")
+  lostReason     String?             @map("lost_reason")
   /// When the outcome (WON/LOST) was recorded.
-  closedAt       DateTime?        @map("closed_at") @db.Timestamptz(3)
+  closedAt       DateTime?           @map("closed_at") @db.Timestamptz(3)
   /// WeTravel payment link created from the winning version (uuid and checkout URL from their API).
-  wetravelLinkId String?          @unique @map("wetravel_link_id")
-  wetravelUrl    String?          @map("wetravel_url")
+  wetravelLinkId String?             @unique @map("wetravel_link_id")
+  wetravelUrl    String?             @map("wetravel_url")
   /// Optimistic concurrency (US-142).
-  version        Int              @default(1)
-  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
-  office         Office           @relation(fields: [officeId], references: [id], onDelete: Restrict)
-  requester      User             @relation("requester", fields: [requesterId], references: [id], onDelete: Restrict)
-  assignee       User?            @relation("assignee", fields: [assigneeId], references: [id], onDelete: Restrict)
-  wonVersion     QuoteVersion?    @relation("wonVersion", fields: [wonVersionId], references: [id], onDelete: Restrict)
+  version        Int                 @default(1)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  office         Office              @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  requester      User                @relation("requester", fields: [requesterId], references: [id], onDelete: Restrict)
+  assignee       User?               @relation("assignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  wonVersion     QuoteVersion?       @relation("wonVersion", fields: [wonVersionId], references: [id], onDelete: Restrict)
   comments       RequestComment[]
+  attachments    RequestAttachment[]
+  members        RequestMember[]
   scenarios      QuoteScenario[]
 
   @@index([officeId, status, createdAt])
@@ -312,6 +319,23 @@ model QuoteLine {
 }
 
 /// FX rate frozen per version with date, source and who captured it (CLAUDE.md, US-055).
+/// Official EE exchange rates kept by Finance; append-only, the latest rate per pair is the current one.
+model OfficialRate {
+  id           String   @id @default(uuid()) @db.Uuid
+  fromCurrency String   @map("from_currency") @db.Char(3)
+  toCurrency   String   @map("to_currency") @db.Char(3)
+  /// Units of toCurrency per 1 fromCurrency.
+  rate         Decimal  @db.Decimal(20, 10)
+  rateDate     DateTime @map("rate_date") @db.Date
+  source       String
+  capturedById String   @map("captured_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  capturedBy   User     @relation(fields: [capturedById], references: [id], onDelete: Restrict)
+
+  @@index([fromCurrency, toCurrency, createdAt])
+  @@map("official_rates")
+}
+
 model QuoteFxRate {
   id           String       @id @default(uuid()) @db.Uuid
   versionId    String       @map("version_id") @db.Uuid
@@ -416,4 +440,42 @@ model QuoteTemplate {
 
   @@index([officeId, active])
   @@map("quote_templates")
+}
+
+/// File attached to a request (school letter, supplier quote). Bytes live in Postgres.
+/// shortcut: bytea storage capped at 3 MB × 20 files per request, fine for the pilot; move to Cloud Storage if volume grows.
+model RequestAttachment {
+  id           String        @id @default(uuid()) @db.Uuid
+  requestId    String        @map("request_id") @db.Uuid
+  fileName     String        @map("file_name")
+  /// Sniffed from the bytes against an allowlist, never taken from the client.
+  mimeType     String        @map("mime_type")
+  size         Int
+  content      Bytes
+  uploadedById String        @map("uploaded_by_id") @db.Uuid
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  request      TravelRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  uploadedBy   User          @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([requestId, createdAt])
+  @@map("request_attachments")
+}
+
+enum MemberKind {
+  COMMERCIAL
+  SUPPORT
+}
+
+/// People working a request besides requester and assignee (V2 "ejecutivo comercial" and apoyo).
+model RequestMember {
+  requestId String        @map("request_id") @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
+  kind      MemberKind
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  request   TravelRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@id([requestId, userId])
+  @@index([userId])
+  @@map("request_members")
 }

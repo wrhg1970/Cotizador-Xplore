@@ -55,8 +55,14 @@ test('advisor creates and submits; admin assigns; quoter sees it in Mis tareas',
   await admCtx.addCookies([admin.cookie]);
   const adm = await admCtx.newPage();
   await adm.goto(url);
-  await expect(adm.getByLabel('Cotizador').locator('option', { hasText: 'Quique Cotizador' })).toHaveCount(1);
-  await adm.getByLabel('Cotizador').selectOption({ label: 'Quique Cotizador' });
+  await expect(
+    adm
+      .getByRole('combobox', { name: 'Cotizador', exact: true })
+      .locator('option', { hasText: 'Quique Cotizador' }),
+  ).toHaveCount(1);
+  await adm
+    .getByRole('combobox', { name: 'Cotizador', exact: true })
+    .selectOption({ label: 'Quique Cotizador' });
   await adm.getByRole('button', { name: 'Asignar' }).click();
   await expect(adm.locator('.badge')).toHaveText('En cotización');
   await expect(adm.getByText('Asignó cotizador · Carlos Coordinador')).toBeVisible();
@@ -71,7 +77,7 @@ test('advisor creates and submits; admin assigns; quoter sees it in Mis tareas',
 
   // Advisor of the same office can't assign (no picker shown).
   await adv.reload();
-  await expect(adv.getByLabel('Cotizador')).toHaveCount(0);
+  await expect(adv.getByRole('combobox', { name: 'Cotizador', exact: true })).toHaveCount(0);
 });
 
 test('server-side validation errors are shown on the form', async ({ browser }) => {

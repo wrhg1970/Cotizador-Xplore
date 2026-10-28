@@ -79,7 +79,7 @@ export interface DashboardRequest {
   scenarios: number;
   /** Client price per student of the version that best represents the request, never costs. */
   price: { amount: string; currency: string } | null;
-  role: 'REQUESTER' | 'ASSIGNEE' | 'SUPPORT';
+  role: 'REQUESTER' | 'ASSIGNEE' | 'COMMERCIAL' | 'SUPPORT';
 }
 
 const QUOTED = ['IN_REVIEW', 'RETURNED', 'APPROVED', 'SENT'] as const;
@@ -277,6 +277,7 @@ export class DashboardController {
       take: REQUEST_LIMIT,
       include: {
         office: { select: { code: true } },
+        members: { where: { userId: user.id, kind: 'COMMERCIAL' }, select: { kind: true } },
         scenarios: {
           select: {
             versions: {
@@ -316,7 +317,14 @@ export class DashboardController {
         chaperones: r.chaperones,
         scenarios: r.scenarios.length,
         price: shown ? priceOf(shown) : null,
-        role: r.requesterId === user.id ? 'REQUESTER' : r.assigneeId === user.id ? 'ASSIGNEE' : 'SUPPORT',
+        role:
+          r.requesterId === user.id
+            ? 'REQUESTER'
+            : r.assigneeId === user.id
+              ? 'ASSIGNEE'
+              : r.members.length
+                ? 'COMMERCIAL'
+                : 'SUPPORT',
       };
     });
   }

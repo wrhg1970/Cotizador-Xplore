@@ -38,7 +38,7 @@ interface WorkRequest {
   chaperones: number;
   scenarios: number;
   price: { amount: string; currency: string } | null;
-  role: 'REQUESTER' | 'ASSIGNEE' | 'SUPPORT';
+  role: 'REQUESTER' | 'ASSIGNEE' | 'COMMERCIAL' | 'SUPPORT';
 }
 
 interface Dashboard {
@@ -97,6 +97,7 @@ const STAGES: { stage: Stage; name: string; about: string; waiting: string }[] =
 const ROLE_LABEL: Record<WorkRequest['role'], string> = {
   REQUESTER: 'Ejecutivo titular de la solicitud',
   ASSIGNEE: 'Cotizador titular',
+  COMMERCIAL: 'Ejecutivo comercial titular',
   SUPPORT: 'Comité / apoyo',
 };
 

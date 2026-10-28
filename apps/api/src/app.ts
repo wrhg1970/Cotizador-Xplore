@@ -16,7 +16,8 @@ import { HttpExceptionFilter } from './http-exception.filter.js';
 
 const CORRELATION_ID = /^[A-Za-z0-9-]{1,64}$/;
 
-const IMPORT_ROUTE = /^\/api\/v1\/(quotes\/[^/]+|requests)\/import$/;
+/** Routes that take a 3 MB file as base64: sheet imports and request attachments. */
+const IMPORT_ROUTE = /^\/api\/v1\/((quotes\/[^/]+|requests)\/import|requests\/[^/]+\/attachments)$/;
 
 export async function createApp(
   env: Env,
@@ -29,7 +30,7 @@ export async function createApp(
     logger: env.NODE_ENV === 'test' ? false : undefined,
     bodyParser: false,
   });
-  // Express's 100 kB default everywhere except the sheet upload (3 MB file as base64).
+  // Express's 100 kB default everywhere except file uploads (3 MB file as base64).
   const json = express.json();
   const importJson = express.json({ limit: '4500kb' });
   app.use((req: Request, res: Response, next: NextFunction) =>

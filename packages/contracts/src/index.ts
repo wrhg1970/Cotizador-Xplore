@@ -129,6 +129,18 @@ export const Priority = z.enum(['LOW', 'NORMAL', 'HIGH']);
 export const RequestStatus = z.enum(['DRAFT', 'SUBMITTED', 'QUOTING', 'SENT', 'WON', 'LOST', 'CANCELLED']);
 export type RequestStatus = z.infer<typeof RequestStatus>;
 
+/** Structured trip details (V2 "Especificaciones"); each block is free text. */
+export const TripSpecs = z.strictObject({
+  accommodation: OptionalText(2000),
+  receivingSchool: OptionalText(2000),
+  courses: OptionalText(2000),
+  transfersMeals: OptionalText(2000),
+  flightsExcursions: OptionalText(2000),
+  insuranceAccessibility: OptionalText(2000),
+  notIncluded: OptionalText(2000),
+});
+export type TripSpecs = z.infer<typeof TripSpecs>;
+
 const requestFields = {
   groupName: ShortText(150),
   clientName: OptionalText(150),
@@ -144,6 +156,7 @@ const requestFields = {
   requirements: OptionalText(4000),
   priority: Priority,
   dueDate: IsoDate.optional(),
+  specifications: TripSpecs.nullable().optional(),
 };
 
 /** Every request field, each optional: what a sheet importer may propose for the form. */
@@ -171,6 +184,31 @@ export const UpdateRequest = z
   .strictObject({ ...z.object(requestFields).partial().shape, version: z.number().int().min(1) })
   .refine(datesInOrder, datesMessage);
 export type UpdateRequest = z.infer<typeof UpdateRequest>;
+
+/** 3 MB file as base64 (4/3 overhead), sniffed server-side against an allowlist. */
+export const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
+export const UploadAttachment = z.strictObject({
+  fileName: ShortText(200),
+  fileBase64: z
+    .string()
+    .min(1)
+    .max(Math.ceil((MAX_ATTACHMENT_BYTES * 4) / 3) + 4),
+});
+/** Request team (V2): one commercial executive and up to 20 support people, all from the request's office. */
+export const SetRequestTeam = z
+  .strictObject({
+    commercialExecutiveId: z.uuid().nullable(),
+    supportIds: z.array(z.uuid()).max(20),
+  })
+  .refine(
+    (t) =>
+      new Set(t.supportIds).size === t.supportIds.length &&
+      !t.supportIds.includes(t.commercialExecutiveId ?? ''),
+    {
+      message: 'Cada persona aparece una sola vez en el equipo',
+      path: ['supportIds'],
+    },
+  );
 
 export const VersionOnly = z.strictObject({ version: z.number().int().min(1) });
 export const AssignRequest = z.strictObject({ assigneeId: z.uuid(), version: z.number().int().min(1) });
@@ -251,6 +289,21 @@ export const FxRateInput = z.strictObject({
   source: ShortText(150),
 });
 export type FxRateInput = z.infer<typeof FxRateInput>;
+
+/** Official EE rate (V2 "Tipos de cambio oficiales"): units of `toCurrency` per 1 `fromCurrency`. */
+export const OfficialRateInput = z
+  .strictObject({
+    fromCurrency: CurrencyCode,
+    toCurrency: CurrencyCode,
+    rate: DecimalString.refine((r) => Number(r) > 0, 'El tipo de cambio debe ser mayor que cero'),
+    rateDate: IsoDate,
+    source: ShortText(150),
+  })
+  .refine((r) => r.fromCurrency !== r.toCurrency, {
+    message: 'Las monedas deben ser distintas',
+    path: ['toCurrency'],
+  });
+export type OfficialRateInput = z.infer<typeof OfficialRateInput>;
 
 /** Registration + installments, per student; the schedule itself is computed by the engine. */
 export const PaymentPlanInput = z

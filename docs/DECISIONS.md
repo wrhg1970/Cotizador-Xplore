@@ -103,3 +103,12 @@
 - El periodo agrupa por fecha de creación (cohorte): una solicitud cuenta en el mes en que se abrió, aunque se gane después.
 - Montos por moneda, sin convertir: nunca se infieren tipos de cambio. Solo precio al cliente; margen y costos quedan fuera hasta que Will decida si los quiere (visibles solo con permiso de costos).
 - Lo ven coordinadores, auditores y administradores (mismos lectores que la bitácora).
+
+## Tipos de cambio oficiales y especificaciones del viaje (2026-10-28)
+- Tabla de tipos de cambio oficiales (V2 «Parámetros financieros»): la publica el administrador del sistema y queda como historial. En la cotización, «Usar tipos de cambio oficiales» copia el vigente con su fecha y la fuente «Tabla oficial EE · …»; cada cotización conserva su copia y sigue editable. Nunca se infiere un tipo de cambio: si no hay oficial para un par, se avisa y se captura a mano.
+- Especificaciones del viaje (V2 «Especificaciones»): siete bloques de texto opcionales en la solicitud. La bitácora registra que cambiaron, no su contenido. Por ahora no se imprimen en la propuesta al cliente.
+
+## Adjuntos y equipo por solicitud (2026-10-28)
+- Adjuntos en Postgres (bytea) y no en Cloud Storage: no requiere infraestructura nueva para el piloto. Límite 3 MB × 20 por solicitud; si crece el volumen, mover a un bucket.
+- El tipo se decide por los bytes (lista permitida) y la descarga es siempre `attachment` con `nosniff`, para que un archivo subido nunca se ejecute en el dominio. No hay antivirus: los archivos se reciben de usuarios internos con sesión de Workspace.
+- Equipo: ejecutivo comercial y apoyo, solo personas de la misma oficina. No da permisos extra (la visibilidad sigue siendo por oficina y rol); sirve para saber quién lleva la solicitud y para «Mi trabajo».

@@ -18,6 +18,7 @@ import {
   SHEET_BLOCKS,
   type ConceptTemplateDto,
   type FxRateDto,
+  type OfficialRateDto,
   type QuoteDto,
   type QuoteLineDto,
   type TravelRequestDto,
@@ -62,6 +63,7 @@ export default function QuoteEditorPage() {
   const [targetPrice, setTargetPrice] = useState('');
   const [byPrice, setByPrice] = useState(false);
   const [catalog, setCatalog] = useState<ConceptTemplateDto[]>([]);
+  const [officialRates, setOfficialRates] = useState<OfficialRateDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -84,6 +86,7 @@ export default function QuoteEditorPage() {
       (e) => setError(errorText(e)),
     );
     api<ConceptTemplateDto[]>('/concept-templates').then(setCatalog, () => setCatalog([]));
+    api<OfficialRateDto[]>('/official-rates').then(setOfficialRates, () => setOfficialRates([]));
   }, [id, load]);
 
   if (!q || !draft) return error ? <p className="error">{error}</p> : <p className="muted">Cargando…</p>;
@@ -97,6 +100,33 @@ export default function QuoteEditorPage() {
     set({ lines: draft.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
   const setFx = (i: number, patch: Partial<FxRateDto>) =>
     set({ fxRates: draft.fxRates.map((f, j) => (j === i ? { ...f, ...patch } : f)) });
+  /** Copies the current official rate for every foreign line currency; the quote keeps its own frozen copy. */
+  const applyOfficialRates = () => {
+    const foreign = [...new Set(draft.lines.map((l) => l.currency))].filter((c) => c !== draft.saleCurrency);
+    const found = officialRates.filter(
+      (r) => r.toCurrency === draft.saleCurrency && foreign.includes(r.fromCurrency),
+    );
+    const missing = foreign.filter((c) => !found.some((r) => r.fromCurrency === c));
+    set({
+      fxRates: [
+        ...draft.fxRates.filter((f) => !found.some((r) => r.fromCurrency === f.fromCurrency)),
+        ...found.map((r) => ({
+          fromCurrency: r.fromCurrency,
+          toCurrency: draft.saleCurrency,
+          rate: r.rate,
+          rateDate: r.rateDate,
+          source: `Tabla oficial EE · ${r.source}`.slice(0, 150),
+        })),
+      ],
+    });
+    setNotice(
+      missing.length
+        ? `Sin tipo oficial para ${missing.join(', ')} → ${draft.saleCurrency}; captúralo a mano.`
+        : found.length
+          ? 'Tipos de cambio oficiales aplicados; guarda para conservarlos.'
+          : 'Todos los conceptos están en la moneda de venta.',
+    );
+  };
   // Allowances count both travel days: return − departure + 1 (Finance, 2026-10-22).
   const tripDays = req ? (Date.parse(req.returnDate) - Date.parse(req.departureDate)) / 86_400_000 + 1 : null;
 
@@ -697,6 +727,9 @@ export default function QuoteEditorPage() {
               }
             >
               Agregar tipo de cambio
+            </button>{' '}
+            <button className="secondary" onClick={applyOfficialRates}>
+              Usar tipos de cambio oficiales
             </button>
           </section>
         </div>
