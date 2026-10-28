@@ -212,6 +212,8 @@ export interface QuoteDto {
     | 'groupFixedPerParticipant',
     string
   > | null;
+  /** Price per student at 15/20/25/30/35 students; null like `totals`. */
+  volumePrices: { participants: number; pricePerParticipant: string }[] | null;
   warnings: { code: string; message: string }[];
   reviews: { decision: 'APPROVED' | 'RETURNED'; reviewer: string; comment: string | null; at: string }[];
   deliveries: {

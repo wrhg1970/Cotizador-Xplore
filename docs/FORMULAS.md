@@ -82,3 +82,6 @@ Cada versión guarda `formulaSetId`, `formulaSetVersion`, inputs, FX, líneas, r
 - Alertar margen negativo o presupuesto excedido.
 - Rechazar fórmula no reconocida o variable no permitida.
 - Pruebas de regresión con hojas Excel aprobadas por Finanzas.
+
+## Tabla de precio por volumen (2026-10-28)
+`volumePrices` en cada cotización: precio por estudiante si el grupo fuera de 15, 20, 25, 30 o 35 estudiantes. Se recalcula con el mismo motor y los mismos conceptos, chaperones, staff, tipos de cambio y comisión; solo cambia el número de estudiantes, así que bajan los gastos de chaperones y fijos del grupo por estudiante. Ejemplo aprobado (Opción 1, 18%): a 20 estudiantes, (4020 + 1850 ÷ 20) ÷ 0.82 = 5015.24 → 5016 EUR. Es un dato derivado: no entra en el hash de aprobación y no se muestra al colegio.

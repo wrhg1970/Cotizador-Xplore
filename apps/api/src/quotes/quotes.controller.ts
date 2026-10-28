@@ -229,6 +229,19 @@ function calculate(v: FullVersion) {
   };
 }
 
+export const VOLUME_SIZES = [15, 20, 25, 30, 35] as const;
+
+/**
+ * V2 volume table: price per student if the group had N students, same costs, chaperones and margin.
+ * Derived from the version's inputs, so it stays out of the approval hash like `sheet`.
+ */
+export function volumePrices(v: FullVersion) {
+  return VOLUME_SIZES.map((participants) => ({
+    participants,
+    pricePerParticipant: money(engine({ ...v, participants }).pricePerParticipant),
+  }));
+}
+
 /**
  * The EE sheet's subtotals (V2 layout). Derived from the same inputs as `totals`, so it stays out of
  * the approval hash: adding display rows must not invalidate approvals already given.
@@ -261,6 +274,7 @@ function snapshotHash(v: FullVersion) {
     reviews: _rw,
     warnings: _w,
     sheet: _sh,
+    volumePrices: _vp,
     paymentSchedule: _ps,
     freePlaces: _fp,
     lines,
@@ -334,6 +348,7 @@ export function toDto(v: FullVersion) {
       source: f.source,
     })),
     totals: missingFx.length ? null : calculate(v),
+    volumePrices: missingFx.length ? null : volumePrices(v),
     sheet: missingFx.length ? null : sheet(v),
     warnings: [
       ...missingFx.map((c) => ({
