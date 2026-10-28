@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DEFAULT_POLICIES } from '../src/auth/authz.js';
 import { loginAs, makeApp, makeOffice, makeUser, prisma, uniq } from './helpers.js';
 
 let ctx: Awaited<ReturnType<typeof makeApp>>;
@@ -21,6 +22,7 @@ type Executive = {
   byOffice: (Bucket & { id: string })[];
   monthly: (Bucket & { month: string })[];
   upcoming: { folio: string }[];
+  requests: { status: string; reached: number; volumeMxn: string | null; commissionMxn?: string | null }[];
 };
 const executive = (cookie: string, query = '', status = 200) =>
   ctx.http().get(`/api/v1/dashboard/executive${query}`).set('Cookie', cookie).expect(status);
@@ -168,6 +170,39 @@ describe('executive dashboard', () => {
       progress: 40,
       withoutRate: 0,
     });
+  });
+
+  it('lists the cohort for the V2 funnel; commission only for roles that see internal costs', async () => {
+    const rows = ((await executive(c.adminA)).body as Executive).requests;
+    expect(rows.map((r) => [r.status, r.reached]).sort()).toEqual([
+      ['LOST', 4],
+      ['SUBMITTED', 1],
+      ['WON', 5],
+      ['WON', 5],
+    ]);
+    // Office A's won trips are in EUR without an MXN rate: no volume is inferred.
+    expect(rows.find((r) => r.status === 'WON')).toMatchObject({ volumeMxn: null, commissionMxn: null });
+    // Office B's has a 20 MXN rate since the goals test: 10 × 2 000 × 20, at 0% commission.
+    const b = ((await executive(c.sysadmin, `?officeId=${officeB}`)).body as Executive).requests;
+    expect(b[0]).toMatchObject({ volumeMxn: '400000.00', commissionMxn: '0.00' });
+
+    const sys = await makeUser([{ officeId: officeB, role: 'SYSTEM_ADMIN' }]);
+    const sysCookie = (await loginAs(ctx, sys.email)).cookie!;
+    const setAuditor = (viewInternalCosts: boolean) =>
+      ctx
+        .http()
+        .put('/api/v1/role-policies/AUDITOR')
+        .set('Cookie', sysCookie)
+        .send({ ...DEFAULT_POLICIES.AUDITOR, viewInternalCosts, exportInternalXlsx: viewInternalCosts })
+        .expect(200);
+    await setAuditor(false);
+    try {
+      const hidden = ((await executive(c.auditorA)).body as Executive).requests;
+      expect(hidden).toHaveLength(4);
+      expect(hidden.every((r) => !('commissionMxn' in r))).toBe(true);
+    } finally {
+      await setAuditor(true);
+    }
   });
 
   it('the period filters by creation date', async () => {
