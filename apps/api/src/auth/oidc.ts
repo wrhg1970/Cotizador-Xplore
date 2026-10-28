@@ -17,7 +17,8 @@ export interface LoginChecks {
 
 /** Seam for tests; the Google implementation delegates issuer/audience/nonce/expiry checks to openid-client. */
 export interface OidcProvider {
-  authorizationUrl(checks: LoginChecks): Promise<URL>;
+  /** redirectUri overrides the default one for an agency's own domain (also registered in Google). */
+  authorizationUrl(checks: LoginChecks, redirectUri?: string): Promise<URL>;
   exchange(currentUrl: URL, checks: LoginChecks): Promise<IdClaims>;
 }
 export const OIDC = Symbol('OIDC');
@@ -40,9 +41,9 @@ export class GoogleOidcProvider implements OidcProvider {
     return this.config;
   }
 
-  async authorizationUrl({ state, nonce, codeVerifier }: LoginChecks): Promise<URL> {
+  async authorizationUrl({ state, nonce, codeVerifier }: LoginChecks, redirectUri?: string): Promise<URL> {
     return client.buildAuthorizationUrl(await this.discover(), {
-      redirect_uri: this.redirectUri,
+      redirect_uri: redirectUri ?? this.redirectUri,
       scope: 'openid email profile',
       state,
       nonce,

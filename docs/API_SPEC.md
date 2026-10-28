@@ -108,6 +108,8 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `PUT /agency/logo` (administrador del sistema): `{ fileName, fileBase64 }`, PNG o JPG comprobado por bytes, máx. 512 KB. `DELETE /agency/logo` lo quita. Auditados.
 - `GET /agencies/{id}/logo` (público): la imagen, con `nosniff` y caché de un día; la URL cambia al cambiar el logo.
 - `GET /branding` (público): marca del dominio desde el que se abre la página (`X-Forwarded-Host`), EE si ningún dominio coincide; sin pie ni remitente.
+- `GET /agencies`, `POST /agencies` (`CreateAgency`: agencia, dominios de Google, primera oficina y su administrador del sistema; copia el catálogo de rubros de EE) y `PATCH /agencies/{id}` (`UpdateAgency`: nombre, dominios, activa). Solo administradores del sistema de EE (`/me` → `platformAdmin`). Desactivar cierra las sesiones de la agencia; EE no se puede desactivar.
+- `GET /auth/google/login` abierto desde el dominio propio de una agencia usa `https://{dominio}/api/v1/auth/google/callback` y regresa a ese dominio.
 - La propuesta (`/quotes/{id}/proposal` y la liga pública) incluye `brand` (nombre, logo, pie, colores) de la agencia de la solicitud.
 
 ## Contratos de referencia

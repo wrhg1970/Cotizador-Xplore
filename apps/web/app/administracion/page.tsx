@@ -12,6 +12,7 @@ import {
 } from '@ee/contracts';
 import { toBase64 } from '../cotizaciones/[id]/SheetImport';
 import { Logo } from '../Logo';
+import { Agencies } from './Agencies';
 import { fmtDate, type OfficialRateDto, ROLE_LABEL, type RolePolicy } from '../lib/types';
 import { useMe } from '../lib/useMe';
 
@@ -666,6 +667,8 @@ export default function AdminPage() {
           </form>
         )}
       </section>
+
+      {me?.platformAdmin && <Agencies />}
 
       <section aria-labelledby="integraciones">
         <h2 id="integraciones">Integraciones</h2>

@@ -15,6 +15,8 @@ export interface Me {
   name: string;
   roles: { officeId: string; role: string }[];
   policies?: Partial<Record<string, RolePolicy>>;
+  /** EE system admin: registers other agencies. */
+  platformAdmin?: boolean;
 }
 
 export interface RolePolicy {

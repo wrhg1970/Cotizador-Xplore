@@ -22,7 +22,8 @@ import { CreateOffice, InviteUser, type Me, OfficeRoleInput, UpdateOffice, UserO
 import type { PrismaClient } from '@ee/db';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
-import { canGrantRole, hasOfficeRole, isSystemAdmin, officeScope } from '../auth/authz.js';
+import { canGrantRole, hasOfficeRole, isPlatformAdmin, isSystemAdmin, officeScope } from '../auth/authz.js';
+import { agencyDomains } from '../agency/brand.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { ENV, type Env } from '../env.js';
 import { PRISMA } from '../prisma.service.js';
@@ -39,7 +40,7 @@ export class UsersController {
 
   @Get('me')
   me(@CurrentUser() user: AuthUser): Me {
-    return user;
+    return { ...user, platformAdmin: isPlatformAdmin(user) };
   }
 
   @Get('offices')
@@ -237,7 +238,8 @@ export class UsersController {
   ) {
     if (!canGrantRole(user, body.officeId, body.role)) throw new ForbiddenException();
     const domain = body.email.split('@')[1] ?? '';
-    if (!this.env.ALLOWED_GOOGLE_DOMAINS.includes(domain)) {
+    const agency = await this.prisma.agency.findUniqueOrThrow({ where: { id: user.agencyId } });
+    if (!agencyDomains(agency, this.env).includes(domain)) {
       throw new BadRequestException({
         code: 'DOMAIN_NOT_ALLOWED',
         message: 'Dominio de correo no permitido',

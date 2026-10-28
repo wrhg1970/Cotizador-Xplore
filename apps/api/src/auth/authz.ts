@@ -1,4 +1,5 @@
 import type { EditableRole, RoleName, RolePolicyInput } from '@ee/contracts';
+import { EE_AGENCY_ID } from '@ee/db';
 import type { AuthUser, OfficeRole } from './auth.types.js';
 
 /** Same values the role_policies migration seeds: the fixed rules from before Sprint C. */
@@ -21,6 +22,10 @@ export const DEFAULT_POLICIES: Record<EditableRole, RolePolicyInput> = {
 
 /** SYSTEM_ADMIN covers its whole agency (PRD F-01); every other role is scoped to its office. */
 export const isSystemAdmin = (user: AuthUser): boolean => user.roles.some((r) => r.role === 'SYSTEM_ADMIN');
+
+/** System admin of Estudiantes Embajadores, the platform owner: the only one who registers agencies. */
+export const isPlatformAdmin = (user: AuthUser): boolean =>
+  isSystemAdmin(user) && user.agencyId === EE_AGENCY_ID;
 
 const policy = (user: AuthUser, role: EditableRole): RolePolicyInput =>
   user.policies?.[role] ?? DEFAULT_POLICIES[role];

@@ -89,6 +89,8 @@ export const Me = z.object({
   name: z.string(),
   roles: z.array(z.object({ officeId: z.uuid(), role: RoleName })),
   policies: z.partialRecord(EditableRole, RolePolicyInput).optional(),
+  /** System admin of Estudiantes Embajadores: registers other agencies. */
+  platformAdmin: z.boolean().optional(),
 });
 export type Me = z.infer<typeof Me>;
 
@@ -619,3 +621,27 @@ export const UploadLogo = z.strictObject({
     .min(1)
     .max(Math.ceil((MAX_LOGO_BYTES * 4) / 3) + 4),
 });
+
+/** Google Workspace domains whose accounts may sign in to an agency (the login also checks the hd claim). */
+export const AllowedDomains = z.array(Hostname).min(1).max(20);
+
+/** A new agency with its first office and system admin (Administración → Agencias, Xplore only). */
+export const CreateAgency = z.strictObject({
+  code: z
+    .string()
+    .trim()
+    .regex(/^[A-Z0-9-]{2,20}$/, 'Código: 2–20 mayúsculas, dígitos o guiones'),
+  name: Name,
+  allowedDomains: AllowedDomains,
+  officeCode: CreateOffice.shape.code,
+  officeName: Name,
+  adminEmail: Email,
+  adminName: Name,
+});
+export type CreateAgency = z.infer<typeof CreateAgency>;
+
+export const UpdateAgency = z
+  .strictObject({ name: Name, allowedDomains: AllowedDomains, active: z.boolean() })
+  .partial()
+  .refine((b) => Object.keys(b).length > 0, 'Nada que cambiar');
+export type UpdateAgency = z.infer<typeof UpdateAgency>;

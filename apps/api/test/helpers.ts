@@ -28,7 +28,9 @@ export const testEnv = (overrides: Record<string, string> = {}) =>
 /** Mimics Google: state must round-trip, claims are whatever the test sets. */
 export class FakeOidc implements OidcProvider {
   claims: IdClaims = { sub: 'nobody' };
-  async authorizationUrl({ state }: LoginChecks): Promise<URL> {
+  redirectUri?: string;
+  async authorizationUrl({ state }: LoginChecks, redirectUri?: string): Promise<URL> {
+    this.redirectUri = redirectUri;
     return new URL(`https://accounts.example/auth?state=${state}`);
   }
   async exchange(url: URL, checks: LoginChecks): Promise<IdClaims> {
@@ -71,7 +73,9 @@ export async function makeOffice(agencyId = EE_AGENCY_ID) {
 }
 
 export async function makeAgency() {
-  return prisma.agency.create({ data: { code: `AG-${uniq()}`.toUpperCase(), name: 'Agencia prueba' } });
+  return prisma.agency.create({
+    data: { code: `AG-${uniq()}`.toUpperCase(), name: 'Agencia prueba', allowedDomains: [DOMAIN] },
+  });
 }
 
 export async function makeUser(
@@ -86,9 +90,18 @@ export async function makeUser(
 }
 
 /** Runs the full fake login and returns the session cookie header. */
-export async function loginAs(ctx: Awaited<ReturnType<typeof makeApp>>, email: string, sub = `sub-${email}`) {
-  ctx.oidc.claims = { sub, email, email_verified: true, hd: DOMAIN, name: 'Usuario' };
-  const start = await ctx.http().get('/api/v1/auth/google/login').expect(302);
+export async function loginAs(
+  ctx: Awaited<ReturnType<typeof makeApp>>,
+  email: string,
+  sub = `sub-${email}`,
+  host?: string,
+) {
+  ctx.oidc.claims = { sub, email, email_verified: true, hd: email.split('@')[1], name: 'Usuario' };
+  const start = await ctx
+    .http()
+    .get('/api/v1/auth/google/login')
+    .set('X-Forwarded-Host', host ?? '127.0.0.1')
+    .expect(302);
   const state = new URL(start.headers.location as string).searchParams.get('state');
   const loginCookie = (start.headers['set-cookie'] as unknown as string[])[0]!.split(';')[0]!;
   const cb = await ctx

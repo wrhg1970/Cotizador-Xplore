@@ -11,7 +11,7 @@
 
 ## Controles obligatorios
 1. OIDC con Google; validar `issuer`, `audience`, `state`, `nonce`, expiración y redirect URI exacta.
-2. Lista de dominios permitidos más control de acceso explícito. Un dominio válido no equivale automáticamente a rol de administrador.
+2. Lista de dominios permitidos por agencia (Workspace, claim `hd`) más invitación explícita. Un dominio válido no equivale automáticamente a rol de administrador. Solo un administrador del sistema de EE da de alta agencias y sus dominios; el administrador de cada agencia solo invita correos de sus propios dominios. Un login desde el dominio propio de una agencia guarda ese origen en la cookie firmada del inicio de sesión, así que la redirección nunca depende del encabezado Host del callback.
 3. RBAC + scope por agencia, oficina y recurso en cada endpoint. Aislamiento multi-agencia: la sesión carga la agencia del usuario y sus oficinas (`agencyOfficeIds`); `officeScope`/`officesWithRole` devuelven siempre una lista de oficinas de esa agencia (ya no existe «todas»), `hasOfficeRole` y demás reglas nunca aceptan una oficina ajena aunque el usuario sea administrador del sistema, y los catálogos/configuración de agencia se consultan con `agency_id` del usuario. Una agencia desactivada pierde el acceso en la siguiente petición. Pruebas: `apps/api/test/agency-isolation.test.ts`.
 4. Cookies `HttpOnly`, `Secure`, `SameSite`; rotación/expiración de sesión y CSRF según arquitectura.
 5. HTTPS obligatorio; cifrado en reposo administrado por proveedor.

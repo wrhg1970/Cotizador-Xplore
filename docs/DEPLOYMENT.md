@@ -30,7 +30,7 @@ Todas van en el gestor de secretos del proveedor, nunca en la imagen ni en el re
 - `NODE_ENV=production`
 - `API_PUBLIC_URL` y `WEB_ORIGIN`: la URL pública, por ejemplo `https://cotizador.estudiantesembajadores.com` en ambas si web y API comparten dominio (recomendado).
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-- `ALLOWED_GOOGLE_DOMAINS`: dominios de Google Workspace separados por coma.
+- `ALLOWED_GOOGLE_DOMAINS`: dominios de Google Workspace de Estudiantes Embajadores, separados por coma (los de otras agencias se registran en Administración → Agencias).
 - `SESSION_SECRET`: `openssl rand -hex 32`.
 - `VERTEX_PROJECT` (opcional): proyecto de Google Cloud para el importador con IA; sin él, el importador responde 503. `VERTEX_LOCATION` (por defecto `global`) y `VERTEX_MODEL` (por defecto `gemini-3.8-flash`). `deploy.sh` lo configura solo y da a la cuenta de servicio el rol `roles/aiplatform.user`.
 - Avisos por correo (opcional): `SMTP_HOST`, `SMTP_PORT` (465 por defecto; otro puerto exige STARTTLS), `SMTP_USER`, `SMTP_PASSWORD` y `MAIL_FROM` (por defecto `SMTP_USER`). Sin host, usuario o contraseña los avisos quedan apagados y el flujo funciona igual.
@@ -62,6 +62,22 @@ ${API_PUBLIC_URL}/api/v1/auth/google/callback
 ```
 
 Con dominio compartido, el balanceador o CDN enruta todo al servicio `web`; la API solo necesita ser accesible desde `web`, salvo `/api/v1/auth/google/callback`, que pasa por el mismo reenvío `/api`.
+
+## Login de otras agencias (consentimiento de Google Externo)
+
+Cada agencia entra con las cuentas de Google Workspace de sus propios dominios, que se registran en Administración → Agencias (solo para administradores del sistema de EE). `ALLOWED_GOOGLE_DOMAINS` sigue siendo la lista de dominios de Estudiantes Embajadores, que se suma a los de su agencia; las demás agencias no usan esa variable.
+
+Hoy la pantalla de consentimiento OAuth del proyecto está en **Interno**, así que Google solo deja entrar cuentas de la organización de Workspace dueña del proyecto. Antes de dar de alta la primera agencia de otra organización:
+
+1. Google Cloud Console → APIs y servicios → Pantalla de consentimiento de OAuth (Google Auth Platform → Audiencia) → Tipo de usuario: **Externo**.
+2. Estado de publicación: **En producción**. En «Prueba» solo entran hasta 100 usuarios de prueba agregados a mano y la sesión de Google caduca a los 7 días.
+3. Completar nombre de la app, logo, correo de soporte, dominios autorizados (`xploretogether.travel` y los dominios propios de las agencias) y las ligas de política de privacidad y términos de servicio.
+4. Alcances: solo `openid`, `email` y `profile`. No son sensibles, así que Google no exige una revisión de seguridad, pero sí puede pedir verificar la marca (nombre y logo, unos días). Mientras no esté verificada, los usuarios ven el aviso «Google no verificó esta app».
+
+Qué cambia y qué no:
+- Con «Externo», Google deja pasar cualquier cuenta. El cotizador sigue rechazando a quien no tenga un correo invitado de un dominio de su agencia con el claim `hd` de Workspace (las cuentas de Gmail no entran).
+- Los usuarios de EE no notan diferencia, salvo, si acaso, una pantalla de consentimiento la primera vez.
+- Siguiente paso, no incluido: agencias sin Google Workspace (correo y contraseña, o Microsoft Entra ID). Requiere otro proveedor OIDC en `auth/oidc.ts`, verificar el correo por enlace y, para contraseñas, hash Argon2 con límite de intentos.
 
 ## Dominio propio de una agencia
 

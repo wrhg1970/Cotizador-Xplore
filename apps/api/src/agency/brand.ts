@@ -1,4 +1,5 @@
 import { EE_AGENCY_ID, type Agency, type PrismaClient } from '@ee/db';
+import type { Env } from '../env.js';
 import type { AgencyBrand } from '@ee/contracts';
 
 type BrandRow = Omit<Agency, 'logo'>;
@@ -36,3 +37,9 @@ export const mailBrand = (a: BrandRow, webOrigin: string) => ({
   origin: a.customDomain ? `https://${a.customDomain}` : webOrigin,
   signature: `Cotizador de ${a.brandName ?? a.name}. Aviso automático, no respondas este correo.`,
 });
+
+/** Google Workspace domains of an agency; EE also keeps the ones in ALLOWED_GOOGLE_DOMAINS. */
+export const agencyDomains = (
+  a: Pick<Agency, 'id' | 'allowedDomains'>,
+  env: Pick<Env, 'ALLOWED_GOOGLE_DOMAINS'>,
+) => [...a.allowedDomains, ...(a.id === EE_AGENCY_ID ? env.ALLOWED_GOOGLE_DOMAINS : [])];

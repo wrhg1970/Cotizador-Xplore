@@ -36,6 +36,8 @@ model Agency {
   accentColor      String?           @map("accent_color") @db.Char(7)
   proposalFooter   String?           @map("proposal_footer")
   mailFromName     String?           @map("mail_from_name")
+  /// Google Workspace domains that may sign in (EE also keeps ALLOWED_GOOGLE_DOMAINS from the environment).
+  allowedDomains   String[]          @default([]) @map("allowed_domains")
   /// Own hostname (cotizador.agencia.com) that serves this agency's brand and links.
   customDomain     String?           @unique @map("custom_domain")
   /// PNG/JPEG checked from the bytes, max 512 KB (CHECK in the migration); served publicly for the login page.
