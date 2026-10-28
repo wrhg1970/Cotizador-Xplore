@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { api } from './lib/api';
+import { Logo } from './Logo';
 import { useMe } from './lib/useMe';
 
 export function Shell({ children }: { children: ReactNode }) {
@@ -30,7 +31,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <header className="top">
           <div className="bar">
             <Link className="brand" href="/inicio">
-              xplore<span>·</span>together
+              <Logo height={44} />
             </Link>
             <nav aria-label="Principal">
               <Link href="/inicio" aria-current={current('/inicio')}>
