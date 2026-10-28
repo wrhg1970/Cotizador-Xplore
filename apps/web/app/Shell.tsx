@@ -41,6 +41,11 @@ export function Shell({ children }: { children: ReactNode }) {
                 Solicitudes
               </Link>
               <Link href="/solicitudes?assignedToMe=true">Mis tareas</Link>
+              {me?.roles.some((r) => ['OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'].includes(r.role)) && (
+                <Link href="/tablero" aria-current={current('/tablero')}>
+                  Dashboard ejecutivo
+                </Link>
+              )}
               {me?.roles.some((r) => r.role === 'OFFICE_ADMIN' || r.role === 'SYSTEM_ADMIN') && (
                 <Link href="/usuarios" aria-current={current('/usuarios')}>
                   Usuarios

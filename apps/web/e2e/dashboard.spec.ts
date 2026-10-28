@@ -74,3 +74,26 @@ test('system admin changes a role policy and creates an office', async ({ browse
   await expect(page.getByText(`${code} · Oficina Monterrey`)).toBeVisible();
   await ctx.close();
 });
+
+test('executive dashboard: office admins see the indicators, advisors get no link', async ({ browser }) => {
+  const office = await newOffice();
+  const admin = await userWithSession(office.id, 'OFFICE_ADMIN', 'Olga');
+  const advisor = await userWithSession(office.id, 'ADVISOR', 'Ana');
+  const ctx = await browser.newContext();
+  await ctx.addCookies([advisor.cookie]);
+  const page = await ctx.newPage();
+  await page.goto('/inicio');
+  await expect(page.getByRole('link', { name: 'Mi trabajo' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Dashboard ejecutivo' })).toHaveCount(0);
+  await ctx.clearCookies();
+  await ctx.addCookies([admin.cookie]);
+  await page.goto('/inicio');
+  await page.getByRole('link', { name: 'Dashboard ejecutivo' }).click();
+  await expect(page.getByRole('heading', { name: 'Dashboard ejecutivo' })).toBeVisible();
+  await expect(page.getByLabel('Indicadores')).toContainText('Conversión');
+  await page.getByLabel('Creadas desde').fill('2020-01-01');
+  await page.getByLabel('hasta').fill('2020-12-31');
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(page.getByLabel('Indicadores')).toContainText('Solicitudes0');
+  await ctx.close();
+});

@@ -1,12 +1,14 @@
-import { Controller, Get, Inject } from '@nestjs/common';
-import type { RequestStatus, RoleName } from '@ee/contracts';
+import { Controller, ForbiddenException, Get, Inject, Query } from '@nestjs/common';
+import { ExecutiveDashboardQuery, type RequestStatus, type RoleName } from '@ee/contracts';
 import type { Prisma, PrismaClient } from '@ee/db';
 import type { AuthUser } from '../auth/auth.types.js';
 import { officeScope, officesWithRole } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
-import { QuoteEngineError } from '@ee/quote-engine';
+import { D, type Dec, QuoteEngineError } from '@ee/quote-engine';
 import { engine } from '../quotes/quotes.controller.js';
+import type { z } from 'zod';
+import { ZodPipe } from '../zod.pipe.js';
 
 export type TaskKind =
   'SUBMIT_REQUEST' | 'ASSIGN' | 'QUOTE' | 'FIX_QUOTE' | 'APPROVE' | 'SEND' | 'RECORD_OUTCOME';
@@ -101,6 +103,17 @@ const stageOf = (status: RequestStatus, versions: { status: string }[]): Stage =
   return versions.some((v) => v.status === 'IN_REVIEW' || v.status === 'RETURNED') ? 2 : 1;
 };
 
+/** Who reads the executive dashboard: same readers as the audit log. */
+const EXECUTIVES = ['OFFICE_ADMIN', 'AUDITOR'] as const;
+const UPCOMING_DAYS = 60;
+
+/** Money per currency: never added across currencies, since exchange rates are not inferred. */
+type Sums = Record<string, Dec>;
+const addTo = (sums: Sums, currency: string, x: Dec) => {
+  sums[currency] = (sums[currency] ?? new D(0)).plus(x);
+};
+const fixed = (sums: Sums) => Object.fromEntries(Object.entries(sums).map(([c, x]) => [c, x.toFixed(2)]));
+
 // shortcut: unpaged lists capped at TASK_LIMIT per kind, fine for pilot volumes; page them if offices grow.
 const TASK_LIMIT = 50;
 const REQUEST_LIMIT = 100;
@@ -120,6 +133,132 @@ export class DashboardController {
     const byDue = (a: DashboardTask, b: DashboardTask) =>
       (a.dueDate ?? a.departureDate).localeCompare(b.dueDate ?? b.departureDate);
     return { tasks: tasks.sort(byDue), offices, requests };
+  }
+
+  /**
+   * Executive view (V2 dashboards): the cohort of requests created in the period, by stage, outcome,
+   * office and month. Client prices only, per currency; costs and margin never leave the quote screens.
+   */
+  @Get('executive')
+  async executive(
+    @CurrentUser() user: AuthUser,
+    @Query(new ZodPipe(ExecutiveDashboardQuery)) q: z.infer<typeof ExecutiveDashboardQuery>,
+  ) {
+    const scope = officesWithRole(user, EXECUTIVES);
+    if (scope !== 'ALL' && scope.length === 0)
+      throw new ForbiddenException(
+        'Solo coordinadores, auditores y administradores ven el tablero ejecutivo',
+      );
+    if (q.officeId && scope !== 'ALL' && !scope.includes(q.officeId)) throw new ForbiddenException();
+
+    const today = new Date().toISOString().slice(0, 10);
+    const from = q.from ?? `${today.slice(0, 4)}-01-01`;
+    const to = q.to ?? today;
+    const offices: Prisma.TravelRequestWhereInput = q.officeId
+      ? { officeId: q.officeId }
+      : scope === 'ALL'
+        ? {}
+        : { officeId: { in: scope } };
+    const soon = new Date(Date.now() + UPCOMING_DAYS * 86_400_000);
+
+    // shortcut: whole cohort loaded and aggregated in memory, fine for pilot volumes; move to SQL if it grows.
+    const [rows, upcoming] = await Promise.all([
+      this.prisma.travelRequest.findMany({
+        where: {
+          ...offices,
+          status: { not: 'DRAFT' },
+          createdAt: {
+            gte: new Date(`${from}T00:00:00Z`),
+            lt: new Date(new Date(`${to}T00:00:00Z`).getTime() + 86_400_000),
+          },
+        },
+        select: {
+          status: true,
+          createdAt: true,
+          participants: true,
+          office: { select: { id: true, code: true, name: true } },
+          scenarios: { select: { versions: { select: { status: true } } } },
+          wonVersion: { include: { lines: true, fxRates: true } },
+        },
+      }),
+      this.prisma.travelRequest.findMany({
+        where: { ...offices, status: 'WON', departureDate: { gte: new Date(today), lte: soon } },
+        select: { ...requestSelect, participants: true, chaperones: true },
+        orderBy: { departureDate: 'asc' },
+        take: TASK_LIMIT,
+      }),
+    ]);
+
+    type Bucket = {
+      requests: number;
+      open: number;
+      won: number;
+      lost: number;
+      cancelled: number;
+      wonAmount: Sums;
+      wonStudents: number;
+    };
+    const bucket = (): Bucket => ({
+      requests: 0,
+      open: 0,
+      won: 0,
+      lost: 0,
+      cancelled: 0,
+      wonAmount: {},
+      wonStudents: 0,
+    });
+    const totals = bucket();
+    const funnel: Record<Stage, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    const byOffice = new Map<string, Bucket & { id: string; code: string; name: string }>();
+    const byMonth = new Map<string, Bucket>();
+    for (const r of rows) {
+      const office = byOffice.get(r.office.id) ?? { ...r.office, ...bucket() };
+      byOffice.set(r.office.id, office);
+      const month = r.createdAt.toISOString().slice(0, 7);
+      const monthly = byMonth.get(month) ?? bucket();
+      byMonth.set(month, monthly);
+      const price = r.status === 'WON' && r.wonVersion ? priceOf(r.wonVersion) : null;
+      for (const b of [totals, office, monthly]) {
+        b.requests++;
+        if (r.status === 'WON') {
+          b.won++;
+          b.wonStudents += r.participants;
+          if (price) addTo(b.wonAmount, price.currency, new D(price.amount).mul(r.wonVersion!.participants));
+        } else if (r.status === 'LOST') b.lost++;
+        else if (r.status === 'CANCELLED') b.cancelled++;
+        else b.open++;
+      }
+      if (['SUBMITTED', 'QUOTING', 'SENT'].includes(r.status))
+        funnel[
+          stageOf(
+            r.status,
+            r.scenarios.flatMap((s) => s.versions),
+          )
+        ]++;
+    }
+    const out = (b: Bucket) => ({
+      ...b,
+      wonAmount: fixed(b.wonAmount),
+      conversion: b.won + b.lost ? Math.round((b.won / (b.won + b.lost)) * 1000) / 10 : null,
+    });
+    return {
+      period: { from, to },
+      totals: out(totals),
+      funnel: ([1, 2, 3, 4] as const).map((stage) => ({ stage, count: funnel[stage] })),
+      byOffice: [...byOffice.values()].sort((a, b) => a.code.localeCompare(b.code)).map(out),
+      monthly: [...byMonth.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, b]) => ({ month, ...out(b) })),
+      upcoming: upcoming.map((r) => ({
+        id: r.id,
+        folio: r.folio,
+        groupName: r.groupName,
+        officeCode: r.office.code,
+        departureDate: day(r.departureDate)!,
+        participants: r.participants,
+        chaperones: r.chaperones,
+      })),
+    };
   }
 
   /** Open requests in the user's scope (won trips until they depart), same visibility as the counts. */
