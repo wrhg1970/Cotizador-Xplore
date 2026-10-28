@@ -195,7 +195,15 @@ describe('integrations status', () => {
       key: string;
       configured: boolean;
     }[];
-    expect(res.map((i) => i.key)).toEqual(['GOOGLE', 'MAIL', 'VERTEX', 'WETRAVEL', 'WISSIFY']);
+    expect(res.map((i) => i.key)).toEqual([
+      'GOOGLE',
+      'MAIL',
+      'VERTEX',
+      'WETRAVEL',
+      'BANXICO',
+      'CRON',
+      'WISSIFY',
+    ]);
     expect(res.find((i) => i.key === 'WISSIFY')?.configured).toBe(false);
     expect(JSON.stringify(res)).not.toMatch(/secret|password|key"\s*:\s*"[^A-Z]/i);
   });

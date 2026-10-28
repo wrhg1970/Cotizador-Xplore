@@ -93,6 +93,10 @@ export default function AdminPage() {
     if (await run(done, () => api('/official-rates', { method: 'POST', body }))) form.reset();
   }
 
+  async function pullBanxico() {
+    await run('Tipos de cambio de Banxico al día', () => api('/official-rates/banxico', { method: 'POST' }));
+  }
+
   if (me && !isSysAdmin) return <p className="error">Solo un administrador del sistema puede entrar aquí.</p>;
 
   return (
@@ -172,8 +176,12 @@ export default function AdminPage() {
         <h2 id="tipos">Tipos de cambio oficiales</h2>
         <p className="muted">
           Los cotizadores los usan para prellenar cada cotización, que guarda su propia copia con fecha y
-          fuente. Publicar uno nuevo no cambia cotizaciones existentes; el historial no se borra.
+          fuente. Publicar uno nuevo no cambia cotizaciones existentes; el historial no se borra. USD y EUR se
+          traen solos de Banxico (FIX) cada día hábil cuando el token está configurado.
         </p>
+        <button type="button" className="secondary" onClick={() => void pullBanxico()}>
+          Traer de Banxico ahora
+        </button>
         {rates.length > 0 && (
           <div className="table-wrap">
             <table aria-label="Tipos de cambio vigentes">

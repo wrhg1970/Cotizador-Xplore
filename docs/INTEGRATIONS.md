@@ -35,6 +35,9 @@ Configuración: `WETRAVEL_API_KEY` (Secret Manager `cotizador-wetravel-api-key`)
 
 Pendiente (no implementado): leer pagos/reservas (`/transactions`, `/orders`) y webhooks (Svix) para reflejar cobranza en el cotizador.
 
+## Banxico (tipo de cambio)
+API SIE pública (`GET /SieAPIRest/service/v1/series/SF43718,SF46410/datos/oportuno`, header `Bmx-Token`). Se guarda cada valor como tipo de cambio oficial con fecha, fuente (`Banxico FIX (SIE SF43718)`) y autor (administrador o "Proceso automático"). Cada cotización sigue congelando su propia copia al usar "Usar tipos de cambio oficiales".
+
 ## Wissify
 2026-10-27: no se encontró API ni documentación pública (empresa en México; sin portal de desarrolladores). Nada implementado hasta que EE consiga documentación y credenciales del proveedor.
 Caso de uso a validar: identificar el producto/cuenta Wissify exacto, API y esquema de datos; mapear grupos, programa y datos necesarios. “Wissify” debe confirmarse como sistema/servicio y no se deben inventar endpoints.

@@ -330,9 +330,10 @@ model OfficialRate {
   rate         Decimal  @db.Decimal(20, 10)
   rateDate     DateTime @map("rate_date") @db.Date
   source       String
-  capturedById String   @map("captured_by_id") @db.Uuid
+  /// Null when a scheduled process (Banxico) captured it.
+  capturedById String?  @map("captured_by_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  capturedBy   User     @relation(fields: [capturedById], references: [id], onDelete: Restrict)
+  capturedBy   User?    @relation(fields: [capturedById], references: [id], onDelete: Restrict)
 
   @@index([fromCurrency, toCurrency, createdAt])
   @@map("official_rates")

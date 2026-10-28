@@ -83,6 +83,10 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `GET /integrations/jobs/{jobId}`
 - `POST /webhooks/{provider}` (validación de firma requerida)
 
+### Tareas programadas
+- `POST /official-rates/banxico` (administrador del sistema): publica los tipos de Banxico del día.
+- `POST /cron/daily` (sin sesión; header `X-Cron-Secret`): Banxico y avisos diarios. 404 si no hay `CRON_SECRET`.
+
 ## Contratos de referencia
 ### Crear solicitud
 ```json

@@ -57,6 +57,17 @@ const Env = z.object({
     .string()
     .optional()
     .transform((v) => v || undefined),
+  // Banxico SIE token (free, banxico.org.mx); automatic official rates are off when unset.
+  BANXICO_TOKEN: z
+    .string()
+    .optional()
+    .transform((v) => v || undefined),
+  // Shared secret Cloud Scheduler sends to POST /cron/daily; the route answers 404 when unset.
+  CRON_SECRET: z
+    .string()
+    .min(32)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
   /** Sandbox: https://api.demo.wetravel.to/v3 */
   WETRAVEL_API_URL: z.url().default('https://api.wetravel.com/v3'),
 });

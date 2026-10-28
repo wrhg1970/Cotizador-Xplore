@@ -7,6 +7,7 @@ import { loadEnv } from '../src/env.js';
 import type { Mail, Mailer } from '../src/notify/notifier.js';
 import type { SheetReader } from '../src/quotes/sheet-import.js';
 import type { WeTravel } from '../src/integrations/wetravel.js';
+import type { Banxico } from '../src/rates/banxico.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) throw new Error('DATABASE_URL es obligatorio para las pruebas de la API');
@@ -53,8 +54,10 @@ export async function makeApp(
   reader?: SheetReader,
   mailer?: Mailer,
   wetravel?: WeTravel,
+  banxico?: Banxico,
+  env = testEnv(),
 ) {
-  const app: INestApplication = await createApp(testEnv(), oidc, reader, mailer, wetravel);
+  const app: INestApplication = await createApp(env, oidc, reader, mailer, wetravel, banxico);
   await app.init();
   return { app, oidc, http: () => request(app.getHttpServer()) };
 }
