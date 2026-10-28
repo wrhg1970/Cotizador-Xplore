@@ -68,6 +68,30 @@ describe('create (US-009, US-012..016, US-196)', () => {
     );
   });
 
+  it('stores the trip specifications, edits them and audits only that they changed', async () => {
+    const specs = { accommodation: 'Residencia universitaria', notIncluded: 'Vuelos' };
+    const r = (await create(c.advisor, body(officeA, { specifications: specs })).expect(201)).body;
+    expect(r.specifications).toEqual(specs);
+    const edited = await api()
+      .patch(`/api/v1/requests/${r.id}`)
+      .set('Cookie', c.advisor)
+      .send({ specifications: { ...specs, courses: 'Inglés 15 h' }, version: r.version })
+      .expect(200);
+    expect(edited.body.specifications.courses).toBe('Inglés 15 h');
+    const log = await prisma.auditLog.findFirstOrThrow({
+      where: { entityId: r.id, action: 'request.updated' },
+    });
+    expect(log.diff).toMatchObject({ specifications: 'changed' });
+    const cleared = await api()
+      .patch(`/api/v1/requests/${r.id}`)
+      .set('Cookie', c.advisor)
+      .send({ specifications: null, version: edited.body.version })
+      .expect(200);
+    expect(cleared.body.specifications).toBeNull();
+    await create(c.advisor, body(officeA, { specifications: { hotel: 'x' } })).expect(400);
+    await create(c.advisor, body(officeA, { specifications: { courses: 'x'.repeat(2001) } })).expect(400);
+  });
+
   it('rejects other offices, wrong roles and invalid data', async () => {
     await create(c.advisor, body(officeB)).expect(403);
     await create(c.quoter).expect(403);

@@ -25,6 +25,7 @@ import {
   UpdateRequest,
   VersionOnly,
   type Budget,
+  type TripSpecs,
 } from '@ee/contracts';
 import { Prisma, type PrismaClient, type TravelRequest } from '@ee/db';
 import type { z } from 'zod';
@@ -87,6 +88,7 @@ function toDto(r: Row) {
         ? { amount: r.budgetAmount.toFixed(2), currency: r.budgetCurrency, basis: r.budgetBasis }
         : null,
     requirements: r.requirements,
+    specifications: (r.specifications as TripSpecs | null) ?? null,
     priority: r.priority,
     dueDate: day(r.dueDate),
     cancelReason: r.cancelReason,
@@ -101,8 +103,9 @@ function toDto(r: Row) {
 
 /** Maps contract fields to columns; only keys present in the input are written. */
 function toColumns(input: Partial<z.infer<typeof UpdateRequest>>): Prisma.TravelRequestUncheckedUpdateInput {
-  const { budget, departureDate, returnDate, dueDate, version: _v, ...rest } = input;
+  const { budget, departureDate, returnDate, dueDate, specifications, version: _v, ...rest } = input;
   const data: Prisma.TravelRequestUncheckedUpdateInput = { ...rest };
+  if (specifications !== undefined) data.specifications = specifications ?? Prisma.DbNull;
   if (departureDate) data.departureDate = toDate(departureDate);
   if (returnDate) data.returnDate = toDate(returnDate);
   if (dueDate) data.dueDate = toDate(dueDate);
@@ -122,7 +125,9 @@ function diff(before: ReturnType<typeof toDto>, after: ReturnType<typeof toDto>)
     if (key === 'updatedAt' || key === 'version') continue;
     if (JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
     changes[key] =
-      key === 'requirements' ? 'changed' : ({ from: before[key], to: after[key] } as Prisma.InputJsonObject);
+      key === 'requirements' || key === 'specifications'
+        ? 'changed'
+        : ({ from: before[key], to: after[key] } as Prisma.InputJsonObject);
   }
   return changes;
 }

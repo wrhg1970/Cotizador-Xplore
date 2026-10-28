@@ -24,6 +24,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `GET /users?officeId=...` (solo administradores autorizados)
 - `GET /dashboard` — «Mi trabajo»: pendientes del usuario (`SUBMIT_REQUEST`, `ASSIGN`, `QUOTE`, `FIX_QUOTE`, `APPROVE`, `SEND`, `RECORD_OUTCOME`), conteo de solicitudes por oficina y estado, y `requests`: hasta 100 solicitudes abiertas de su alcance (más las ganadas que aún no salen) con etapa 1–4 (Solicitada, Cotizada, Aprobada, Enviada), rol del usuario (`REQUESTER`, `ASSIGNEE`, `SUPPORT`), número de escenarios y precio por alumno de la versión más avanzada (nunca costos). Sin borradores ajenos
 - `GET /dashboard/executive?officeId&from&to` — Dashboard ejecutivo: solicitudes creadas en el periodo (por defecto, del 1 de enero a hoy; sin borradores) con totales, abiertas por etapa, conversión (ganadas ÷ ganadas + perdidas), monto ganado por moneda (precio al cliente, sin convertir tipos de cambio ni mostrar costos/margen), desglose por oficina y por mes, y salidas ganadas de los próximos 60 días. Solo coordinadores, auditores y administradores, dentro de sus oficinas (403 fuera de ellas; 400 si el rango es inválido).
+- `GET /official-rates` — tipos de cambio oficiales vigentes (el más reciente por par), para cualquier usuario con sesión. `POST /official-rates` `{fromCurrency, toCurrency, rate, rateDate, source}` publica uno nuevo; solo administrador del sistema, auditado como `official_rate.published`. No se editan ni borran.
 - `GET /role-policies`, `PUT /role-policies/{role}` — permisos por rol (`canView`, `canCreate`, `canEdit`, `canDelete`, `allOffices`, `viewInternalCosts`, `exportInternalXlsx`, `approvalLimitMxn`); solo administrador del sistema, con auditoría. `SYSTEM_ADMIN` no es editable. `GET /me` incluye `policies`
 - `POST /offices` — alta de oficina (administrador del sistema)
 - `PUT /users/{id}/offices` — `{officeIds}`: oficinas donde aplican los privilegios del usuario (todos salvo administrador del sistema); solo administrador del sistema, auditado como `user.offices_updated`. `GET /users` incluye `officeIds` solo para el administrador del sistema
@@ -33,7 +34,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `POST /requests`
 - `GET /requests`
 - `GET /requests/{requestId}`
-- `PATCH /requests/{requestId}`
+- `PATCH /requests/{requestId}` — incluye `specifications` (objeto `TripSpecs` con 7 bloques de texto opcionales, o `null` para borrarlas), igual que `POST /requests`
 - `POST /requests/{requestId}/submit`
 - `POST /requests/{requestId}/assign`
 - `POST /requests/{requestId}/outcome` — respuesta del cliente a una solicitud enviada (`SENT`): `{outcome:"WON", versionId, version}` (la versión debe estar enviada y ser de esa solicitud) o `{outcome:"LOST", reason, version}`. Solo el cotizador asignado o el coordinador; la solicitud queda cerrada y se audita (`request.won` / `request.lost`). `GET /requests/{id}/proposals` incluye `sent`

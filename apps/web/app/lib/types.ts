@@ -6,6 +6,7 @@ import type {
   QuoteVersionStatus,
   RequestStatus,
   RoleName,
+  TripSpecs,
 } from '@ee/contracts';
 
 export interface Me {
@@ -47,6 +48,7 @@ export interface TravelRequestDto {
   staff: number;
   budget: Budget | null;
   requirements: string | null;
+  specifications: TripSpecs | null;
   priority: 'LOW' | 'NORMAL' | 'HIGH';
   dueDate: string | null;
   cancelReason: string | null;
@@ -57,6 +59,28 @@ export interface TravelRequestDto {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface OfficialRateDto {
+  id: string;
+  fromCurrency: CurrencyCode;
+  toCurrency: CurrencyCode;
+  rate: string;
+  rateDate: string;
+  source: string;
+  capturedBy: string;
+  createdAt: string;
+}
+
+/** V2 "Especificaciones" blocks, in display order. */
+export const SPEC_LABEL: Record<keyof TripSpecs, string> = {
+  accommodation: 'Alojamiento',
+  receivingSchool: 'Escuela / proveedor receptor',
+  courses: 'Cursos y actividades',
+  transfersMeals: 'Traslados y alimentación',
+  flightsExcursions: 'Vuelos y excursiones',
+  insuranceAccessibility: 'Seguro y accesibilidad',
+  notIncluded: 'Servicios no incluidos',
+};
 
 export const STATUS_LABEL: Record<RequestStatus, string> = {
   DRAFT: 'Borrador',
@@ -86,6 +110,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'quote.version.created': 'Creó una versión',
   'quote.version.updated': 'Editó la cotización',
   'quote.import_previewed': 'Importó una hoja con IA (vista previa)',
+  'official_rate.published': 'Publicó un tipo de cambio oficial',
   'request.import_previewed': 'Importó una solicitud desde una hoja con IA (vista previa)',
   'quote.submitted_for_approval': 'Envió a autorización',
   'quote.approved': 'Autorizó la cotización',

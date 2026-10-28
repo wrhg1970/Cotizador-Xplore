@@ -2,7 +2,8 @@
 
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
-import { ROLE_LABEL, type RolePolicy } from '../lib/types';
+import { CurrencyCode } from '@ee/contracts';
+import { fmtDate, type OfficialRateDto, ROLE_LABEL, type RolePolicy } from '../lib/types';
 import { useMe } from '../lib/useMe';
 
 type Row = RolePolicy & { role: Exclude<keyof typeof ROLE_LABEL, 'SYSTEM_ADMIN'> };
@@ -27,6 +28,7 @@ export default function AdminPage() {
   const me = useMe();
   const [rows, setRows] = useState<Row[]>([]);
   const [offices, setOffices] = useState<Office[]>([]);
+  const [rates, setRates] = useState<OfficialRateDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const isSysAdmin = !!me?.roles.some((r) => r.role === 'SYSTEM_ADMIN');
@@ -34,6 +36,7 @@ export default function AdminPage() {
   const reload = useCallback(() => {
     api<Row[]>('/role-policies').then(setRows, (e) => setError(errorText(e)));
     api<Office[]>('/offices').then(setOffices, (e) => setError(errorText(e)));
+    api<OfficialRateDto[]>('/official-rates').then(setRates, (e) => setError(errorText(e)));
   }, []);
   useEffect(() => {
     if (isSysAdmin) reload();
@@ -71,6 +74,21 @@ export default function AdminPage() {
     const body = { code: String(f.get('code')).trim().toUpperCase(), name: String(f.get('name')).trim() };
     if (await run(`Oficina ${body.code} creada`, () => api('/offices', { method: 'POST', body })))
       form.reset();
+  }
+
+  async function publishRate(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const f = new FormData(form);
+    const body = {
+      fromCurrency: f.get('fromCurrency'),
+      toCurrency: f.get('toCurrency'),
+      rate: String(f.get('rate')).trim(),
+      rateDate: f.get('rateDate'),
+      source: String(f.get('source')).trim(),
+    };
+    const done = `Tipo de cambio ${body.fromCurrency}→${body.toCurrency} publicado`;
+    if (await run(done, () => api('/official-rates', { method: 'POST', body }))) form.reset();
   }
 
   if (me && !isSysAdmin) return <p className="error">Solo un administrador del sistema puede entrar aquí.</p>;
@@ -146,6 +164,73 @@ export default function AdminPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section aria-labelledby="tipos">
+        <h2 id="tipos">Tipos de cambio oficiales</h2>
+        <p className="muted">
+          Los cotizadores los usan para prellenar cada cotización, que guarda su propia copia con fecha y
+          fuente. Publicar uno nuevo no cambia cotizaciones existentes; el historial no se borra.
+        </p>
+        {rates.length > 0 && (
+          <div className="table-wrap">
+            <table aria-label="Tipos de cambio vigentes">
+              <thead>
+                <tr>
+                  <th>Par</th>
+                  <th className="num">Tipo</th>
+                  <th>Fecha</th>
+                  <th>Fuente</th>
+                  <th>Publicó</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rates.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      1 {r.fromCurrency} = {r.toCurrency}
+                    </td>
+                    <td className="num">{r.rate}</td>
+                    <td>{fmtDate(r.rateDate)}</td>
+                    <td>{r.source}</td>
+                    <td>{r.capturedBy}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <form onSubmit={publishRate} className="row" style={{ marginTop: 12 }}>
+          <label>
+            De
+            <select name="fromCurrency" defaultValue="USD">
+              {CurrencyCode.options.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            A
+            <select name="toCurrency" defaultValue="MXN">
+              {CurrencyCode.options.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Tipo de cambio
+            <input name="rate" required inputMode="decimal" pattern="\d+(\.\d{1,6})?" />
+          </label>
+          <label>
+            Fecha
+            <input name="rateDate" type="date" required />
+          </label>
+          <label>
+            Fuente
+            <input name="source" required maxLength={150} placeholder="Banxico FIX" />
+          </label>
+          <button>Publicar</button>
+        </form>
       </section>
 
       <section aria-labelledby="oficinas">

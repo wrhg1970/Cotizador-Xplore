@@ -20,6 +20,7 @@ import { RequestImportController, SheetImportController } from './quotes/sheet-i
 import { SHEET_READER, type SheetReader, VertexSheetReader } from './quotes/sheet-import.js';
 import { MAILER, type Mailer, Notifier, SmtpMailer } from './notify/notifier.js';
 import { UsersController } from './users/users.controller.js';
+import { OfficialRatesController } from './rates/official-rates.controller.js';
 import { HttpWeTravel, type WeTravel, WETRAVEL } from './integrations/wetravel.js';
 
 @Module({})
@@ -81,6 +82,7 @@ export class AppModule {
         AuditLogController,
         SheetImportController,
         RequestImportController,
+        OfficialRatesController,
       ],
       providers: [
         { provide: ENV, useValue: env },

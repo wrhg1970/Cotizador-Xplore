@@ -4,7 +4,7 @@ import { CurrencyCode, type RequestDraft } from '@ee/contracts';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
-import { PRIORITY_LABEL, type TravelRequestDto } from '../lib/types';
+import { PRIORITY_LABEL, SPEC_LABEL, type TravelRequestDto } from '../lib/types';
 
 interface Office {
   id: string;
@@ -19,6 +19,17 @@ interface Country {
 const optional = (v: FormDataEntryValue | null) => {
   const s = String(v ?? '').trim();
   return s === '' ? undefined : s;
+};
+
+const SPEC_KEYS = Object.keys(SPEC_LABEL) as (keyof typeof SPEC_LABEL)[];
+
+/** Only the filled blocks; null when every block is empty, so the request carries no empty object. */
+const specsFrom = (f: FormData) => {
+  const filled = SPEC_KEYS.flatMap((k) => {
+    const v = optional(f.get(`spec_${k}`));
+    return v ? [[k, v] as const] : [];
+  });
+  return filled.length ? Object.fromEntries(filled) : null;
 };
 
 /** Create (no `existing`, optionally prefilled from a `draft`) or edit form; the server re-validates everything. */
@@ -58,6 +69,7 @@ export function RequestForm({ existing, draft }: { existing?: TravelRequestDto; 
           }
         : null,
       requirements: optional(f.get('requirements')),
+      specifications: specsFrom(f),
       priority: String(f.get('priority')),
       dueDate: optional(f.get('dueDate')),
     };
@@ -212,6 +224,24 @@ export function RequestForm({ existing, draft }: { existing?: TravelRequestDto; 
         Requerimientos <span className="hint">opcional</span>
         <textarea name="requirements" maxLength={4000} defaultValue={init?.requirements ?? ''} />
       </label>
+
+      <details style={{ marginTop: 16 }} open={!!existing?.specifications}>
+        <summary>
+          Especificaciones del viaje <span className="hint">opcional</span>
+        </summary>
+        <div className="grid" style={{ marginTop: 8 }}>
+          {SPEC_KEYS.map((k) => (
+            <label key={k}>
+              {SPEC_LABEL[k]}
+              <textarea
+                name={`spec_${k}`}
+                maxLength={2000}
+                defaultValue={existing?.specifications?.[k] ?? ''}
+              />
+            </label>
+          ))}
+        </div>
+      </details>
 
       {error && (
         <p className="error" role="alert">

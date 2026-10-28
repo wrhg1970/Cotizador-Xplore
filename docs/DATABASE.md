@@ -18,7 +18,8 @@
 - `Document`: tipo, storage key, checksum, versión y metadatos.
 - `ProposalDelivery`: versión enviada, destinatarios, canal, fecha, resultado.
 - Resultado con el cliente: columnas de `TravelRequest` (`won_version_id` único, `lost_reason`, `closed_at`), con CHECKs `WON` ⇔ versión ganadora y `LOST` ⇒ motivo. Sustituye a la tabla `ProposalOutcome` prevista.
-- `ExchangeRate`: base, cotizada, tasa, fecha, fuente.
+- `OfficialRate` (tabla `official_rates`, 2026-10-28): tipos de cambio oficiales EE (de, a, tasa, fecha, fuente, quién publicó). Append-only por trigger; el vigente por par es el más reciente. Las cotizaciones copian el valor a `quote_fx_rates`, así que publicar uno nuevo no cambia nada existente.
+- `TravelRequest.specifications` (JSON, 2026-10-28): especificaciones del viaje validadas con `TripSpecs` (alojamiento, escuela receptora, cursos, traslados y alimentación, vuelos y excursiones, seguro y accesibilidad, no incluidos).
 - `IntegrationConnection`, `IntegrationJob`, `WebhookEvent`, `ExternalReference`.
 - `AuditLog`: actor, acción, entidad, entityId, timestamp, correlationId, diff redactado y `office_id`. `office_id` lo llena un trigger `BEFORE INSERT` a partir de la entidad (solicitud, versión, plantilla, oficina, rol de usuario); nulo = evento global (inicio de sesión, permisos, catálogo). La tabla es append-only (trigger que impide UPDATE/DELETE).
 

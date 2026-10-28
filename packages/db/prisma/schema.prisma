@@ -42,25 +42,26 @@ model RolePolicy {
 }
 
 model User {
-  id           String             @id @default(uuid()) @db.Uuid
-  email        String             @unique
-  googleSub    String?            @unique @map("google_sub")
-  name         String
-  status       UserStatus         @default(INVITED)
-  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
-  officeRoles  UserOfficeRole[]
-  sessions     Session[]
-  requested    TravelRequest[]    @relation("requester")
-  assigned     TravelRequest[]    @relation("assignee")
-  comments     RequestComment[]
-  scenarios    QuoteScenario[]
-  versions     QuoteVersion[]
-  templates    QuoteTemplate[]
-  fxRates      QuoteFxRate[]
-  reviews      QuoteReview[]
-  deliveries   ProposalDelivery[]
-  rolePolicies RolePolicy[]
+  id            String             @id @default(uuid()) @db.Uuid
+  email         String             @unique
+  googleSub     String?            @unique @map("google_sub")
+  name          String
+  status        UserStatus         @default(INVITED)
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  officeRoles   UserOfficeRole[]
+  sessions      Session[]
+  requested     TravelRequest[]    @relation("requester")
+  assigned      TravelRequest[]    @relation("assignee")
+  comments      RequestComment[]
+  scenarios     QuoteScenario[]
+  versions      QuoteVersion[]
+  templates     QuoteTemplate[]
+  fxRates       QuoteFxRate[]
+  officialRates OfficialRate[]
+  reviews       QuoteReview[]
+  deliveries    ProposalDelivery[]
+  rolePolicies  RolePolicy[]
 
   @@map("users")
 }
@@ -170,6 +171,8 @@ model TravelRequest {
   budgetCurrency String?          @map("budget_currency") @db.Char(3)
   budgetBasis    BudgetBasis?     @map("budget_basis")
   requirements   String?
+  /// Structured trip details (contracts TripSpecs).
+  specifications Json?
   priority       Priority         @default(NORMAL)
   dueDate        DateTime?        @map("due_date") @db.Date
   cancelReason   String?          @map("cancel_reason")
@@ -312,6 +315,23 @@ model QuoteLine {
 }
 
 /// FX rate frozen per version with date, source and who captured it (CLAUDE.md, US-055).
+/// Official EE exchange rates kept by Finance; append-only, the latest rate per pair is the current one.
+model OfficialRate {
+  id           String   @id @default(uuid()) @db.Uuid
+  fromCurrency String   @map("from_currency") @db.Char(3)
+  toCurrency   String   @map("to_currency") @db.Char(3)
+  /// Units of toCurrency per 1 fromCurrency.
+  rate         Decimal  @db.Decimal(20, 10)
+  rateDate     DateTime @map("rate_date") @db.Date
+  source       String
+  capturedById String   @map("captured_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  capturedBy   User     @relation(fields: [capturedById], references: [id], onDelete: Restrict)
+
+  @@index([fromCurrency, toCurrency, createdAt])
+  @@map("official_rates")
+}
+
 model QuoteFxRate {
   id           String       @id @default(uuid()) @db.Uuid
   versionId    String       @map("version_id") @db.Uuid

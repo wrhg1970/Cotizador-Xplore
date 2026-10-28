@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { type FormEvent, Fragment, useCallback, useEffect, useState } from 'react';
 import { api, errorText } from '../../lib/api';
 import {
   ACTION_LABEL,
   fmtDate,
   fmtDateTime,
   PRIORITY_LABEL,
+  SPEC_LABEL,
   STATUS_LABEL,
   type TravelRequestDto,
 } from '../../lib/types';
@@ -311,6 +312,21 @@ export default function RequestDetailPage() {
           <>
             <h2>Requerimientos</h2>
             <p style={{ whiteSpace: 'pre-wrap' }}>{r.requirements}</p>
+          </>
+        )}
+        {r.specifications && (
+          <>
+            <h2>Especificaciones del viaje</h2>
+            <dl className="facts">
+              {(Object.keys(SPEC_LABEL) as (keyof typeof SPEC_LABEL)[])
+                .filter((k) => r.specifications?.[k])
+                .map((k) => (
+                  <Fragment key={k}>
+                    <dt>{SPEC_LABEL[k]}</dt>
+                    <dd style={{ whiteSpace: 'pre-wrap' }}>{r.specifications?.[k]}</dd>
+                  </Fragment>
+                ))}
+            </dl>
           </>
         )}
       </section>
