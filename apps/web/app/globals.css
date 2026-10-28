@@ -59,36 +59,93 @@ a {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
+/* App shell: brand-navy side menu in three blocks, slim top bar for Ayuda and the user. */
+:root {
+  --side: var(--ink);
+  --side-text: #d6e4f2;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --side: #06294d;
+  }
+}
+.app {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 100vh;
+}
+.side {
+  background: var(--side);
+  color: var(--side-text);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 20px 14px;
+}
+.side :focus-visible {
+  outline-color: var(--brand-yellow);
+}
+.side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 8px 16px;
+}
+.side .logo-light {
+  display: none;
+}
+.side .logo-dark {
+  display: inline;
+}
+/* An agency's own logo may be dark: it sits on a white chip. */
+.brand-chip > img:only-child {
+  background: #ffffff;
+  padding: 6px 10px;
+  border-radius: 12px;
+}
+.side nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 12px 0;
+}
+.side nav ul + ul {
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+.side nav a {
+  display: block;
+  color: var(--side-text);
+  font-weight: 600;
+  text-decoration: none;
+  padding: 9px 12px;
+  border-radius: 10px;
+}
+.side nav .sub a {
+  padding: 6px 12px 6px 28px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.side nav a:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+.side nav a[aria-current='page'] {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 3px 0 0 var(--brand-yellow);
+}
+.side .menu-toggle {
+  display: none;
+  background: transparent;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  padding: 6px 12px;
+}
 header.top {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-}
-header.top .bar {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 12px 24px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px 20px;
-}
-header.top nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-}
-header.top nav a {
-  color: var(--muted);
-  font-weight: 600;
-  text-decoration: none;
-  padding: 10px 12px;
-  border-radius: 999px;
-}
-header.top nav a:hover,
-header.top nav a[aria-current='page'] {
-  color: var(--text);
-  background: var(--subtle);
+  padding: 10px 24px;
 }
 header.top .user button {
   padding: 8px 14px;
@@ -98,8 +155,8 @@ main.bare {
   padding: 0;
 }
 header.top .user {
-  margin-left: auto;
   display: flex;
+  justify-content: flex-end;
   align-items: center;
   gap: 12px;
 }
@@ -290,6 +347,7 @@ ol.timeline li {
 
 @media print {
   header.top,
+  .side,
   .no-print {
     display: none;
   }
@@ -1000,28 +1058,38 @@ dialog.welcome ol {
   padding-left: 20px;
 }
 
-.menu-toggle {
-  display: none;
-}
 /* Phones (checked at 390 px in light and dark, 2026-10-28). */
-@media (max-width: 640px) {
-  header.top .bar {
+/* Tablets and phones: the side menu becomes a navy bar and folds behind "Menú". */
+@media (max-width: 900px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .side {
+    height: auto;
+    z-index: 20;
     padding: 10px 16px;
+    overflow: visible;
   }
-  .menu-toggle {
+  .side-head {
+    padding: 0;
+  }
+  .side .menu-toggle {
     display: inline-flex;
-    order: 2;
   }
-  header.top nav {
+  .side nav {
     display: none;
-    order: 4;
-    width: 100%;
+    max-height: calc(100vh - 64px);
+    overflow-y: auto;
   }
-  header.top nav.open {
-    display: flex;
+  .side nav.open {
+    display: block;
+  }
+}
+@media (max-width: 640px) {
+  header.top {
+    padding: 8px 16px;
   }
   header.top .user {
-    order: 3;
     gap: 8px;
   }
   header.top .user button {

@@ -582,7 +582,8 @@ export const ExecutiveDashboardQuery = z
 export type ExecutiveDashboardQuery = z.infer<typeof ExecutiveDashboardQuery>;
 
 /** Global lists (V2 "Aprobaciones" and "Propuestas enviadas"). */
-export const VersionListQuery = z.strictObject({ status: z.enum(['IN_REVIEW', 'SENT']) });
+/** No status = "Cotizaciones": every live version (working copies only where internal costs are visible). */
+export const VersionListQuery = z.strictObject({ status: z.enum(['IN_REVIEW', 'SENT']).optional() });
 export type VersionListQuery = z.infer<typeof VersionListQuery>;
 
 const HexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Usa un color #RRGGBB');

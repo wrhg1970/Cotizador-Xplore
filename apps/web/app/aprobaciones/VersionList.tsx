@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
-import { CHANNEL_LABEL, fmtDate, fmtDateTime, STATUS_LABEL } from '../lib/types';
+import { CHANNEL_LABEL, fmtDate, fmtDateTime, QUOTE_STATUS_LABEL, STATUS_LABEL } from '../lib/types';
 
 interface Row {
   id: string;
+  status: keyof typeof QUOTE_STATUS_LABEL;
   label: string;
   request: {
     id: string;
@@ -26,12 +27,14 @@ interface Row {
   canApprove: boolean;
 }
 
-/** V2 "Aprobaciones" / "Propuestas enviadas": versions across the user's offices, client price only. */
-export function VersionList({ status }: { status: 'IN_REVIEW' | 'SENT' }) {
+/** V2 "Aprobaciones" / "Propuestas enviadas" (and "Cotizaciones" with no status): versions across the user's offices, client price only. */
+export function VersionList({ status }: { status?: 'IN_REVIEW' | 'SENT' }) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    api<Row[]>(`/reports/versions?status=${status}`).then(setRows, (e) => setError(errorText(e)));
+    api<Row[]>(`/reports/versions${status ? `?status=${status}` : ''}`).then(setRows, (e) =>
+      setError(errorText(e)),
+    );
   }, [status]);
 
   if (error)
@@ -43,7 +46,13 @@ export function VersionList({ status }: { status: 'IN_REVIEW' | 'SENT' }) {
   if (!rows) return <p className="muted">Cargando…</p>;
   if (!rows.length)
     return (
-      <p className="muted">{status === 'IN_REVIEW' ? 'Nada espera autorización.' : 'Aún no hay envíos.'}</p>
+      <p className="muted">
+        {status === 'IN_REVIEW'
+          ? 'Nada espera autorización.'
+          : status
+            ? 'Aún no hay envíos.'
+            : 'Aún no hay cotizaciones.'}
+      </p>
     );
   return (
     <div className="table-wrap">
@@ -60,6 +69,11 @@ export function VersionList({ status }: { status: 'IN_REVIEW' | 'SENT' }) {
                 <th>Preparó</th>
                 <th>En revisión desde</th>
                 <th />
+              </>
+            ) : !status ? (
+              <>
+                <th>Estado</th>
+                <th>Actualizada</th>
               </>
             ) : (
               <>
@@ -94,6 +108,13 @@ export function VersionList({ status }: { status: 'IN_REVIEW' | 'SENT' }) {
                       </Link>
                     )}
                   </td>
+                </>
+              ) : !status ? (
+                <>
+                  <td>
+                    <span className="badge">{QUOTE_STATUS_LABEL[v.status]}</span>
+                  </td>
+                  <td>{fmtDateTime(v.updatedAt)}</td>
                 </>
               ) : (
                 <>

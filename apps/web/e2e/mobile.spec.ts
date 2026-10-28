@@ -115,7 +115,7 @@ test('phone width: no sideways scroll on any screen, and the menu folds', async 
   const nav = page.getByRole('navigation', { name: 'Principal' });
   await expect(nav).toBeHidden();
   await page.getByRole('button', { name: 'Menú' }).click();
-  await nav.getByRole('link', { name: 'Colegios' }).click();
+  await nav.getByRole('link', { name: 'Clientes' }).click();
   await expect(page).toHaveURL(/\/colegios$/);
   await expect(nav).toBeHidden();
   await ctx.close();
