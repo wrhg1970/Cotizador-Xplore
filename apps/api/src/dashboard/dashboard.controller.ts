@@ -150,7 +150,7 @@ const groupMxn = (v: Parameters<typeof engine>[0]): { volume: Dec; commission: D
   }
 };
 
-const stageOf = (status: RequestStatus, versions: { status: string }[]): Stage => {
+export const stageOf = (status: RequestStatus, versions: { status: string }[]): Stage => {
   if (status === 'SENT' || status === 'WON') return 4;
   if (status !== 'QUOTING') return 1;
   if (versions.some((v) => v.status === 'APPROVED')) return 3;

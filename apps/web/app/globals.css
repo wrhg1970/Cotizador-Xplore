@@ -754,6 +754,57 @@ input[type='radio'] {
   gap: 8px;
 }
 
+/* Solicitudes: denser table so all nine columns fit beside the side menu; compact row actions. */
+.req-table th,
+.req-table td {
+  padding: 10px 8px;
+  font-size: 0.9rem;
+}
+/* In the table the actions stack so the column stays narrow. */
+.req-actions .row {
+  flex-direction: column;
+  align-items: stretch !important;
+}
+.req-act {
+  padding: 5px 12px;
+  text-align: center;
+  min-height: 36px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+/* "Ver como" picker in the top bar: a small dropdown card. */
+.simpick {
+  position: relative;
+}
+.simpick summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--muted);
+}
+.simpick > .card {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
+  width: min(360px, 90vw);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+.simpick select {
+  width: 100%;
+}
+/* "Ver como": who the admin is looking as, on every page while it lasts. */
+.simbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 24px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent);
+}
+
 /* Executive dashboard: single-series bars, value always printed beside the bar. */
 .hbar {
   display: grid;

@@ -17,6 +17,9 @@ import type { AuthUser } from './auth.types.js';
 export const SESSION_COOKIE = 'ee_session';
 const IS_PUBLIC = 'isPublic';
 export const Public = () => SetMetadata(IS_PUBLIC, true);
+const WHILE_SIMULATING = 'allowWhileSimulating';
+/** The few writes allowed while an admin views the app as someone else: leaving it and logging out. */
+export const AllowWhileSimulating = () => SetMetadata(WHILE_SIMULATING, true);
 
 export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext): AuthUser => {
   const user = ctx.switchToHttp().getRequest<Request>().user;
@@ -54,6 +57,15 @@ export class SessionGuard implements CanActivate {
           : 'Sesión no válida o expirada',
       );
     req.user = user;
+    if (
+      user.simulatedBy &&
+      !SAFE_METHODS.has(req.method) &&
+      !this.reflector.getAllAndOverride<boolean>(WHILE_SIMULATING, [ctx.getHandler(), ctx.getClass()])
+    )
+      throw new ForbiddenException({
+        code: 'SIMULATION_READ_ONLY',
+        message: `Estás viendo la app como ${user.name}: solo lectura. Vuelve a tu usuario para hacer cambios.`,
+      });
     return true;
   }
 }

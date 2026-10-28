@@ -296,6 +296,27 @@ describe('search, filters and comments (US-018, US-019, US-023)', () => {
     await api().get('/api/v1/requests?limit=1000').set('Cookie', c.advisor).expect(400);
   });
 
+  it('filters by the V2 stage tabs and finds by destination', async () => {
+    const city = `Ciudad ${crypto.randomUUID().slice(0, 6)}`;
+    const r = (await create(c.advisor, body(officeA, { city })).expect(201)).body;
+    await api()
+      .post(`/api/v1/requests/${r.id}/submit`)
+      .set('Cookie', c.advisor)
+      .send({ version: 1 })
+      .expect(201);
+    const ids = async (stage: string) =>
+      (
+        await api()
+          .get(`/api/v1/requests?q=${encodeURIComponent(city)}${stage && `&stage=${stage}`}`)
+          .set('Cookie', c.advisor)
+          .expect(200)
+      ).body.items as { id: string; stage: number; scenarios: number }[];
+    expect(await ids('')).toMatchObject([{ id: r.id, stage: 1, scenarios: 0 }]);
+    expect(await ids('QUOTING')).toHaveLength(1);
+    for (const s of ['APPROVAL', 'SENT', 'WON']) expect(await ids(s)).toHaveLength(0);
+    await api().get('/api/v1/requests?stage=LOST').set('Cookie', c.advisor).expect(400);
+  });
+
   it('comments are scoped and appear in the timeline', async () => {
     const r = (await create(c.advisor).expect(201)).body;
     await api()
