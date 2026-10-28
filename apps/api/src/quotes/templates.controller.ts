@@ -55,6 +55,21 @@ export class QuoteTemplatesController {
       );
   }
 
+  /** Lines and margin of one template, to load into a draft already open (the editor saves them). */
+  @Get('quote-templates/:id')
+  async get(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
+    const t = await this.prisma.quoteTemplate.findUnique({ where: { id } });
+    if (!t || !t.active || !canSeeInternalCosts(user, t.officeId))
+      throw new NotFoundException('Plantilla no encontrada');
+    return {
+      id: t.id,
+      name: t.name,
+      saleCurrency: t.saleCurrency,
+      targetMarginRate: t.targetMarginRate.toFixed(),
+      lines: t.lines,
+    };
+  }
+
   @Post('quotes/:id/template')
   async save(
     @CurrentUser() user: AuthUser,

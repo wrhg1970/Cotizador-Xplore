@@ -20,6 +20,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `GET /concept-templates` — catálogo de rubros de la hoja EE (activos; el administrador del sistema ve también los inactivos)
 - `GET /offices/{officeId}/quote-templates` — plantillas de la oficina (lado cotizador)
 - `POST /quotes/{quoteVersionId}/template` — guarda la versión como plantilla (cotizador o coordinador)
+- `GET /quote-templates/{id}` — conceptos y % de una plantilla para cargarlos en un borrador abierto
 - `DELETE /quote-templates/{id}` — retira la plantilla (quien la creó o el coordinador)
 - `POST /concept-templates`, `PATCH /concept-templates/{id}` — solo administrador del sistema, con auditoría
 - `GET /users?officeId=...` (solo administradores autorizados)
@@ -46,7 +47,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `POST /requests/{requestId}/assign`
 - `POST /requests/{requestId}/outcome` — respuesta del cliente a una solicitud enviada (`SENT`): `{outcome:"WON", versionId, version}` (la versión debe estar enviada y ser de esa solicitud) o `{outcome:"LOST", reason, version}`. Solo el cotizador asignado o el coordinador; la solicitud queda cerrada y se audita (`request.won` / `request.lost`). `GET /requests/{id}/proposals` incluye `sent`
 - `POST /requests/{requestId}/comments`
-- `GET /requests/{requestId}/timeline`
+- `GET /requests/{requestId}/timeline` — eventos de la solicitud (con id) y, para quien ve costos, también los de sus versiones de cotización
 - `POST /requests/{requestId}/attachments`
 
 ### Escenarios/versiones
@@ -55,7 +56,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `GET /requests/{requestId}/scenarios`
 - `POST /scenarios/{scenarioId}/versions`
 - `GET /quotes/{quoteVersionId}`
-- `PATCH /quotes/{quoteVersionId}` (solo borrador). Acepta `targetMarginRate` (% de comisión sobre el precio final) o `targetPricePerParticipant` (precio final entero; el servidor deriva el %), nunca ambos. Errores: `PRICE_BELOW_COST`, `PRICE_UNREACHABLE`, `FX_REQUIRED`. También acepta `paymentPlan` (inscripción en % o monto + 1 a 15 parcialidades mensuales/quincenales/semanales), `studentsPerFreePlace`/`freePlaceBenefit`, `itinerary` y `exclusions`; la respuesta trae `paymentSchedule` y `freePlaces` calculados. `POST /requests/{id}/scenarios` acepta `templateId`. La respuesta incluye `sheet` con los subtotales de la hoja EE (fuera del hash de aprobación).
+- `PATCH /quotes/{quoteVersionId}` (solo borrador). Acepta `targetMarginRate` (% de comisión sobre el precio final) o `targetPricePerParticipant` (precio final entero; el servidor deriva el %), nunca ambos. Errores: `PRICE_BELOW_COST`, `PRICE_UNREACHABLE`, `FX_REQUIRED`. También acepta `paymentPlan` (inscripción en % o monto + 1 a 15 parcialidades mensuales/quincenales/semanales), `studentsPerFreePlace`/`freePlaceBenefit`, `itinerary`, `exclusions` y `showVolumePrices` (muestra al colegio la tabla de precio por tamaño de grupo, solo precios); la respuesta trae `paymentSchedule` y `freePlaces` calculados. `POST /requests/{id}/scenarios` acepta `templateId`. La respuesta incluye `sheet` con los subtotales de la hoja EE (fuera del hash de aprobación).
 - `POST /quotes/{quoteVersionId}/import` — lee una hoja de costos con Gemini (Vertex AI) y devuelve conceptos propuestos, % de comisión, itinerario y «no incluye» validados con las mismas reglas que una edición; **no guarda nada**. Cuerpo: `{fileName, fileBase64}` (.xlsx/.csv, 3 MB) o `{sheetUrl}` (Google Sheets público). Solo el cotizador asignado o el coordinador, con versión en borrador o devuelta. Errores: `SHEET_IMPORT` (400), 502 si la IA falla, 503 si no está configurado. Límite: 10 por minuto
 - `POST /requests/import` — lee una hoja (mismo cuerpo y límites que el anterior) y devuelve `{draft, warnings}`: los datos de la solicitud que encontró (grupo, cliente, programa, ciudad, país, fechas, participantes, chaperones, staff, requerimientos), cada uno validado con las mismas reglas que el formulario; lo inválido se descarta con aviso. **No guarda nada**: el formulario se llena y el usuario elige oficina y guarda. Requiere poder crear solicitudes en alguna oficina (403). Audita `request.import_previewed` solo con los nombres de campo, nunca los valores.
 - `GET /quotes/{quoteVersionId}/export.xlsx` — Excel interno; exige el permiso `exportInternalXlsx` del rol. Pestañas: «Cotización» (formato de la hoja oficial EE: conceptos por estudiante, SubTotal 1 y 2, comisión y precio final a la izquierda; gastos de chaperones y fondo de emergencia a la derecha), «Conceptos» (detalle de cada línea), «Plan de pagos» (con lugares liberados), «Itinerario» (con «No incluye»), «Tipos de cambio» y «Autorización y envío»

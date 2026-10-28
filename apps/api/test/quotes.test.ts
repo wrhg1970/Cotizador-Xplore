@@ -650,6 +650,11 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
     expect(list.body.find((x: { id: string }) => x.id === t.body.id)).toMatchObject({ lineCount: 8 });
     await api().get(`/api/v1/offices/${officeA}/quote-templates`).set('Cookie', c.advisor).expect(404);
     await api().get(`/api/v1/offices/${officeA}/quote-templates`).set('Cookie', c.adminB).expect(404);
+    const one = await api().get(`/api/v1/quote-templates/${t.body.id}`).set('Cookie', c.quoter).expect(200);
+    expect(one.body).toMatchObject({ name: 'Italia primavera', targetMarginRate: '0.18' });
+    expect(one.body.lines).toHaveLength(8);
+    await api().get(`/api/v1/quote-templates/${t.body.id}`).set('Cookie', c.advisor).expect(404);
+    await api().get(`/api/v1/quote-templates/${t.body.id}`).set('Cookie', c.adminB).expect(404);
 
     const s = await newScenario(c.quoter, {
       name: 'Desde plantilla',
