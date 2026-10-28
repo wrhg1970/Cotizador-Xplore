@@ -9,7 +9,6 @@ export default function NewRequestPage() {
   const [draft, setDraft] = useState<{ n: number; fields: RequestDraft }>({ n: 0, fields: {} });
   return (
     <>
-      <h1>Nueva solicitud</h1>
       <RequestImport onDraft={(fields) => setDraft((d) => ({ n: d.n + 1, fields }))} />
       {/* Remount so the uncontrolled inputs pick up the imported defaults. */}
       <RequestForm key={draft.n} draft={draft.fields} />

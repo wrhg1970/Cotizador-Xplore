@@ -28,15 +28,15 @@ test('full flow: login, quote, authorize, send and win', async ({ browser, page 
   // 1. Advisor captures and submits the request.
   const adv = await as(browser, advisor.cookie);
   await adv.goto('/solicitudes/nueva');
-  await adv.getByLabel('Oficina').selectOption({ label: office.name });
-  await adv.getByLabel('Nombre del grupo').fill('Flujo completo Madrid 2027');
-  await adv.getByLabel('Ciudad(es)').fill('Madrid');
-  await adv.getByLabel('País').selectOption('ES');
-  await adv.getByLabel('Salida').fill('2027-06-01');
-  await adv.getByLabel('Regreso').fill('2027-06-10');
-  await adv.getByLabel('Participantes').fill('10');
-  await adv.getByRole('button', { name: 'Guardar borrador' }).click();
-  await adv.getByRole('button', { name: 'Enviar a cotización' }).click();
+  await adv.getByLabel('Oficina solicitante *').selectOption({ label: office.name });
+  await adv.getByLabel('Nombre del grupo *').fill('Flujo completo Madrid 2027');
+  await adv.getByLabel('Ciudad destino *').fill('Madrid');
+  await adv.getByLabel('País destino *').selectOption('ES');
+  await adv.getByLabel('Fecha de salida *').fill('2027-06-01');
+  await adv.getByLabel('Fecha de regreso *').fill('2027-06-10');
+  await adv.getByLabel('Alumnos *').fill('10');
+  await adv.getByRole('tab', { name: /Confirmación/ }).click();
+  await adv.getByRole('button', { name: /Registrar solicitud/ }).click();
   await expect(adv.locator('.badge')).toHaveText('Por asignar');
   const requestUrl = adv.url();
 

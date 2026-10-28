@@ -76,6 +76,8 @@ function toDto(r: Row) {
     groupName: r.groupName,
     clientName: r.clientName,
     program: r.program,
+    contactName: r.contactName,
+    contactEmail: r.contactEmail,
     city: r.city,
     countryCode: r.countryCode,
     departureDate: day(r.departureDate),
@@ -88,6 +90,7 @@ function toDto(r: Row) {
         ? { amount: r.budgetAmount.toFixed(2), currency: r.budgetCurrency, basis: r.budgetBasis }
         : null,
     requirements: r.requirements,
+    commercialNotes: r.commercialNotes,
     specifications: (r.specifications as TripSpecs | null) ?? null,
     priority: r.priority,
     dueDate: day(r.dueDate),
@@ -118,16 +121,24 @@ function toColumns(input: Partial<z.infer<typeof UpdateRequest>>): Prisma.Travel
   return data;
 }
 
+/** Free text and school contact data: audit says "changed" without copying personal data. */
+const REDACTED = new Set([
+  'requirements',
+  'specifications',
+  'commercialNotes',
+  'contactName',
+  'contactEmail',
+]);
+
 /** Field-level before/after for audit; free text is reported as changed, not copied (logs stay lean). */
 function diff(before: ReturnType<typeof toDto>, after: ReturnType<typeof toDto>) {
   const changes: Record<string, Prisma.InputJsonValue> = {};
   for (const key of Object.keys(after) as (keyof typeof after)[]) {
     if (key === 'updatedAt' || key === 'version') continue;
     if (JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
-    changes[key] =
-      key === 'requirements' || key === 'specifications'
-        ? 'changed'
-        : ({ from: before[key], to: after[key] } as Prisma.InputJsonObject);
+    changes[key] = REDACTED.has(key)
+      ? 'changed'
+      : ({ from: before[key], to: after[key] } as Prisma.InputJsonObject);
   }
   return changes;
 }

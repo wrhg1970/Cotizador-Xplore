@@ -26,28 +26,35 @@ test('advisor creates and submits; admin assigns; quoter sees it in Mis tareas',
   await advCtx.addCookies([advisor.cookie]);
   const adv = await advCtx.newPage();
   await adv.goto('/solicitudes/nueva');
-  await adv.getByLabel('Oficina').selectOption({ label: office.name });
-  await adv.getByLabel('Nombre del grupo').fill('Verano Grupal UK 2027');
-  await adv.getByLabel('Ciudad(es)').fill('Londres y Oxford');
-  await expect(adv.getByLabel('País').locator('option', { hasText: 'Reino Unido' })).toHaveCount(1);
-  await adv.getByLabel('País').selectOption('GB');
-  await adv.getByLabel('Salida').fill('2027-07-01');
-  await adv.getByLabel('Regreso').fill('2027-07-21');
-  await adv.getByLabel('Participantes').fill('20');
+  await adv.getByLabel('Oficina solicitante *').selectOption({ label: office.name });
+  await adv.getByLabel('Nombre del grupo *').fill('Verano Grupal UK 2027');
+  await adv.getByLabel('Ciudad destino *').fill('Londres y Oxford');
+  await expect(adv.getByLabel('País destino *').locator('option', { hasText: 'Reino Unido' })).toHaveCount(1);
+  await adv.getByLabel('País destino *').selectOption('GB');
+  await adv.getByLabel('Fecha de salida *').fill('2027-07-01');
+  await adv.getByLabel('Fecha de regreso *').fill('2027-07-21');
+  await adv.getByLabel('Alumnos *').fill('20');
   await adv.getByLabel('Chaperones').fill('2');
-  await adv.getByLabel('El cliente indicó un presupuesto').check();
-  await adv.getByLabel('Importe').fill('5150.00');
+  await adv.getByLabel('Presupuesto estimado por alumno').fill('5150.00');
   await adv.getByLabel('Moneda').selectOption('GBP');
+  await adv.getByLabel('Correo del solicitante').fill('coord@colegio.example');
+  // The draft is saved without leaving the wizard and gets its folio.
   await adv.getByRole('button', { name: 'Guardar borrador' }).click();
+  await expect(adv.getByRole('status')).toContainText(/Guardado · EE-\d{4}-/);
+  await adv.getByRole('button', { name: 'Siguiente paso' }).click();
+  await adv.getByLabel('Agregar a servicios incluidos').fill('Seguro médico');
+  await adv.getByLabel('Agregar a servicios incluidos').press('Enter');
+  await adv.getByRole('button', { name: 'Siguiente paso' }).click();
+  await expect(adv.getByLabel('Resumen')).toContainText('1 incluidos · 0 no incluidos');
+  await adv.getByRole('button', { name: /Registrar solicitud \(EE-/ }).click();
 
   await expect(adv.getByRole('heading', { level: 1 })).toContainText('Verano Grupal UK 2027');
-  await expect(adv.locator('.badge')).toHaveText('Borrador');
+  await expect(adv.locator('.badge')).toHaveText('Por asignar');
   const folio = (await adv.getByRole('heading', { level: 1 }).textContent())!.split(' · ')[0]!;
   expect(folio).toMatch(/^EE-\d{4}-/);
   await expect(adv.getByText('5150.00 GBP por participante')).toBeVisible();
-
-  await adv.getByRole('button', { name: 'Enviar a cotización' }).click();
-  await expect(adv.locator('.badge')).toHaveText('Por asignar');
+  await expect(adv.getByText('coord@colegio.example')).toBeVisible();
+  await expect(adv.getByText('Seguro médico')).toBeVisible();
   const url = adv.url();
 
   // Office admin assigns
@@ -87,13 +94,13 @@ test('server-side validation errors are shown on the form', async ({ browser }) 
   await ctx.addCookies([advisor.cookie]);
   const page = await ctx.newPage();
   await page.goto('/solicitudes/nueva');
-  await page.getByLabel('Oficina').selectOption({ label: office.name });
-  await page.getByLabel('Nombre del grupo').fill('Grupo');
-  await page.getByLabel('Ciudad(es)').fill('Madrid');
-  await page.getByLabel('País').selectOption('ES');
-  await page.getByLabel('Salida').fill('2027-07-21');
-  await page.getByLabel('Regreso').fill('2027-07-01');
-  await page.getByLabel('Participantes').fill('10');
+  await page.getByLabel('Oficina solicitante *').selectOption({ label: office.name });
+  await page.getByLabel('Nombre del grupo *').fill('Grupo');
+  await page.getByLabel('Ciudad destino *').fill('Madrid');
+  await page.getByLabel('País destino *').selectOption('ES');
+  await page.getByLabel('Fecha de salida *').fill('2027-07-21');
+  await page.getByLabel('Fecha de regreso *').fill('2027-07-01');
+  await page.getByLabel('Alumnos *').fill('10');
   await page.getByRole('button', { name: 'Guardar borrador' }).click();
   await expect(page.locator('p[role=alert]')).toContainText('El regreso no puede ser anterior a la salida');
 });

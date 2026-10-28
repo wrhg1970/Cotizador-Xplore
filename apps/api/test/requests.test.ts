@@ -92,6 +92,28 @@ describe('create (US-009, US-012..016, US-196)', () => {
     await create(c.advisor, body(officeA, { specifications: { courses: 'x'.repeat(2001) } })).expect(400);
   });
 
+  it('stores the school contact and commercial notes; audit never copies them', async () => {
+    const fields = {
+      contactName: 'Mtra. Claudia Morales',
+      contactEmail: 'cmorales@colegio.example',
+      commercialNotes: 'Cliente recurrente',
+      specifications: { included: 'Seguro\nKit EE', extra: 'Rango de edad: 14 a 18 años' },
+    };
+    const r = (await create(c.advisor, body(officeA, fields)).expect(201)).body;
+    expect(r).toMatchObject(fields);
+    await api()
+      .patch(`/api/v1/requests/${r.id}`)
+      .set('Cookie', c.advisor)
+      .send({ contactEmail: 'otra@colegio.example', contactName: 'Otra', version: r.version })
+      .expect(200);
+    const log = await prisma.auditLog.findFirstOrThrow({
+      where: { entityId: r.id, action: 'request.updated' },
+    });
+    expect(log.diff).toEqual({ contactEmail: 'changed', contactName: 'changed' });
+    await create(c.advisor, body(officeA, { contactEmail: 'no-es-correo' })).expect(400);
+    await create(c.advisor, body(officeA, { commercialNotes: 'x'.repeat(4001) })).expect(400);
+  });
+
   it('rejects other offices, wrong roles and invalid data', async () => {
     await create(c.advisor, body(officeB)).expect(403);
     await create(c.quoter).expect(403);
