@@ -63,6 +63,16 @@ ${API_PUBLIC_URL}/api/v1/auth/google/callback
 
 Con dominio compartido, el balanceador o CDN enruta todo al servicio `web`; la API solo necesita ser accesible desde `web`, salvo `/api/v1/auth/google/callback`, que pasa por el mismo reenvío `/api`.
 
+## Dominio propio de una agencia
+
+En Administración → Marca cada agencia puede poner su dominio (por ejemplo `cotizador.agencia.com`). Antes de guardarlo:
+
+1. La agencia crea en su DNS el registro que indique Google Cloud.
+2. En Cloud Run, Domain mappings, mapear ese dominio al servicio web del ambiente (`cotizador-web-prod` en producción).
+3. Registrar en el cliente OAuth la URI `https://cotizador.agencia.com/api/v1/auth/google/callback` (necesaria para entrar desde ese dominio).
+
+Con el dominio guardado, las ligas de los correos de esa agencia apuntan a él, y la pantalla de inicio de sesión muestra su logo y colores cuando se abre desde ahí.
+
 ## Google Cloud
 
 `infra/gcp/deploy.sh` crea y actualiza todo con `gcloud`: Cloud SQL Postgres 16 con respaldos, Artifact Registry, Secret Manager, el job de migraciones y los servicios `cotizador-api` y `cotizador-web` en Cloud Run. Se puede volver a correr para cada versión nueva.

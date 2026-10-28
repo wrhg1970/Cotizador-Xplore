@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { api, isPublicPath } from './lib/api';
-import { Logo } from './Logo';
+import { BrandColors, Logo } from './Logo';
+import { brandName, useBrand } from './lib/useBrand';
 import { useMe } from './lib/useMe';
 import { WorkNotifier } from './WorkNotifier';
 
@@ -12,6 +13,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const bare = isPublicPath(pathname);
   const me = useMe();
+  const brand = useBrand(bare);
 
   const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefined);
   const initials = me?.name
@@ -28,11 +30,12 @@ export function Shell({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <BrandColors brand={brand} />
       {!bare && (
         <header className="top">
           <div className="bar">
             <Link className="brand" href="/inicio">
-              <Logo height={44} />
+              <Logo height={44} src={brand?.logoUrl} alt={brandName(brand)} />
             </Link>
             <nav aria-label="Principal">
               <Link href="/inicio" aria-current={current('/inicio')}>

@@ -579,3 +579,43 @@ export type ExecutiveDashboardQuery = z.infer<typeof ExecutiveDashboardQuery>;
 /** Global lists (V2 "Aprobaciones" and "Propuestas enviadas"). */
 export const VersionListQuery = z.strictObject({ status: z.enum(['IN_REVIEW', 'SENT']) });
 export type VersionListQuery = z.infer<typeof VersionListQuery>;
+
+const HexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Usa un color #RRGGBB');
+/** A hostname such as cotizador.agencia.com: no scheme, port or path. */
+const Hostname = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(253)
+  .regex(
+    /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/,
+    'Escribe solo el dominio, p. ej. cotizador.agencia.com',
+  );
+
+/** Agency branding (Administración → Marca); null = the Xplore Together default. */
+export const AgencyBrandingInput = z.strictObject({
+  brandName: ShortText(80).nullable(),
+  primaryColor: HexColor.nullable(),
+  accentColor: HexColor.nullable(),
+  proposalFooter: z.string().trim().max(1000).nullable(),
+  mailFromName: ShortText(80)
+    .regex(/^[^"<>\r\n]+$/, 'Sin comillas ni < >')
+    .nullable(),
+  customDomain: Hostname.nullable(),
+});
+export type AgencyBrandingInput = z.infer<typeof AgencyBrandingInput>;
+
+/** What pages need to draw the brand; logoUrl is null when the agency uses the default logo. */
+export interface AgencyBrand extends AgencyBrandingInput {
+  name: string;
+  logoUrl: string | null;
+}
+
+export const MAX_LOGO_BYTES = 512 * 1024;
+export const UploadLogo = z.strictObject({
+  fileName: ShortText(200),
+  fileBase64: z
+    .string()
+    .min(1)
+    .max(Math.ceil((MAX_LOGO_BYTES * 4) / 3) + 4),
+});

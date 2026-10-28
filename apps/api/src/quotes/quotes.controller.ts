@@ -63,7 +63,8 @@ import { ZodPipe } from '../zod.pipe.js';
 import { quoteWorkbook } from './quote-xlsx.js';
 import { compareVersions } from './compare.js';
 import { approvalRules } from '../settings/settings.js';
-import { type ApprovalRules } from '@ee/contracts';
+import { agencyOfOffice, toBrand } from '../agency/brand.js';
+import { type AgencyBrand, type ApprovalRules } from '@ee/contracts';
 import { paymentLinkBody, type WeTravel, WETRAVEL, WeTravelError } from '../integrations/wetravel.js';
 
 type Tx = Prisma.TransactionClient;
@@ -138,7 +139,7 @@ export const engine = (v: QuoteVersion & { lines: QuoteLine[]; fxRates: QuoteFxR
   });
 
 /** Client-safe proposal (PRD §PDF): price, group, validity and included concepts; never costs or margin. */
-export function clientProposal(v: FullVersion, r: TravelRequest) {
+export function clientProposal(v: FullVersion, r: TravelRequest, brand: AgencyBrand) {
   const dto = toDto(v);
   const { totals, validUntil, assumptions } = dto;
   return {
@@ -169,6 +170,13 @@ export function clientProposal(v: FullVersion, r: TravelRequest) {
     hasCover: !!v.coverAttachmentId,
     // Only the winning proposal carries the payment link, the same one WeTravel's checkout shows.
     paymentUrl: r.wonVersionId === v.id ? r.wetravelUrl : null,
+    brand: {
+      name: brand.brandName ?? brand.name,
+      logoUrl: brand.logoUrl,
+      footer: brand.proposalFooter,
+      primaryColor: brand.primaryColor,
+      accentColor: brand.accentColor,
+    },
     includes: v.lines
       // Base concepts start at zero; an unpriced one is not something the trip includes.
       .filter(
@@ -631,7 +639,7 @@ export class QuotesController {
     const r = v && (await this.prisma.travelRequest.findUnique({ where: { id: v.scenario.requestId } }));
     if (!v || !r || !canView(user, r) || r.status === 'DRAFT')
       throw new NotFoundException('Cotización no encontrada');
-    return clientProposal(v, r);
+    return clientProposal(v, r, toBrand(await agencyOfOffice(this.prisma, r.officeId)));
   }
 
   /** Changes against the previous version of the same scenario (null when this is v1). */

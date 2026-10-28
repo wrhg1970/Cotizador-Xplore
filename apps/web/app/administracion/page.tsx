@@ -2,7 +2,16 @@
 
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
-import { type AlertSettings, type ApprovalRules, CurrencyCode } from '@ee/contracts';
+import {
+  type AgencyBrand,
+  type AgencyBrandingInput,
+  type AlertSettings,
+  type ApprovalRules,
+  CurrencyCode,
+  MAX_LOGO_BYTES,
+} from '@ee/contracts';
+import { toBase64 } from '../cotizaciones/[id]/SheetImport';
+import { Logo } from '../Logo';
 import { fmtDate, type OfficialRateDto, ROLE_LABEL, type RolePolicy } from '../lib/types';
 import { useMe } from '../lib/useMe';
 
@@ -41,6 +50,7 @@ export default function AdminPage() {
   const [offices, setOffices] = useState<Office[]>([]);
   const [rates, setRates] = useState<OfficialRateDto[]>([]);
   const [alerts, setAlerts] = useState<AlertSettings | null>(null);
+  const [brand, setBrand] = useState<AgencyBrand | null>(null);
   const [rules, setRules] = useState<ApprovalRules | null>(null);
   const [goalYear, setGoalYear] = useState(() => new Date().getFullYear());
   const [goals, setGoals] = useState<Record<string, string> | null>(null);
@@ -56,6 +66,7 @@ export default function AdminPage() {
     api<OfficialRateDto[]>('/official-rates').then(setRates, (e) => setError(errorText(e)));
     api<typeof integrations>('/integrations').then(setIntegrations, (e) => setError(errorText(e)));
     api<AlertSettings>('/settings/alerts').then(setAlerts, (e) => setError(errorText(e)));
+    api<AgencyBrand>('/agency/brand').then(setBrand, (e) => setError(errorText(e)));
     api<ApprovalRules>('/settings/approval-rules').then(setRules, (e) => setError(errorText(e)));
   }, []);
   useEffect(() => {
@@ -166,6 +177,36 @@ export default function AdminPage() {
       setGoals(body);
   }
 
+  async function saveBrand(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const text = (k: string) => String(f.get(k) ?? '').trim() || null;
+    // An unchecked "usar color propio" means the Xplore Together default.
+    const color = (k: string) => (f.get(`${k}On`) === 'on' ? String(f.get(k)) : null);
+    const body: AgencyBrandingInput = {
+      brandName: text('brandName'),
+      primaryColor: color('primaryColor'),
+      accentColor: color('accentColor'),
+      proposalFooter: text('proposalFooter'),
+      mailFromName: text('mailFromName'),
+      customDomain: text('customDomain'),
+    };
+    await run('Marca guardada; recarga la página para verla en el menú', () =>
+      api('/agency/brand', { method: 'PUT', body }),
+    );
+  }
+
+  async function uploadLogo(file: File | undefined) {
+    if (!file) return;
+    if (file.size > MAX_LOGO_BYTES) return setError('El logo debe pesar hasta 512 KB');
+    await run('Logo guardado', async () =>
+      api('/agency/logo', {
+        method: 'PUT',
+        body: { fileName: file.name, fileBase64: await toBase64(file) },
+      }),
+    );
+  }
+
   async function pullBanxico() {
     await run('Tipos de cambio de Banxico al día', () => api('/official-rates/banxico', { method: 'POST' }));
   }
@@ -181,6 +222,92 @@ export default function AdminPage() {
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+
+      {brand && (
+        <section aria-labelledby="marca">
+          <h2 id="marca">Marca de la agencia</h2>
+          <p className="muted">
+            Lo que dejes vacío usa la marca de Xplore Together. El logo y los colores salen en el menú, el
+            inicio de sesión y la propuesta al colegio; el pie, al final de la propuesta.
+          </p>
+          <div className="row">
+            <Logo height={48} src={brand.logoUrl} alt={brand.brandName ?? brand.name} />
+            <label>
+              Logo (PNG o JPG, hasta 512 KB)
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                onChange={(e) => void uploadLogo(e.currentTarget.files?.[0])}
+              />
+            </label>
+            {brand.logoUrl && (
+              <button
+                type="button"
+                onClick={() => run('Logo quitado', () => api('/agency/logo', { method: 'DELETE' }))}
+              >
+                Quitar logo
+              </button>
+            )}
+          </div>
+          <form onSubmit={saveBrand} key={JSON.stringify(brand)}>
+            <label>
+              Nombre que se muestra
+              <input
+                name="brandName"
+                maxLength={80}
+                defaultValue={brand.brandName ?? ''}
+                placeholder={brand.name}
+              />
+            </label>
+            {(
+              [
+                ['primaryColor', 'Color principal', '#00457f'],
+                ['accentColor', 'Color de acento (botones)', '#c2410c'],
+              ] as const
+            ).map(([key, label, fallback]) => (
+              <fieldset key={key} className="row">
+                <legend>{label}</legend>
+                <label className="inline">
+                  <input name={`${key}On`} type="checkbox" defaultChecked={!!brand[key]} /> Usar color propio
+                </label>
+                <input name={key} type="color" aria-label={label} defaultValue={brand[key] ?? fallback} />
+              </fieldset>
+            ))}
+            <label>
+              Pie de la propuesta (razón social, RNT, contacto)
+              <textarea
+                name="proposalFooter"
+                maxLength={1000}
+                rows={3}
+                defaultValue={brand.proposalFooter ?? ''}
+              />
+            </label>
+            <label>
+              Nombre del remitente en los correos
+              <input
+                name="mailFromName"
+                maxLength={80}
+                defaultValue={brand.mailFromName ?? ''}
+                placeholder="Igual que hoy"
+              />
+            </label>
+            <label>
+              Dominio propio (opcional)
+              <input
+                name="customDomain"
+                maxLength={253}
+                defaultValue={brand.customDomain ?? ''}
+                placeholder="cotizador.tuagencia.com"
+              />
+            </label>
+            <p className="muted">
+              Conéctalo primero en Google Cloud (ver docs/DEPLOYMENT.md): en cuanto lo guardes, las ligas de
+              los correos de tu agencia lo usan.
+            </p>
+            <button>Guardar marca</button>
+          </form>
+        </section>
+      )}
 
       <section aria-labelledby="permisos">
         <h2 id="permisos">Permisos por rol</h2>

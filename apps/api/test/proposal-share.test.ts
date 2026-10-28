@@ -237,7 +237,17 @@ describe('proposal cover photo and payment link', () => {
     };
     const version = (vid: string) =>
       prisma.quoteVersion.findUniqueOrThrow({ where: { id: vid }, include: full });
-    expect(clientProposal(await version(id), won).paymentUrl).toBe('https://pay.example/checkout');
-    expect(clientProposal(await version(other), won).paymentUrl).toBeNull();
+    const brand = {
+      name: 'EE',
+      brandName: null,
+      primaryColor: null,
+      accentColor: null,
+      proposalFooter: null,
+      mailFromName: null,
+      customDomain: null,
+      logoUrl: null,
+    };
+    expect(clientProposal(await version(id), won, brand).paymentUrl).toBe('https://pay.example/checkout');
+    expect(clientProposal(await version(other), won, brand).paymentUrl).toBeNull();
   });
 });

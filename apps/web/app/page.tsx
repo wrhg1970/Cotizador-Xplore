@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Logo } from './Logo';
+import { brandName, useBrand } from './lib/useBrand';
 
 const STEPS = [
   [
@@ -24,7 +25,7 @@ const STEPS = [
 ] as const;
 
 const TRUST = [
-  'Solo cuentas de Google de Estudiantes Embajadores, por invitación.',
+  'Solo cuentas de Google de tu agencia, por invitación.',
   'Cada quien ve las solicitudes de su oficina, según su rol.',
   'Bitácora de cada cambio, autorización, envío y precio.',
   'Montos exactos por moneda; los tipos de cambio se guardan con fecha y fuente.',
@@ -34,6 +35,9 @@ const TRUST = [
 export default function Landing() {
   const router = useRouter();
   const [checked, setChecked] = useState(false);
+  const brand = useBrand(true);
+  // EE without a custom brand keeps the original copy.
+  const isEE = brandName(brand) === 'Estudiantes Embajadores';
 
   useEffect(() => {
     fetch('/api/v1/me', { credentials: 'same-origin' })
@@ -45,17 +49,18 @@ export default function Landing() {
   return (
     <div className="landing">
       <header>
-        <Logo height={56} />
+        <Logo height={56} src={brand?.logoUrl} alt={brandName(brand)} />
         <a className="button" href="/login">
           Entrar
         </a>
       </header>
       <section className="hero">
-        <p className="kicker">Estudiantes Embajadores · Xplore Together</p>
+        <p className="kicker">{isEE ? 'Estudiantes Embajadores · Xplore Together' : brandName(brand)}</p>
         <h1>Del pedido del colegio a la propuesta autorizada, sin hojas sueltas.</h1>
         <p className="lead">
-          El cotizador de viajes grupales de EE: cada oficina registra la solicitud, cotiza con la hoja
-          oficial, la manda a autorizar y comparte una propuesta limpia con el colegio.
+          El cotizador de viajes grupales de {isEE ? 'EE' : brandName(brand)}: cada oficina registra la
+          solicitud, cotiza con la hoja oficial, la manda a autorizar y comparte una propuesta limpia con el
+          colegio.
         </p>
         <a className="button" href="/api/v1/auth/google/login">
           Entrar con Google

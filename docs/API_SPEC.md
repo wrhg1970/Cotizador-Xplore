@@ -102,6 +102,14 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `GET /suppliers` (roles que ven costos internos), `POST /suppliers`, `PATCH /suppliers/{id}`, `POST /suppliers/{id}/rates`, `PATCH /supplier-rates/{id}` (solo administrador del sistema, auditado): catálogo de proveedores/DMC y tarifas; el editor copia la tarifa al concepto (`costSource` = proveedor).
 - `GET /settings/goals/{año}` y `PUT /settings/goals/{año}` (solo administrador del sistema, auditado): meta anual de venta en MXN por oficina, `{ "<officeId>": "5500000" }`. `GET /dashboard/executive` agrega `goals: { year, offices: [{ id, code, name, goalMxn, wonMxn, progress, withoutRate }] }` del año de `to`, solo oficinas del alcance con meta; `wonMxn` suma ganadas por fecha de cierre con su precio en MXN, y `withoutRate` cuenta las ganadas en otra moneda sin tipo de cambio a MXN (no se infiere).
 
+### Agencia y marca (2026-10-28)
+- `GET /agency/brand`: marca de la agencia del usuario (`AgencyBrand`: nombre, nombre visible, colores, pie de propuesta, remitente, dominio propio, `logoUrl`).
+- `PUT /agency/brand` (administrador del sistema): `AgencyBrandingInput`; `null` = valor por defecto de Xplore Together. Dominio repetido → 409. Auditado `agency.brand_updated`.
+- `PUT /agency/logo` (administrador del sistema): `{ fileName, fileBase64 }`, PNG o JPG comprobado por bytes, máx. 512 KB. `DELETE /agency/logo` lo quita. Auditados.
+- `GET /agencies/{id}/logo` (público): la imagen, con `nosniff` y caché de un día; la URL cambia al cambiar el logo.
+- `GET /branding` (público): marca del dominio desde el que se abre la página (`X-Forwarded-Host`), EE si ningún dominio coincide; sin pie ni remitente.
+- La propuesta (`/quotes/{id}/proposal` y la liga pública) incluye `brand` (nombre, logo, pie, colores) de la agencia de la solicitud.
+
 ## Contratos de referencia
 ### Crear solicitud
 ```json

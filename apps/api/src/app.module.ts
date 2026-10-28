@@ -31,6 +31,7 @@ import { BANXICO, type Banxico, HttpBanxico } from './rates/banxico.js';
 import { CronController } from './cron/cron.controller.js';
 import { SchoolsController } from './schools/schools.controller.js';
 import { SettingsController } from './alerts/alerts.controller.js';
+import { AgencyController } from './agency/agency.controller.js';
 
 @Module({})
 export class AppModule {
@@ -102,6 +103,7 @@ export class AppModule {
         IntegrationsController,
         CronController,
         SettingsController,
+        AgencyController,
         SchoolsController,
       ],
       providers: [

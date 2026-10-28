@@ -3,11 +3,14 @@ import type { PrismaClient } from '@ee/db';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { ENV, type Env } from '../env.js';
 import { PRISMA } from '../prisma.service.js';
+import { agencyOfOffice, mailBrand } from '../agency/brand.js';
 
 export interface Mail {
   to: string;
   subject: string;
   text: string;
+  /** Agency sender name; the address is always the server's SMTP account. */
+  fromName?: string;
 }
 
 /** Seam for tests; null in the container means notices are off (no SMTP configured). */
@@ -33,8 +36,9 @@ export class SmtpMailer implements Mailer {
     });
   }
 
-  async send(mail: Mail): Promise<void> {
-    await this.transport.sendMail({ from: this.from, ...mail });
+  async send({ fromName, ...mail }: Mail): Promise<void> {
+    const address = this.from.match(/<([^>]+)>/)?.[1] ?? this.from;
+    await this.transport.sendMail({ from: fromName ? { name: fromName, address } : this.from, ...mail });
   }
 }
 
@@ -63,6 +67,7 @@ const COPY: Record<Notice['kind'], { subject: string; line: string }> = {
 };
 
 interface Target {
+  officeId: string;
   folio: string;
   groupName: string;
   path: string;
@@ -95,6 +100,7 @@ export class Notifier {
         select: { email: true },
       });
       const { subject, line } = COPY[notice.kind];
+      const brand = mailBrand(await agencyOfOffice(this.prisma, target.officeId), this.env.WEB_ORIGIN);
       const text = [
         'Hola:',
         '',
@@ -102,12 +108,17 @@ export class Notifier {
         '',
         `Folio: ${target.folio}`,
         `Grupo: ${target.groupName}`,
-        `${this.env.WEB_ORIGIN}${target.path}`,
+        `${brand.origin}${target.path}`,
         '',
-        'Cotizador de Estudiantes Embajadores. Aviso automático, no respondas este correo.',
+        brand.signature,
       ].join('\n');
       for (const u of users)
-        await this.mailer.send({ to: u.email, subject: `${subject} ${target.folio}`, text });
+        await this.mailer.send({
+          to: u.email,
+          subject: `${subject} ${target.folio}`,
+          text,
+          fromName: brand.fromName,
+        });
     } catch (err) {
       // No addresses or message content in logs: SMTP errors can echo recipients.
       const code = (err as { code?: string; responseCode?: number }).code ?? 'UNKNOWN';
@@ -119,7 +130,13 @@ export class Notifier {
     if (notice.kind === 'ASSIGNED') {
       const r = await this.prisma.travelRequest.findUnique({ where: { id: notice.requestId } });
       return r?.assigneeId
-        ? { folio: r.folio, groupName: r.groupName, path: `/solicitudes/${r.id}`, userIds: [r.assigneeId] }
+        ? {
+            officeId: r.officeId,
+            folio: r.folio,
+            groupName: r.groupName,
+            path: `/solicitudes/${r.id}`,
+            userIds: [r.assigneeId],
+          }
         : null;
     }
     const v = await this.prisma.quoteVersion.findUnique({
@@ -142,6 +159,7 @@ export class Notifier {
           ? [...quoters, r.requesterId]
           : quoters;
     return {
+      officeId: r.officeId,
       folio: r.folio,
       groupName: r.groupName,
       path: `/cotizaciones/${v.id}`,

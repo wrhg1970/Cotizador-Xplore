@@ -2,6 +2,7 @@ import { AlertSettings, DEFAULT_ALERT_SETTINGS } from '@ee/contracts';
 import type { PrismaClient } from '@ee/db';
 import type { Mailer } from '../notify/notifier.js';
 import { getSetting } from '../settings/settings.js';
+import { BRAND_OMIT, mailBrand } from '../agency/brand.js';
 import { full, toDto } from '../quotes/quotes.controller.js';
 
 export type AlertKind = 'UNQUOTED' | 'REVIEW_PENDING' | 'SENT_NO_ANSWER' | 'PAYMENT_DUE';
@@ -194,14 +195,15 @@ const DIGEST_KEY = 'alerts.lastDigest';
 export async function sendDigest(prisma: PrismaClient, mailer: Mailer, webOrigin: string, now = new Date()) {
   const agencies = await prisma.agency.findMany({
     where: { active: true },
-    select: { id: true, offices: { select: { id: true } } },
+    omit: BRAND_OMIT,
+    include: { offices: { select: { id: true } } },
   });
   const totals = { alerts: 0, sent: 0, of: 0, skipped: 0 };
   for (const a of agencies) {
     const r = await sendAgencyDigest(
       prisma,
       mailer,
-      webOrigin,
+      mailBrand(a, webOrigin),
       a.id,
       a.offices.map((o) => o.id),
       now,
@@ -219,7 +221,7 @@ export async function sendDigest(prisma: PrismaClient, mailer: Mailer, webOrigin
 async function sendAgencyDigest(
   prisma: PrismaClient,
   mailer: Mailer,
-  webOrigin: string,
+  brand: ReturnType<typeof mailBrand>,
   agencyId: string,
   officeIds: string[],
   now: Date,
@@ -238,7 +240,7 @@ async function sendAgencyDigest(
     const mine = alerts.filter((a) => a.userIds.includes(u.id));
     const lines = mine.map(
       (a) =>
-        `- ${ALERT_LABEL[a.kind]} · ${a.folio} ${a.groupName}\n  ${a.detail}\n  ${webOrigin}${a.quoteId ? `/cotizaciones/${a.quoteId}` : `/solicitudes/${a.requestId}`}`,
+        `- ${ALERT_LABEL[a.kind]} · ${a.folio} ${a.groupName}\n  ${a.detail}\n  ${brand.origin}${a.quoteId ? `/cotizaciones/${a.quoteId}` : `/solicitudes/${a.requestId}`}`,
     );
     const text = [
       'Hola:',
@@ -247,11 +249,16 @@ async function sendAgencyDigest(
       '',
       ...lines,
       '',
-      'Cotizador de Estudiantes Embajadores. Aviso automático, no respondas este correo.',
+      brand.signature,
     ].join('\n');
     // One failed address must not stop the rest; the error code is enough to diagnose.
     try {
-      await mailer.send({ to: u.email, subject: `Pendientes atrasados (${mine.length})`, text });
+      await mailer.send({
+        to: u.email,
+        subject: `Pendientes atrasados (${mine.length})`,
+        text,
+        fromName: brand.fromName,
+      });
       sent++;
     } catch {
       /* counted as not sent */

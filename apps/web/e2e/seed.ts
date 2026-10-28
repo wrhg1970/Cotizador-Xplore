@@ -4,10 +4,10 @@ import { createPrismaClient, EE_AGENCY_ID, type Role } from '@ee/db';
 export const prisma = createPrismaClient(process.env.DATABASE_URL!);
 
 /** Creates an ACTIVE user with a live session; Google login itself is covered by API tests. */
-export async function userWithSession(officeId: string, role: Role, name: string) {
+export async function userWithSession(officeId: string, role: Role, name: string, agencyId = EE_AGENCY_ID) {
   const user = await prisma.user.create({
     data: {
-      agencyId: EE_AGENCY_ID,
+      agencyId,
       email: `${randomUUID()}@e2e.example`,
       name,
       status: 'ACTIVE',
@@ -25,11 +25,16 @@ export async function userWithSession(officeId: string, role: Role, name: string
   return { user, cookie: { name: 'ee_session', value: token, domain: 'localhost', path: '/' } };
 }
 
-export const newOffice = () =>
+export const newOffice = (agencyId = EE_AGENCY_ID) =>
   prisma.office.create({
     data: {
-      agencyId: EE_AGENCY_ID,
+      agencyId,
       code: `E2E-${randomUUID().slice(0, 6)}`.toUpperCase(),
       name: `Oficina E2E`,
     },
+  });
+
+export const newAgency = () =>
+  prisma.agency.create({
+    data: { code: `E2E-${randomUUID().slice(0, 6)}`.toUpperCase(), name: 'Agencia E2E' },
   });
