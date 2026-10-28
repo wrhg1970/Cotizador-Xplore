@@ -35,7 +35,7 @@ test('advisor creates and submits; admin assigns; quoter sees it in Mis tareas',
   await adv.getByLabel('Fecha de regreso *').fill('2027-07-21');
   await adv.getByLabel('Alumnos *').fill('20');
   await adv.getByLabel('Chaperones').fill('2');
-  await adv.getByLabel('Presupuesto estimado por alumno').fill('5150.00');
+  await adv.getByLabel('Presupuesto por alumno').fill('5150.00');
   await adv.getByLabel('Moneda').selectOption('GBP');
   await adv.getByLabel('Correo del solicitante').fill('coord@colegio.example');
   // The draft is saved without leaving the wizard and gets its folio.

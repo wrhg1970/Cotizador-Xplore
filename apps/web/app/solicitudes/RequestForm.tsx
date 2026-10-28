@@ -455,7 +455,7 @@ export function RequestForm({ existing, draft }: { existing?: TravelRequestDto; 
           </div>
           <div className={s.money}>
             <label>
-              {basis === 'TOTAL' ? 'Presupuesto total del grupo' : 'Presupuesto estimado por alumno'}
+              {basis === 'TOTAL' ? 'Presupuesto total del grupo' : 'Presupuesto por alumno'}
               <input
                 name="budgetAmount"
                 inputMode="decimal"
