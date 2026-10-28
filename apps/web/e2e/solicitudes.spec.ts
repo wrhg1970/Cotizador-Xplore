@@ -48,12 +48,16 @@ test('Solicitudes: stage tabs, search and Filas / Tarjetas / Kanban', async ({ b
   await expect(page.getByRole('row', { name: /Campamento Vancouver/ })).toContainText('04. Enviada');
 
   await page.getByRole('button', { name: /^Todas/ }).click();
+  // Each step builds on the URL the previous one left, so wait for it to land.
+  await expect(page.getByRole('heading', { name: 'Expedientes (3)' })).toBeVisible();
   await page.getByRole('searchbox', { name: 'Buscar' }).fill('londres');
   await page.getByRole('searchbox', { name: 'Buscar' }).press('Enter');
+  await expect(page).toHaveURL(/q=londres/);
   await expect(page.getByRole('heading', { name: 'Expedientes (1)' })).toBeVisible();
 
   await page.getByRole('searchbox', { name: 'Buscar' }).fill('');
   await page.getByRole('searchbox', { name: 'Buscar' }).press('Enter');
+  await expect(page.getByRole('heading', { name: 'Expedientes (3)' })).toBeVisible();
   await page.getByRole('button', { name: 'Kanban' }).click();
   await expect(page).toHaveURL(/vista=KANBAN/);
   await expect(page.getByRole('region', { name: 'Etapa Cerrada' })).toContainText('Verano Londres');

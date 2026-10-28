@@ -68,7 +68,15 @@ function Inbox() {
     const query = new URLSearchParams(params);
     query.delete('vista');
     query.set('limit', String(LIMIT));
-    api<Page>(`/requests?${query.toString()}`).then(setData, (e) => setError(errorText(e)));
+    // Fast tab or search changes: only the latest answer may land.
+    let current = true;
+    api<Page>(`/requests?${query.toString()}`).then(
+      (d) => current && setData(d),
+      (e) => current && setError(errorText(e)),
+    );
+    return () => {
+      current = false;
+    };
   }, [params]);
   useEffect(() => {
     api<typeof offices>('/offices').then(setOffices, () => undefined);
