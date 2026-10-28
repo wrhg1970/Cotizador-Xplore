@@ -128,3 +128,8 @@
 ## Landing pública (2026-10-28)
 - `/` muestra una página pública breve (qué hace el cotizador, las cuatro etapas, seguridad) con «Entrar con Google». Si ya hay sesión, manda directo a «Mi trabajo».
 - No muestra cifras, clientes ni datos reales; tampoco un «modo demo» como la V2, porque el acceso sigue siendo solo por invitación.
+
+## Editar y borrar oficinas (2026-10-28)
+- El administrador del sistema edita código y nombre, y desactiva o reactiva oficinas desde Administración.
+- «Borrar» es real solo si la oficina está vacía. Si tiene solicitudes, usuarios o plantillas se desactiva: deja de aparecer para nuevas solicitudes y para dar privilegios, pero conserva su historial y sigue visible para quien ya trabajaba ahí.
+- Cambiar el código no cambia folios: el folio no lleva el código de la oficina.

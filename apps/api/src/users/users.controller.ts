@@ -11,13 +11,14 @@ import {
   NotFoundException,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Put,
   Query,
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { CreateOffice, InviteUser, type Me, OfficeRoleInput, UserOffices } from '@ee/contracts';
+import { CreateOffice, InviteUser, type Me, OfficeRoleInput, UpdateOffice, UserOffices } from '@ee/contracts';
 import type { PrismaClient } from '@ee/db';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
@@ -71,6 +72,85 @@ export class UsersController {
         diff: body,
       });
       return office;
+    });
+  }
+
+  /** Administration: every office, inactive ones too, with what hangs from it. */
+  @Get('offices/all')
+  async allOffices(@CurrentUser() user: AuthUser) {
+    if (!isSystemAdmin(user)) throw new ForbiddenException();
+    const rows = await this.prisma.office.findMany({
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        active: true,
+        _count: { select: { requests: true, userRoles: true, templates: true } },
+      },
+      orderBy: { code: 'asc' },
+    });
+    return rows.map(({ _count, ...o }) => ({ ...o, ..._count }));
+  }
+
+  @Patch('offices/:id')
+  async updateOffice(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(UpdateOffice)) body: UpdateOffice,
+  ) {
+    if (!isSystemAdmin(user)) throw new ForbiddenException();
+    return this.prisma.$transaction(async (tx) => {
+      const before = await tx.office.findUnique({ where: { id } });
+      if (!before) throw new NotFoundException('Oficina no encontrada');
+      if (
+        body.code &&
+        body.code !== before.code &&
+        (await tx.office.findUnique({ where: { code: body.code } }))
+      )
+        throw new ConflictException('Código duplicado');
+      const office = await tx.office.update({
+        where: { id },
+        data: body,
+        select: { id: true, code: true, name: true, active: true },
+      });
+      await audit(tx, {
+        actorUserId: user.id,
+        action: 'office.updated',
+        entityType: 'Office',
+        entityId: id,
+        correlationId: req.correlationId,
+        diff: { before: { code: before.code, name: before.name, active: before.active }, after: body },
+      });
+      return office;
+    });
+  }
+
+  /** Real delete only for an empty office; one with history is deactivated instead (PATCH active=false). */
+  @Delete('offices/:id')
+  @HttpCode(204)
+  async deleteOffice(@CurrentUser() user: AuthUser, @Req() req: Request, @Param('id', uuid) id: string) {
+    if (!isSystemAdmin(user)) throw new ForbiddenException();
+    await this.prisma.$transaction(async (tx) => {
+      const office = await tx.office.findUnique({
+        where: { id },
+        include: { _count: { select: { requests: true, userRoles: true, templates: true } } },
+      });
+      if (!office) throw new NotFoundException('Oficina no encontrada');
+      const { requests, userRoles, templates } = office._count;
+      if (requests + userRoles + templates > 0)
+        throw new ConflictException(
+          'La oficina tiene solicitudes, usuarios o plantillas: desactívala para conservar su historial',
+        );
+      await tx.office.delete({ where: { id } });
+      await audit(tx, {
+        actorUserId: user.id,
+        action: 'office.deleted',
+        entityType: 'Office',
+        entityId: id,
+        correlationId: req.correlationId,
+        diff: { code: office.code, name: office.name },
+      });
     });
   }
 

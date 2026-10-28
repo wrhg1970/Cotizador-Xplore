@@ -37,6 +37,11 @@ export const CreateOffice = z.strictObject({
   name: Name,
 });
 export type CreateOffice = z.infer<typeof CreateOffice>;
+/** Rename, recode or (de)activate; deactivating keeps the office's history. */
+export const UpdateOffice = CreateOffice.partial()
+  .extend({ active: z.boolean().optional() })
+  .refine((o) => Object.keys(o).length > 0, { message: 'Nada que cambiar' });
+export type UpdateOffice = z.infer<typeof UpdateOffice>;
 
 export const OfficeRoleInput = z.strictObject({ officeId: z.uuid(), role: RoleName });
 export type OfficeRoleInput = z.infer<typeof OfficeRoleInput>;
