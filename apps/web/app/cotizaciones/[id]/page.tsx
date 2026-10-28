@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { CurrencyCode, LineCategory } from '@ee/contracts';
 import { api, errorText } from '../../lib/api';
+import { preview, TotalsBar } from './LiveTotals';
 import { PaymentSchedule, ProposalContent } from './ProposalContent';
 import { ShareLinks } from './ShareLinks';
 import { VersionChanges } from './VersionChanges';
@@ -77,7 +78,11 @@ export default function QuoteEditorPage() {
     setQ(v);
     setDraft(v);
     setMarginPct(toPct(v.targetMarginRate));
-    setTargetPrice(v.totals ? String(Math.round(Number(v.totals.pricePerParticipant))) : '');
+    setTargetPrice(
+      Number(v.totals?.pricePerParticipant) > 0
+        ? String(Math.round(Number(v.totals!.pricePerParticipant)))
+        : '',
+    );
     setByPrice(false);
   }, []);
 
@@ -104,11 +109,35 @@ export default function QuoteEditorPage() {
   const set = (patch: Partial<QuoteDto>) => setDraft({ ...draft, ...patch });
   const setLine = (i: number, patch: Partial<QuoteLineDto>) =>
     set({ lines: draft.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
+  const foreign = [...new Set(draft.lines.map((l) => l.currency))].filter((c) => c !== draft.saleCurrency);
+  const missingFx = foreign.filter((c) => !draft.fxRates.some((f) => f.fromCurrency === c && f.rate));
+  const live = preview(draft, marginPct, targetPrice, byPrice);
+  const dirty = draft !== q || byPrice || marginPct !== toPct(q.targetMarginRate);
+  /** New rate row: the first currency still missing, with a source so the server accepts it. */
+  const addFx = (from?: CurrencyCode) => {
+    const taken = new Set(draft.fxRates.map((f) => f.fromCurrency));
+    const pick =
+      from ??
+      missingFx.find((c) => !taken.has(c)) ??
+      CurrencyCode.options.find((c) => c !== draft.saleCurrency && !taken.has(c))!;
+    const rest = draft.fxRates.filter((f) => f.fromCurrency !== pick);
+    set({
+      fxRates: [
+        ...rest,
+        {
+          fromCurrency: pick,
+          toCurrency: draft.saleCurrency,
+          rate: '',
+          rateDate: today(),
+          source: 'Captura manual',
+        },
+      ],
+    });
+  };
   const setFx = (i: number, patch: Partial<FxRateDto>) =>
     set({ fxRates: draft.fxRates.map((f, j) => (j === i ? { ...f, ...patch } : f)) });
   /** Copies the current official rate for every foreign line currency; the quote keeps its own frozen copy. */
   const applyOfficialRates = () => {
-    const foreign = [...new Set(draft.lines.map((l) => l.currency))].filter((c) => c !== draft.saleCurrency);
     const found = officialRates.filter(
       (r) => r.toCurrency === draft.saleCurrency && foreign.includes(r.fromCurrency),
     );
@@ -440,11 +469,100 @@ export default function QuoteEditorPage() {
         </div>
       )}
 
-      <fieldset disabled={!editable} style={{ border: 0, padding: 0, margin: 0 }}>
+      <fieldset disabled={!editable} className="editor">
         <div {...tabProps('conceptos')}>
-          <section aria-labelledby="grupo">
+          <section className="card compact" aria-labelledby="fx">
+            <div className="section-head">
+              <h2 id="fx">Tipos de cambio</h2>
+              <span className="muted">
+                Unidades de {draft.saleCurrency} por 1 unidad de la otra moneda, con fecha y fuente.
+              </span>
+              <div className="row">
+                <button className="secondary" onClick={() => addFx()}>
+                  Agregar tipo de cambio
+                </button>
+                <button className="secondary" onClick={applyOfficialRates}>
+                  Usar tipos de cambio oficiales
+                </button>
+              </div>
+            </div>
+            {missingFx.length > 0 && (
+              <p className="error" style={{ margin: '0 0 8px' }}>
+                Falta el tipo de cambio de {missingFx.map((c) => `${c} → ${draft.saleCurrency}`).join(', ')}{' '}
+                para calcular.{' '}
+                {missingFx.map((c) => (
+                  <button key={c} className="secondary small" onClick={() => addFx(c)}>
+                    Capturar {c}
+                  </button>
+                ))}
+              </p>
+            )}
+            <div className="fields">
+              {draft.fxRates.map((f, i) => (
+                <div className="fx-row" key={i}>
+                  <label>
+                    De
+                    <select
+                      value={f.fromCurrency}
+                      onChange={(e) => setFx(i, { fromCurrency: e.target.value as CurrencyCode })}
+                    >
+                      {CurrencyCode.options.map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Tipo de cambio
+                    <input
+                      inputMode="decimal"
+                      value={f.rate}
+                      placeholder="0.00"
+                      onChange={(e) => setFx(i, { rate: e.target.value.trim() })}
+                    />
+                  </label>
+                  <label>
+                    Fecha
+                    <input
+                      type="date"
+                      value={f.rateDate}
+                      onChange={(e) => setFx(i, { rateDate: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Fuente
+                    <input
+                      value={f.source}
+                      maxLength={150}
+                      placeholder="Banxico, banco, proveedor…"
+                      onChange={(e) => setFx(i, { source: e.target.value })}
+                    />
+                  </label>
+                  <button
+                    className="secondary small"
+                    aria-label={`Quitar tipo de cambio ${f.fromCurrency}`}
+                    onClick={() => set({ fxRates: draft.fxRates.filter((_, j) => j !== i) })}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {draft.saleCurrency !== 'MXN' && (
+                <label className="fx-mxn">
+                  Tipo de cambio a MXN (aproximado)
+                  <input
+                    inputMode="decimal"
+                    value={draft.mxnRate ?? ''}
+                    placeholder="20.39"
+                    onChange={(e) => set({ mxnRate: e.target.value })}
+                  />
+                </label>
+              )}
+            </div>
+          </section>
+
+          <section className="card compact" aria-labelledby="grupo">
             <h2 id="grupo">Grupo y precio</h2>
-            <div className="row">
+            <div className="fields">
               <label>
                 Estudiantes
                 <input
@@ -504,28 +622,17 @@ export default function QuoteEditorPage() {
                   min={1}
                   step="1"
                   value={targetPrice}
+                  title={
+                    byPrice
+                      ? 'Al guardar se calcula el % que da este precio'
+                      : 'O escribe el precio y se calcula el %'
+                  }
                   onChange={(e) => {
                     setTargetPrice(e.target.value);
                     setByPrice(true);
                   }}
                 />
-                <span className="hint">
-                  {byPrice
-                    ? 'Al guardar se calcula el % que da este precio'
-                    : 'O escribe el precio y se calcula el %'}
-                </span>
               </label>
-              {draft.saleCurrency !== 'MXN' && (
-                <label>
-                  Tipo de cambio a MXN (aproximado)
-                  <input
-                    inputMode="decimal"
-                    value={draft.mxnRate ?? ''}
-                    placeholder="20.39"
-                    onChange={(e) => set({ mxnRate: e.target.value })}
-                  />
-                </label>
-              )}
               <label>
                 Vigencia
                 <input
@@ -538,12 +645,14 @@ export default function QuoteEditorPage() {
           </section>
 
           <section aria-labelledby="conceptos">
-            <h2 id="conceptos">Conceptos</h2>
-            <p className="muted">
-              En gastos por día, la cantidad son los días
-              {tripDays ? ` (este viaje: ${tripDays}, contando salida y regreso)` : ''}. El precio final se
-              redondea hacia arriba al número entero.
-            </p>
+            <div className="section-head">
+              <h2 id="conceptos">Conceptos</h2>
+              <span className="muted">
+                En gastos por día, la cantidad son los días
+                {tripDays ? ` (este viaje: ${tripDays}, contando salida y regreso)` : ''}. El precio final se
+                redondea hacia arriba al número entero.
+              </span>
+            </div>
             {SHEET_BLOCKS.map((b) => {
               const rows = draft.lines.map((l, i) => ({ l, i })).filter(({ l }) => l.category === b.category);
               const used = new Set(rows.map(({ l }) => l.description));
@@ -556,11 +665,18 @@ export default function QuoteEditorPage() {
                   .map((r) => ({ ...r, supplier: sup.name })),
               );
               return (
-                <div key={b.category} style={{ marginBottom: 16 }}>
-                  <h3 style={{ marginBottom: 4 }}>{b.title}</h3>
-                  <p className="muted" style={{ marginTop: 0 }}>
-                    {b.hint}
-                  </p>
+                <details key={b.category} className="card compact block" open>
+                  <summary>
+                    <h3>{b.title}</h3>
+                    <span className="muted">
+                      {rows.length} {rows.length === 1 ? 'concepto' : 'conceptos'} · {b.hint}
+                    </span>
+                    {live.ok && (
+                      <span className="num subtotal">
+                        {live.byCategory[b.category]} {draft.saleCurrency}
+                      </span>
+                    )}
+                  </summary>
                   {rows.length > 0 && (
                     <div className="table-wrap">
                       <table>
@@ -571,14 +687,14 @@ export default function QuoteEditorPage() {
                             <th>Costo unitario</th>
                             <th>Moneda</th>
                             <th>Interno</th>
-                            <th>Total</th>
+                            <th className="num">Total {draft.saleCurrency}</th>
                             <th />
                           </tr>
                         </thead>
                         <tbody>
                           {rows.map(({ l, i }) => (
                             <tr key={i}>
-                              <td>
+                              <td className="wide">
                                 <input
                                   aria-label={`Concepto ${i + 1}`}
                                   value={l.description}
@@ -590,7 +706,7 @@ export default function QuoteEditorPage() {
                                 <input
                                   aria-label={`Cantidad ${i + 1}`}
                                   inputMode="decimal"
-                                  size={6}
+                                  size={5}
                                   value={l.quantity}
                                   onChange={(e) => setLine(i, { quantity: e.target.value.trim() })}
                                 />
@@ -599,7 +715,7 @@ export default function QuoteEditorPage() {
                                 <input
                                   aria-label={`Costo ${i + 1}`}
                                   inputMode="decimal"
-                                  size={10}
+                                  size={9}
                                   value={l.unitCost}
                                   onChange={(e) => setLine(i, { unitCost: e.target.value.trim() })}
                                 />
@@ -623,10 +739,10 @@ export default function QuoteEditorPage() {
                                   onChange={(e) => setLine(i, { internalOnly: e.target.checked })}
                                 />
                               </td>
-                              <td>{l.lineTotal ?? '—'}</td>
+                              <td className="num">{live.ok ? live.lineTotals[i] : '—'}</td>
                               <td>
                                 <button
-                                  className="secondary"
+                                  className="secondary small"
                                   aria-label={`Quitar ${i + 1}`}
                                   onClick={() => set({ lines: draft.lines.filter((_, j) => j !== i) })}
                                 >
@@ -695,92 +811,18 @@ export default function QuoteEditorPage() {
                       </select>
                     )}
                     <button
-                      className="secondary"
+                      className="secondary small"
                       aria-label={`Agregar concepto: ${b.title}`}
                       onClick={() =>
                         set({ lines: [...draft.lines, blankLine(draft.saleCurrency, b.category)] })
                       }
                     >
-                      Agregar otro concepto
+                      + Agregar otro concepto
                     </button>
                   </div>
-                </div>
+                </details>
               );
             })}
-          </section>
-
-          <section aria-labelledby="fx">
-            <h2 id="fx">Tipos de cambio</h2>
-            <p className="muted">
-              Unidades de {draft.saleCurrency} por 1 unidad de la otra moneda, con fecha y fuente.
-            </p>
-            {draft.fxRates.map((f, i) => (
-              <div className="row" key={i}>
-                <label>
-                  De
-                  <select
-                    value={f.fromCurrency}
-                    onChange={(e) => setFx(i, { fromCurrency: e.target.value as CurrencyCode })}
-                  >
-                    {CurrencyCode.options.map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Tipo de cambio
-                  <input
-                    inputMode="decimal"
-                    value={f.rate}
-                    onChange={(e) => setFx(i, { rate: e.target.value.trim() })}
-                  />
-                </label>
-                <label>
-                  Fecha
-                  <input
-                    type="date"
-                    value={f.rateDate}
-                    onChange={(e) => setFx(i, { rateDate: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Fuente
-                  <input
-                    value={f.source}
-                    maxLength={150}
-                    onChange={(e) => setFx(i, { source: e.target.value })}
-                  />
-                </label>
-                <button
-                  className="secondary"
-                  onClick={() => set({ fxRates: draft.fxRates.filter((_, j) => j !== i) })}
-                >
-                  Quitar
-                </button>
-              </div>
-            ))}
-            <button
-              className="secondary"
-              onClick={() =>
-                set({
-                  fxRates: [
-                    ...draft.fxRates,
-                    {
-                      fromCurrency: draft.saleCurrency === 'MXN' ? 'USD' : 'MXN',
-                      toCurrency: draft.saleCurrency,
-                      rate: '',
-                      rateDate: today(),
-                      source: '',
-                    },
-                  ],
-                })
-              }
-            >
-              Agregar tipo de cambio
-            </button>{' '}
-            <button className="secondary" onClick={applyOfficialRates}>
-              Usar tipos de cambio oficiales
-            </button>
           </section>
         </div>
 
@@ -800,12 +842,15 @@ export default function QuoteEditorPage() {
           </section>
         </div>
 
-        {editable && current !== 'hoja' && (
-          <p>
-            <button disabled={saving} onClick={save}>
-              {saving ? 'Guardando…' : 'Guardar y calcular'}
-            </button>
-          </p>
+        {editable && (current === 'conceptos' || current === 'propuesta') && (
+          <TotalsBar
+            p={live}
+            currency={draft.saleCurrency}
+            dirty={dirty}
+            saving={saving}
+            error={error}
+            onSave={() => void save()}
+          />
         )}
       </fieldset>
     </>
