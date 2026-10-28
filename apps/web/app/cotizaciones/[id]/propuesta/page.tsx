@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, errorText } from '../../../lib/api';
+import { Logo } from '../../../Logo';
 import { PaymentSchedule } from '../ProposalContent';
 import {
   fmtDate,
@@ -62,7 +63,7 @@ export default function ProposalPage() {
       </p>
       {legend}
       <span className="brand">
-        xplore<span>·</span>together
+        <Logo height={72} />
       </span>
       <p className="kicker">Propuesta de viaje</p>
       <h1>{p.request.groupName}</h1>

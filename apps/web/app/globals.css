@@ -1,5 +1,7 @@
 :root {
-  --bg: #f4f5f7;
+  /* Brand kit (Canva): navy #00457f, blue #2f8ee0, ice #edf5fa, yellow #ffa723, orange #ec6206.
+     Orange is darkened to #c2410c where it carries white text, to keep 4.5:1 contrast. */
+  --bg: #edf5fa;
   --surface: #ffffff;
   --text: #10233f;
   --muted: #3d4e66;
@@ -9,11 +11,12 @@
   --accent-strong: #9a3412;
   --accent-soft: #fff1e8;
   --accent-text: #ffffff;
-  --ink: #10233f;
+  --ink: #00457f;
   --ink-text: #ffffff;
+  --brand-yellow: #ffa723;
   --danger: #b42318;
   --ok: #11683f;
-  --focus: #2f6fbf;
+  --focus: #2f8ee0;
   --radius: 18px;
   --font-body: var(--font-sans, system-ui), system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-head: var(--font-display, system-ui), system-ui, sans-serif;
@@ -101,15 +104,22 @@ header.top .user {
   gap: 12px;
 }
 .brand {
-  font-family: var(--font-head);
-  font-weight: 800;
-  font-size: 20px;
-  letter-spacing: -0.02em;
-  color: var(--text);
-  text-decoration: none;
+  display: inline-flex;
+  line-height: 0;
 }
-.brand span {
-  color: var(--accent);
+.brand img {
+  height: auto;
+}
+.logo-dark {
+  display: none;
+}
+@media screen and (prefers-color-scheme: dark) {
+  .logo-light {
+    display: none;
+  }
+  .logo-dark {
+    display: inline;
+  }
 }
 main {
   max-width: 1240px;
@@ -381,7 +391,7 @@ button.secondary:not(:disabled):hover,
   color: var(--ink-text);
 }
 .login .panel {
-  background: #10233f;
+  background: #00457f;
   color: #ffffff;
   align-items: center;
 }
@@ -394,7 +404,7 @@ button.secondary:not(:disabled):hover,
   margin: 0;
 }
 .login .panel p span {
-  color: #f9b48a;
+  color: var(--brand-yellow);
 }
 
 .greeting {
@@ -459,7 +469,7 @@ article.proposal ol.timeline li::before {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--brand-yellow);
 }
 @media print {
   body {

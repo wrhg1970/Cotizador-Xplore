@@ -2,6 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import { Logo } from '../Logo';
 
 const ERRORS: Record<string, string> = {
   NOT_INVITED: 'Tu cuenta no ha sido invitada. Pide acceso al administrador de tu oficina.',
@@ -19,7 +20,7 @@ function LoginInner() {
     <div className="login">
       <section>
         <span className="brand">
-          xplore<span>·</span>together
+          <Logo height={96} />
         </span>
         <h1>Cada viaje empieza con una buena cotización.</h1>
         <p className="lead">
