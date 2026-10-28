@@ -475,3 +475,31 @@ input[type='radio'] {
   accent-color: var(--accent);
   min-height: 0;
 }
+
+/* Quote editor tabs: pill row that wraps on phones. */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 20px 0 16px;
+  padding: 4px;
+  background: var(--surface);
+  border-radius: 999px;
+  width: fit-content;
+  max-width: 100%;
+}
+.tabs [role='tab'] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+.tabs [role='tab']:hover {
+  background: var(--subtle);
+  border-color: transparent;
+  color: var(--text);
+}
+.tabs [role='tab'][aria-selected='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--ink-text);
+}

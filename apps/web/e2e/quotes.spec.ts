@@ -57,18 +57,24 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await page.getByLabel('Tipo de cambio a MXN (aproximado)').fill('20.39');
   await page.getByRole('button', { name: 'Guardar y calcular' }).click();
   // 4020 + (17 × 50 + 50) × 2 ÷ 10 + 150 ÷ 10 = 4215 → 4215 / 0.82 = 5140.24 → 5141
+  const sheetTab = page.getByRole('tab', { name: 'Hoja EE' });
+  const conceptsTab = page.getByRole('tab', { name: 'Grupo y conceptos' });
+  await sheetTab.click();
   const finalPrice = page.getByRole('row', { name: /PRECIO FINAL/ });
   await expect(finalPrice).toContainText('5141.00');
   await expect(page.getByRole('row', { name: /Gastos del líder/ })).toContainText('195.00');
   await expect(page.getByText('104825.00 MXN')).toBeVisible();
 
   // Typing the final price derives the %.
+  await conceptsTab.click();
   await page.getByLabel('Precio final por estudiante').fill('5200');
   await page.getByRole('button', { name: 'Guardar y calcular' }).click();
-  await expect(finalPrice).toContainText('5200.00');
   await expect(page.getByLabel('% Comisión (sobre el precio final)')).toHaveValue('18.9423');
+  await sheetTab.click();
+  await expect(finalPrice).toContainText('5200.00');
 
   // Proposal extras: 15% registration + 6 monthly payments, free places, itinerary, exclusions.
+  await page.getByRole('tab', { name: 'Propuesta' }).click();
   await page.getByLabel('Ofrecer plan de pagos').check();
   await page.getByLabel('Tipo de inscripción').selectOption('rate');
   await page.getByLabel('1 lugar por cada (estudiantes)').fill('5');
@@ -76,6 +82,7 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await page.getByLabel('Título').fill('Llegada a Roma');
   await page.getByLabel('Un concepto por línea').fill('Vuelo internacional\nGastos personales');
   await page.getByRole('button', { name: 'Guardar y calcular' }).click();
+  await sheetTab.click();
   const schedule = page.getByRole('table', { name: 'Plan de pagos por estudiante' });
   await expect(schedule.getByRole('row', { name: /Inscripción/ })).toContainText('780.00'); // 15% of 5200
   await expect(schedule.getByRole('row', { name: /Pago 6 de 6/ })).toContainText('736.70');
