@@ -49,8 +49,15 @@ export class ReportsController {
   ) {
     const rows = await this.prisma.quoteVersion.findMany({
       where: {
-        status:
-          q.status === 'APPROVAL' ? { in: ['IN_REVIEW', 'APPROVED'] } : (q.status ?? { not: 'SUPERSEDED' }),
+        // "Enviadas" traces every delivery, also of versions replaced since.
+        ...(q.status === 'SENT'
+          ? { deliveries: { some: {} } }
+          : {
+              status:
+                q.status === 'APPROVAL'
+                  ? { in: ['IN_REVIEW', 'APPROVED'] }
+                  : (q.status ?? { not: 'SUPERSEDED' as const }),
+            }),
         scenario: { request: { ...inOffices(officeScope(user)), status: { not: 'CANCELLED' } } },
       },
       orderBy: { updatedAt: 'desc' },
@@ -60,7 +67,11 @@ export class ReportsController {
         fxRates: true,
         createdBy: { select: { name: true } },
         reviews: { orderBy: { createdAt: 'asc' }, select: { decision: true } },
-        deliveries: { orderBy: { sentOn: 'desc' }, take: 1, select: { sentOn: true, channel: true } },
+        deliveries: {
+          orderBy: { sentOn: 'desc' },
+          take: 1,
+          select: { sentOn: true, channel: true, recipients: true, notes: true },
+        },
         scenario: {
           select: {
             name: true,
@@ -70,7 +81,9 @@ export class ReportsController {
                 folio: true,
                 groupName: true,
                 clientName: true,
+                contactName: true,
                 status: true,
+                wonVersionId: true,
                 officeId: true,
                 assigneeId: true,
                 departureDate: true,
@@ -98,7 +111,9 @@ export class ReportsController {
           folio: r.folio,
           groupName: r.groupName,
           clientName: r.clientName,
+          contactName: r.contactName,
           status: r.status,
+          wonVersionId: r.wonVersionId,
           officeCode: r.office.code,
           officeName: r.office.name,
           departureDate: day(r.departureDate),
@@ -120,6 +135,15 @@ export class ReportsController {
         updatedAt: v.updatedAt.toISOString(),
         sentOn: day(v.deliveries[0]?.sentOn ?? null),
         channel: v.deliveries[0]?.channel ?? null,
+        ...(v.deliveries[0] && {
+          recipients: v.deliveries[0].recipients,
+          // Notes that QuotesController.send / HistoryController write; anything else was logged by hand.
+          sentVia: v.deliveries[0].notes?.includes('desde el cotizador')
+            ? 'APP'
+            : v.deliveries[0].notes === 'Histórico importado de Excel'
+              ? 'HISTORY'
+              : 'MANUAL',
+        }),
         // Same rule as QuotesController.assertReviewer, so the list only offers what will be accepted.
         canApprove:
           v.status === 'IN_REVIEW' &&
