@@ -70,4 +70,40 @@ PROJECT_ID=<id-del-proyecto> ALLOWED_GOOGLE_DOMAINS=estudiantesembajadores.com \
 - El proyecto necesita facturación activa. La región por defecto es `us-central1` (`REGION=` para cambiarla).
 - La primera vez pide el client secret de Google sin mostrarlo y lo guarda en Secret Manager; la clave de base de datos y `SESSION_SECRET` se generan solos.
 - Las variables `SEED_*` son opcionales; solo hacen falta la primera vez.
-- Al final imprime la URL y la URI de redirección que hay que registrar en el cliente OAuth. Con dominio propio, mapearlo a `cotizador-web` y volver a correr con `PUBLIC_URL=https://<dominio>`.
+- Al final imprime la URL y la URI de redirección que hay que registrar en el cliente OAuth. El dominio propio se mapea a producción (ver abajo).
+
+## Producción separada de staging
+
+`deploy.sh` acepta `ENV=staging|prod` (por defecto `staging`). Los dos entornos viven en el mismo proyecto y la misma instancia de Cloud SQL, pero con datos y sesiones separados:
+
+| | staging | prod |
+|---|---|---|
+| Servicios Cloud Run | `cotizador-api`, `cotizador-web` | `cotizador-api-prod`, `cotizador-web-prod` |
+| Jobs | `cotizador-migrate`, `cotizador-seed` | `cotizador-migrate-prod`, `cotizador-seed-prod` |
+| Base de datos / usuario | `ee_quotes` / `ee_app` | `ee_quotes_prod` / `ee_app_prod` |
+| Secretos propios | `cotizador-database-url`, `cotizador-session-secret` | `cotizador-prod-database-url`, `cotizador-prod-session-secret` |
+| `PUBLIC_URL` por defecto | URL run.app de `cotizador-web` | `https://cotizador.xploretogether.travel` |
+
+Se comparten el cliente OAuth, la contraseña SMTP y la llave de WeTravel. Staging deja de llevar `PUBLIC_URL` con el dominio: el dominio es de producción.
+
+Primer despliegue de producción (crea la BD vacía, corre migraciones y da de alta al primer administrador):
+
+```sh
+cd ~/Cotizador-Xplore && git pull
+ENV=prod PROJECT_ID=xploretogether-cotizador \
+ALLOWED_GOOGLE_DOMAINS=estudiantesembajadores.com \
+SMTP_USER=cotizador@estudiantesembajadores.com \
+SEED_OFFICE_CODE=CORP SEED_OFFICE_NAME="Corporativo Nuevo León" \
+SEED_ADMIN_EMAIL=<correo-del-admin> SEED_ADMIN_NAME="<nombre>" \
+infra/gcp/deploy.sh
+```
+
+Después, mapear el dominio al servicio de producción (si ya estaba mapeado a staging, borrar ese mapeo primero):
+
+```sh
+gcloud beta run domain-mappings delete --domain=cotizador.xploretogether.travel --region=us-central1   # solo si existía
+gcloud beta run domain-mappings create --service=cotizador-web-prod \
+  --domain=cotizador.xploretogether.travel --region=us-central1
+```
+
+Despliegues siguientes: el mismo comando sin las variables `SEED_*`. Staging se sigue desplegando igual que antes, sin `ENV` ni `PUBLIC_URL`. Lo normal es probar primero en staging y luego correr el mismo commit con `ENV=prod`.
