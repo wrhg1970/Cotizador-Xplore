@@ -69,7 +69,7 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   const finalPrice = page.getByRole('row', { name: /PRECIO FINAL/ });
   await expect(finalPrice).toContainText('5141.00');
   await expect(page.getByRole('row', { name: /Gastos del líder/ })).toContainText('195.00');
-  await expect(page.getByText('104825.00 MXN')).toBeVisible();
+  await expect(page.getByRole('cell', { name: '104825.00 MXN' })).toBeVisible();
 
   // Typing the final price derives the %.
   await conceptsTab.click();
@@ -80,10 +80,25 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await expect(finalPrice).toContainText('5200.00');
 
   // Proposal extras: 15% registration + 6 monthly payments, free places, itinerary, exclusions.
-  await page.getByRole('tab', { name: 'Propuesta' }).click();
+  await conceptsTab.click();
+  await page.getByLabel('1 lugar por cada (estudiantes)').fill('5');
+  await expect(page.getByText('2 lugares liberados')).toBeVisible();
+  await page.getByRole('tab', { name: 'Plan de pagos' }).click();
   await page.getByLabel('Ofrecer plan de pagos').check();
   await page.getByLabel('Tipo de inscripción').selectOption('rate');
-  await page.getByLabel('1 lugar por cada (estudiantes)').fill('5');
+  // 1-15 picker and the live table, before saving: 15% of 5200 then six installments.
+  await page.getByRole('button', { name: '6 pagos' }).click();
+  const livePlan = page.getByRole('table', { name: 'Plan de pagos en vivo' });
+  await expect(livePlan.getByRole('row', { name: /Inscripción/ })).toContainText('780.00');
+  await expect(livePlan.getByRole('row', { name: /Pago 6 de 6/ })).toContainText('736.70');
+  const planCsv = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Exportar plan (Excel / CSV)' }).click();
+  expect((await planCsv).suggestedFilename()).toMatch(/plan-de-pagos\.csv$/);
+  // Volume ladder and stress test come from the same engine; the 10-student group sits below 15.
+  await page.getByRole('tab', { name: 'Volumen y riesgo' }).click();
+  await expect(page.getByRole('table', { name: 'Precio por volumen' }).getByRole('row')).toHaveCount(6);
+  await page.getByLabel('Mostrar al colegio el precio por rango').check();
+  await page.getByRole('tab', { name: 'Propuesta' }).click();
   await page.getByRole('button', { name: 'Agregar día' }).click();
   await page.getByLabel('Título').fill('Llegada a Roma');
   await page.getByLabel('Un concepto por línea').fill('Vuelo internacional\nGastos personales');
@@ -94,8 +109,13 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await expect(schedule.getByRole('row', { name: /Pago 6 de 6/ })).toContainText('736.70');
   await expect(page.getByText('Lugares liberados: 2')).toBeVisible();
 
+  // Price edits and their saves show in the file's timeline, filterable by kind.
+  await page.getByRole('tab', { name: 'Línea de tiempo' }).click();
+  await page.getByRole('button', { name: /Cambios de precio/ }).click();
+  await expect(page.getByText('Editó la cotización').first()).toBeVisible();
   await page.getByRole('link', { name: 'Ver propuesta para compartir' }).click();
   await expect(page.getByRole('heading', { name: 'Plan de pagos por estudiante' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Precio por tamaño del grupo' })).toContainText('35 o más');
   await expect(page.getByText('Día 1: Llegada a Roma')).toBeVisible();
   await expect(page.getByText('Vuelo internacional')).toBeVisible();
   await page.goBack();

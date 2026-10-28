@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { CurrencyCode, LineCategory } from '@ee/contracts';
 import { api, errorText } from '../../lib/api';
 import { preview, TotalsBar } from './LiveTotals';
@@ -11,6 +11,11 @@ import { ShareLinks } from './ShareLinks';
 import { VersionChanges } from './VersionChanges';
 import { SheetImport } from './SheetImport';
 import { SheetSummary } from './SheetSummary';
+import { QuoteHeader, type Role } from './QuoteHeader';
+import { PaymentPlan } from './PaymentPlan';
+import { Sensitivity, VolumeMatrix } from './VolumeRisk';
+import { Timeline, type TimelineData } from './Timeline';
+import { FreePlaces, NewConcept, QuickLoad } from './OptionTools';
 import {
   CHANNEL_LABEL,
   fmtDate,
@@ -24,6 +29,7 @@ import {
   type OfficialRateDto,
   type QuoteDto,
   type QuoteLineDto,
+  type ScenarioDto,
   type SupplierDto,
   type TravelRequestDto,
 } from '../../lib/types';
@@ -46,18 +52,29 @@ const blankLine = (
 // Margin travels as a 0..1 decimal; people type it as a percentage.
 const toPct = (rate: string) => String(Number((Number(rate) * 100).toFixed(4)));
 const fromPct = (pct: string) => String(Number((Number(pct) / 100).toFixed(6)));
+// shortcut: the V2 model's "rentabilidad óptima" line is fixed at 18 %; read it from the approval rules if Finance moves it.
+const OPTIMAL_PCT = 18;
 
-type Tab = 'hoja' | 'conceptos' | 'propuesta' | 'importar';
+type Tab = 'hoja' | 'conceptos' | 'pagos' | 'volumen' | 'propuesta' | 'bitacora' | 'importar';
 const TAB_LABEL: Record<Tab, string> = {
   hoja: 'Hoja EE',
   conceptos: 'Grupo y conceptos',
+  pagos: 'Plan de pagos',
+  volumen: 'Volumen y riesgo',
   propuesta: 'Propuesta',
+  bitacora: 'Línea de tiempo',
   importar: 'Importar hoja',
 };
+const GROUPS: { label: string; tabs: Tab[] }[] = [
+  { label: 'Finanzas y cotización', tabs: ['hoja', 'conceptos', 'pagos', 'volumen'] },
+  { label: 'Propuesta y cierre', tabs: ['propuesta', 'bitacora'] },
+  { label: 'Herramientas', tabs: ['importar'] },
+];
 
-/** Quote version editor (US-031, US-055): group sizes, lines, FX and live totals. */
+/** Quote version editor (US-031, US-055) laid out like the V2 model: header, stages, tabs, live bar. */
 export default function QuoteEditorPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const me = useMe();
   const [q, setQ] = useState<QuoteDto | null>(null);
   const [req, setReq] = useState<TravelRequestDto | null>(null);
@@ -69,12 +86,16 @@ export default function QuoteEditorPage() {
   const [catalog, setCatalog] = useState<ConceptTemplateDto[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
   const [officialRates, setOfficialRates] = useState<OfficialRateDto[]>([]);
+  const [scenarios, setScenarios] = useState<ScenarioDto[]>([]);
+  const [timeline, setTimeline] = useState<TimelineData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab | null>(null);
 
   const load = useCallback((v: QuoteDto) => {
+    // Every save or step adds audit events: keep the timeline in step.
+    api<TimelineData>(`/requests/${v.requestId}/timeline`).then(setTimeline, () => undefined);
     setQ(v);
     setDraft(v);
     setMarginPct(toPct(v.targetMarginRate));
@@ -90,6 +111,7 @@ export default function QuoteEditorPage() {
     api<QuoteDto>(`/quotes/${id}`).then(
       (v) => {
         load(v);
+        api<ScenarioDto[]>(`/requests/${v.requestId}/scenarios`).then(setScenarios, () => setScenarios([]));
         return api<TravelRequestDto>(`/requests/${v.requestId}`).then(setReq);
       },
       (e) => setError(errorText(e)),
@@ -136,13 +158,14 @@ export default function QuoteEditorPage() {
   };
   const setFx = (i: number, patch: Partial<FxRateDto>) =>
     set({ fxRates: draft.fxRates.map((f, j) => (j === i ? { ...f, ...patch } : f)) });
-  /** Copies the current official rate for every foreign line currency; the quote keeps its own frozen copy. */
-  const applyOfficialRates = () => {
+  /** Current official rates for every foreign line currency (and MXN); the quote keeps its own frozen copy. */
+  const officialPatch = () => {
     const found = officialRates.filter(
       (r) => r.toCurrency === draft.saleCurrency && foreign.includes(r.fromCurrency),
     );
     const missing = foreign.filter((c) => !found.some((r) => r.fromCurrency === c));
-    set({
+    const mxn = officialRates.find((r) => r.fromCurrency === draft.saleCurrency && r.toCurrency === 'MXN');
+    const patch: Partial<QuoteDto> = {
       fxRates: [
         ...draft.fxRates.filter((f) => !found.some((r) => r.fromCurrency === f.fromCurrency)),
         ...found.map((r) => ({
@@ -153,23 +176,33 @@ export default function QuoteEditorPage() {
           source: `Tabla oficial EE · ${r.source}`.slice(0, 150),
         })),
       ],
-    });
-    setNotice(
-      missing.length
-        ? `Sin tipo oficial para ${missing.join(', ')} → ${draft.saleCurrency}; captúralo a mano.`
-        : found.length
-          ? 'Tipos de cambio oficiales aplicados; guarda para conservarlos.'
-          : 'Todos los conceptos están en la moneda de venta.',
-    );
+      ...(mxn ? { mxnRate: mxn.rate } : {}),
+    };
+    const text = missing.length
+      ? `Sin tipo oficial para ${missing.join(', ')} → ${draft.saleCurrency}; captúralo a mano.`
+      : found.length || mxn
+        ? 'Tipos de cambio oficiales aplicados; guarda para conservarlos.'
+        : 'Todos los conceptos están en la moneda de venta.';
+    return { patch, text };
+  };
+  const applyOfficialRates = () => {
+    const { patch, text } = officialPatch();
+    set(patch);
+    setNotice(text);
+  };
+  /** "Renovar vigencia": 15 more days from today and today's official rates, saved with the next save. */
+  const renew = () => {
+    const { patch, text } = officialPatch();
+    const until = new Date(Date.now() + 15 * 86_400_000).toISOString().slice(0, 10);
+    set({ ...patch, validUntil: until });
+    setNotice(`Vigencia al ${fmtDate(until)}. ${text}`);
   };
   // Allowances count both travel days: return − departure + 1 (Finance, 2026-10-22).
   const tripDays = req ? (Date.parse(req.returnDate) - Date.parse(req.departureDate)) / 86_400_000 + 1 : null;
 
   // Whoever edits lands on the concepts; everyone else on the computed sheet.
   const current: Tab = tab ?? (editable ? 'conceptos' : 'hoja');
-  const tabs: Tab[] = editable
-    ? ['hoja', 'conceptos', 'propuesta', 'importar']
-    : ['hoja', 'conceptos', 'propuesta'];
+  const tabs = GROUPS.flatMap((g) => g.tabs).filter((t) => t !== 'importar' || editable);
   const tabProps = (t: Tab) => ({
     id: `panel-${t}`,
     role: 'tabpanel',
@@ -185,6 +218,10 @@ export default function QuoteEditorPage() {
       (r) => r.role === 'SYSTEM_ADMIN' || (r.officeId === req.office.id && r.role === 'APPROVER'),
     ) &&
     me.id !== req.assignee?.id;
+  const role: Role =
+    me?.id === req?.assignee?.id ? 'quoter' : isAdmin ? 'admin' : approver ? 'approver' : 'viewer';
+  const fileName = `${req?.folio ?? 'cotizacion'}-${q.scenarioName}-v${q.number}`.replace(/[^\w.-]+/g, '-');
+  const toApproval = () => document.getElementById('autorizacion')?.scrollIntoView({ behavior: 'smooth' });
 
   /** Approval steps (US-071..074); submitting saves pending edits first. */
   async function act(action: string, body: object = {}) {
@@ -199,6 +236,37 @@ export default function QuoteEditorPage() {
           body: { ...body, rowVersion: saved.rowVersion },
         }),
       );
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }
+
+  /** A sent or approved version can't change: renewing it means a new draft version (new approval). */
+  async function newVersion() {
+    if (!q) return;
+    setError(null);
+    try {
+      const v = await api<QuoteDto>(`/scenarios/${q.scenarioId}/versions`, { method: 'POST' });
+      router.push(`/cotizaciones/${v.id}`);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }
+
+  /** V2 "Duplicar escenario (+5 alumnos)": copy of this option with five more students, then open it. */
+  async function duplicatePlus5() {
+    if (!q) return;
+    setError(null);
+    try {
+      const dup = await api<ScenarioDto>(`/scenarios/${q.scenarioId}/duplicate`, {
+        method: 'POST',
+        body: { name: `${q.scenarioName} (+5 estudiantes)`.slice(0, 150) },
+      });
+      const v = await api<QuoteDto>(`/quotes/${dup.latest.id}`, {
+        method: 'PATCH',
+        body: { participants: dup.latest.participants + 5, rowVersion: dup.latest.rowVersion },
+      });
+      router.push(`/cotizaciones/${v.id}`);
     } catch (e) {
       setError(errorText(e));
     }
@@ -226,6 +294,7 @@ export default function QuoteEditorPage() {
           paymentPlan: draft.paymentPlan,
           studentsPerFreePlace: draft.studentsPerFreePlace,
           freePlaceBenefit: draft.freePlaceBenefit,
+          showVolumePrices: draft.showVolumePrices,
           itinerary: draft.itinerary?.map((d) => ({ ...d, details: d.details?.trim() || undefined })) ?? null,
           exclusions: draft.exclusions.map((x) => x.trim()).filter(Boolean),
           coverAttachmentId: draft.coverAttachmentId,
@@ -251,19 +320,89 @@ export default function QuoteEditorPage() {
     }
   }
 
+  const optionCount = Math.max(scenarios.length, 1);
+  const goodPct = live.ok && Number(live.pct) >= OPTIMAL_PCT;
+
   return (
     <>
-      <p>
-        <Link href={`/solicitudes/${q.requestId}`}>
-          ← {req ? `${req.folio} · ${req.groupName}` : 'Solicitud'}
-        </Link>
-      </p>
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h1 style={{ margin: 0 }}>
-          {q.scenarioName} · v{q.number}
-        </h1>
-        <span className="badge">{QUOTE_STATUS_LABEL[q.status]}</span>
-      </div>
+      <QuoteHeader
+        q={q}
+        req={req}
+        role={role}
+        optionCount={optionCount}
+        eventCount={timeline ? timeline.events.length + timeline.comments.length : null}
+        onStage={(i) => {
+          if (i === 0) router.push(`/solicitudes/${q.requestId}`);
+          else if (i === 1) setTab(editable ? 'conceptos' : 'hoja');
+          else toApproval();
+        }}
+        actions={
+          <>
+            <Link className="button" href={`/cotizaciones/${q.id}/propuesta`}>
+              Propuesta PDF
+            </Link>
+            <button type="button" className="secondary" onClick={() => setTab('bitacora')}>
+              Línea de tiempo{timeline ? ` (${timeline.events.length + timeline.comments.length})` : ''}
+            </button>
+            {scenarios.length > 1 && (
+              <Link className="button secondary" href={`/solicitudes/${q.requestId}#escenarios`}>
+                Comparar {scenarios.length} opciones
+              </Link>
+            )}
+            {editable && (
+              <button type="button" className="secondary" onClick={() => setTab('importar')}>
+                Importar Excel / Sheets con IA
+              </button>
+            )}
+            {/* Plain link: same-origin download carries the session cookie. */}
+            {req && canExportXlsx(me, req.office.id) && (
+              <a className="button secondary" href={`/api/v1/quotes/${q.id}/export.xlsx`}>
+                Descargar Excel interno
+              </a>
+            )}
+            {editable && (
+              <button type="button" className="secondary warn" onClick={renew}>
+                Renovar vigencia (+15 d)
+              </button>
+            )}
+          </>
+        }
+        expiredAction={
+          editable ? (
+            <button type="button" className="secondary" onClick={renew}>
+              Extender +15 días y actualizar tipos de cambio
+            </button>
+          ) : works && q.status === 'APPROVED' ? (
+            <button type="button" className="secondary" onClick={() => void newVersion()}>
+              Crear versión nueva para renovar
+            </button>
+          ) : null
+        }
+        nextStep={
+          <>
+            {q.status === 'SENT' ? (
+              <Link className="button" href={`/solicitudes/${q.requestId}`}>
+                Ir a la solicitud (ganada o perdida)
+              </Link>
+            ) : (
+              <button type="button" onClick={toApproval}>
+                {q.status === 'APPROVED' ? 'Ir a registrar el envío' : 'Ir al paso de autorización'}
+              </button>
+            )}
+          </>
+        }
+      />
+
+      <TotalsBar
+        p={live}
+        currency={draft.saleCurrency}
+        label={`${q.scenarioName} (${draft.participants} est.${tripDays ? ` · ${tripDays} días` : ''})`}
+        options={scenarios.map((s) => ({ id: s.latest.id, name: s.name, active: s.id === q.scenarioId }))}
+        dirty={dirty}
+        saving={saving}
+        error={error}
+        onSave={editable ? () => void save() : undefined}
+      />
 
       {notice && <p role="status">{notice}</p>}
       {error && (
@@ -281,6 +420,40 @@ export default function QuoteEditorPage() {
         <p className="legend" role="status">
           {PENDING_LEGEND}
         </p>
+      )}
+
+      {scenarios.length > 0 && (
+        <section className="card compact scenario-chips" aria-label="Escenarios de la solicitud">
+          <div className="chips">
+            {scenarios.map((s, i) => (
+              <Link
+                key={s.id}
+                href={`/cotizaciones/${s.latest.id}`}
+                className={s.id === q.scenarioId ? 'chip active' : 'chip'}
+                aria-current={s.id === q.scenarioId ? 'page' : undefined}
+              >
+                Escenario {String.fromCharCode(65 + (i % 26))}: {s.latest.participants} est. +{' '}
+                {s.latest.chaperones + s.latest.staff} chap. (v{s.latest.number} ·{' '}
+                {QUOTE_STATUS_LABEL[s.latest.status]})
+              </Link>
+            ))}
+          </div>
+          {works && req?.status === 'QUOTING' && (
+            <div className="row">
+              <button type="button" className="secondary small" onClick={() => void duplicatePlus5()}>
+                Duplicar escenario (+5 estudiantes)
+              </button>
+              <Link className="button secondary small" href={`/solicitudes/${q.requestId}#escenarios`}>
+                Nuevo escenario
+              </Link>
+              {scenarios.length > 1 && (
+                <Link className="button secondary small" href={`/solicitudes/${q.requestId}#escenarios`}>
+                  Comparar en columnas ({scenarios.length})
+                </Link>
+              )}
+            </div>
+          )}
+        </section>
       )}
 
       <section className="card" aria-labelledby="autorizacion">
@@ -325,12 +498,6 @@ export default function QuoteEditorPage() {
             >
               Guardar como plantilla
             </button>
-          )}
-          {/* Plain link: same-origin download carries the session cookie. */}
-          {req && canExportXlsx(me, req.office.id) && (
-            <a className="button secondary" href={`/api/v1/quotes/${q.id}/export.xlsx`}>
-              Descargar Excel interno
-            </a>
           )}
         </div>
         {works && q.status === 'APPROVED' && (
@@ -417,27 +584,37 @@ export default function QuoteEditorPage() {
         )}
       </section>
 
-      <div role="tablist" aria-label="Secciones de la cotización" className="tabs">
-        {tabs.map((t, i) => (
-          <button
-            key={t}
-            id={`tab-${t}`}
-            role="tab"
-            aria-selected={current === t}
-            aria-controls={`panel-${t}`}
-            tabIndex={current === t ? 0 : -1}
-            onClick={() => setTab(t)}
-            onKeyDown={(e) => {
-              const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-              if (!step) return;
-              const next = tabs[(i + step + tabs.length) % tabs.length]!;
-              setTab(next);
-              document.getElementById(`tab-${next}`)?.focus();
-            }}
-          >
-            {TAB_LABEL[t]}
-          </button>
-        ))}
+      <div role="tablist" aria-label="Secciones de la cotización" className="tabs grouped">
+        {GROUPS.map((g) => {
+          const shown = g.tabs.filter((t) => tabs.includes(t));
+          return shown.length ? (
+            <Fragment key={g.label}>
+              <span role="presentation" className="tab-group">
+                {g.label}:
+              </span>
+              {shown.map((t) => (
+                <button
+                  key={t}
+                  id={`tab-${t}`}
+                  role="tab"
+                  aria-selected={current === t}
+                  aria-controls={`panel-${t}`}
+                  tabIndex={current === t ? 0 : -1}
+                  onClick={() => setTab(t)}
+                  onKeyDown={(e) => {
+                    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+                    if (!step) return;
+                    const next = tabs[(tabs.indexOf(t) + step + tabs.length) % tabs.length]!;
+                    setTab(next);
+                    document.getElementById(`tab-${next}`)?.focus();
+                  }}
+                >
+                  {TAB_LABEL[t]}
+                </button>
+              ))}
+            </Fragment>
+          ) : null;
+        })}
       </div>
 
       <div {...tabProps('hoja')}>
@@ -456,6 +633,35 @@ export default function QuoteEditorPage() {
             <PaymentSchedule q={q} />
           </section>
         )}
+      </div>
+
+      <div {...tabProps('pagos')}>
+        <PaymentPlan draft={draft} set={set} live={live} editable={editable} fileName={fileName} />
+      </div>
+
+      <div {...tabProps('volumen')}>
+        {live.ok ? (
+          <>
+            <Sensitivity input={live.input} d={draft} />
+            <VolumeMatrix
+              input={live.input}
+              d={draft}
+              editable={editable}
+              onFix={(n) => {
+                set({ participants: n });
+                setNotice(`Aforo fijado en ${n} estudiantes; guarda para conservarlo.`);
+              }}
+              onShow={(show) => set({ showVolumePrices: show })}
+              fileName={fileName}
+            />
+          </>
+        ) : (
+          <p className="muted">{live.reason}</p>
+        )}
+      </div>
+
+      <div {...tabProps('bitacora')}>
+        <Timeline data={timeline} folio={req?.folio ?? ''} />
       </div>
 
       {editable && (
@@ -481,6 +687,19 @@ export default function QuoteEditorPage() {
 
       <fieldset disabled={!editable} className="editor">
         <div {...tabProps('conceptos')}>
+          {editable && req && (
+            <QuickLoad
+              draft={draft}
+              set={set}
+              officeId={req.office.id}
+              suppliers={suppliers}
+              onMargin={(rate) => {
+                setMarginPct(toPct(rate));
+                setByPrice(false);
+              }}
+              onNotice={setNotice}
+            />
+          )}
           <section className="card compact" aria-labelledby="fx">
             <div className="section-head">
               <h2 id="fx">Tipos de cambio</h2>
@@ -571,7 +790,21 @@ export default function QuoteEditorPage() {
           </section>
 
           <section className="card compact" aria-labelledby="grupo">
-            <h2 id="grupo">Grupo y precio</h2>
+            <div className="section-head">
+              <h2 id="grupo">Grupo y precio</h2>
+              <span className="muted">
+                {[req?.program, req && `${req.city}, ${req.countryCode}`, tripDays && `${tripDays} días`]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+              {live.ok && (
+                <span className={goodPct ? 'pill ok' : 'pill warn'}>
+                  {goodPct
+                    ? `Rentabilidad óptima (≥${OPTIMAL_PCT}%)`
+                    : `Comisión por debajo de ${OPTIMAL_PCT}%`}
+                </span>
+              )}
+            </div>
             <div className="fields">
               <label>
                 Estudiantes
@@ -834,6 +1067,19 @@ export default function QuoteEditorPage() {
               );
             })}
           </section>
+
+          <FreePlaces draft={draft} set={set} live={live} />
+          {editable && (
+            <NewConcept
+              draft={draft}
+              set={set}
+              catalog={catalog}
+              tripDays={tripDays}
+              canSaveToCatalog={!!me?.roles.some((r) => r.role === 'SYSTEM_ADMIN')}
+              onCatalog={(c) => setCatalog([...catalog, c])}
+              onNotice={setNotice}
+            />
+          )}
         </div>
 
         <div {...tabProps('propuesta')}>
@@ -851,17 +1097,6 @@ export default function QuoteEditorPage() {
             </label>
           </section>
         </div>
-
-        {editable && (current === 'conceptos' || current === 'propuesta') && (
-          <TotalsBar
-            p={live}
-            currency={draft.saleCurrency}
-            dirty={dirty}
-            saving={saving}
-            error={error}
-            onSave={() => void save()}
-          />
-        )}
       </fieldset>
     </>
   );

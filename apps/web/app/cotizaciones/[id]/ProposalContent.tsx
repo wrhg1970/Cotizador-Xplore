@@ -1,13 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { fmtDate, FREQUENCY_LABEL, paymentLabel, type PaymentPlanDto, type QuoteDto } from '../../lib/types';
+import { fmtDate, paymentLabel, type QuoteDto } from '../../lib/types';
 
-const toPct = (rate: string) => String(Number((Number(rate) * 100).toFixed(4)));
-const fromPct = (pct: string) => String(Number((Number(pct) / 100).toFixed(6)));
-const today = () => new Date().toISOString().slice(0, 10);
-const inAMonth = () => new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
-
-/** Editable proposal extras: payment plan, free places, itinerary and exclusions (Sprint B). */
+/** Editable proposal extras: cover, itinerary and exclusions (plan and free places have their own panels). */
 export function ProposalContent({
   draft,
   set,
@@ -15,10 +10,6 @@ export function ProposalContent({
   draft: QuoteDto;
   set: (patch: Partial<QuoteDto>) => void;
 }) {
-  const plan = draft.paymentPlan;
-  const setPlan = (patch: Partial<PaymentPlanDto>) => plan && set({ paymentPlan: { ...plan, ...patch } });
-  const deposit =
-    plan?.depositAmount !== undefined ? 'amount' : plan?.depositRate !== undefined ? 'rate' : 'none';
   const itinerary = draft.itinerary ?? [];
   const setDay = (i: number, patch: Partial<(typeof itinerary)[number]>) =>
     set({ itinerary: itinerary.map((d, j) => (j === i ? { ...d, ...patch } : d)) });
@@ -26,155 +17,6 @@ export function ProposalContent({
   return (
     <>
       <CoverPicker draft={draft} set={set} />
-      <section aria-labelledby="plan">
-        <h2 id="plan">Plan de pagos</h2>
-        <label className="inline">
-          <input
-            type="checkbox"
-            checked={!!plan}
-            onChange={(e) =>
-              set({
-                paymentPlan: e.target.checked
-                  ? { installments: 6, frequency: 'MONTHLY', firstDueDate: inAMonth() }
-                  : null,
-              })
-            }
-          />{' '}
-          Ofrecer plan de pagos (por estudiante, sobre el precio final)
-        </label>
-        {plan && (
-          <div className="row">
-            <label>
-              Inscripción
-              <select
-                aria-label="Tipo de inscripción"
-                value={deposit}
-                onChange={(e) => {
-                  const { depositRate: _r, depositAmount: _a, depositDueDate, ...rest } = plan;
-                  const v = e.target.value;
-                  set({
-                    paymentPlan:
-                      v === 'none'
-                        ? rest
-                        : {
-                            ...rest,
-                            depositDueDate: depositDueDate ?? today(),
-                            ...(v === 'rate' ? { depositRate: '0.15' } : { depositAmount: '' }),
-                          },
-                  });
-                }}
-              >
-                <option value="none">Sin inscripción</option>
-                <option value="rate">Porcentaje del precio</option>
-                <option value="amount">Monto fijo</option>
-              </select>
-            </label>
-            {deposit === 'rate' && (
-              <label>
-                Inscripción (%)
-                <input
-                  type="number"
-                  min={1}
-                  max={99}
-                  step="0.01"
-                  value={toPct(plan.depositRate ?? '0')}
-                  onChange={(e) => setPlan({ depositRate: fromPct(e.target.value) })}
-                />
-              </label>
-            )}
-            {deposit === 'amount' && (
-              <label>
-                Inscripción ({draft.saleCurrency})
-                <input
-                  inputMode="decimal"
-                  value={plan.depositAmount ?? ''}
-                  onChange={(e) => setPlan({ depositAmount: e.target.value.trim() })}
-                />
-              </label>
-            )}
-            {deposit !== 'none' && (
-              <label>
-                Fecha de inscripción
-                <input
-                  type="date"
-                  value={plan.depositDueDate ?? ''}
-                  onChange={(e) => setPlan({ depositDueDate: e.target.value })}
-                />
-              </label>
-            )}
-            <label>
-              Parcialidades
-              <input
-                type="number"
-                min={1}
-                max={15}
-                value={plan.installments}
-                onChange={(e) => setPlan({ installments: Number(e.target.value) })}
-              />
-            </label>
-            <label>
-              Frecuencia
-              <select
-                value={plan.frequency}
-                onChange={(e) => setPlan({ frequency: e.target.value as PaymentPlanDto['frequency'] })}
-              >
-                {Object.entries(FREQUENCY_LABEL).map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Primer pago
-              <input
-                type="date"
-                value={plan.firstDueDate}
-                onChange={(e) => setPlan({ firstDueDate: e.target.value })}
-              />
-            </label>
-          </div>
-        )}
-      </section>
-
-      <section aria-labelledby="liberados">
-        <h2 id="liberados">Lugares liberados</h2>
-        <div className="row">
-          <label>
-            1 lugar por cada (estudiantes)
-            <input
-              type="number"
-              min={1}
-              max={100}
-              value={draft.studentsPerFreePlace ?? ''}
-              placeholder="Sin lugares liberados"
-              onChange={(e) =>
-                set({
-                  studentsPerFreePlace: e.target.value ? Number(e.target.value) : null,
-                  freePlaceBenefit: e.target.value ? (draft.freePlaceBenefit ?? 'CHAPERONE') : null,
-                })
-              }
-            />
-          </label>
-          {draft.studentsPerFreePlace && (
-            <label>
-              Para
-              <select
-                value={draft.freePlaceBenefit ?? 'CHAPERONE'}
-                onChange={(e) => set({ freePlaceBenefit: e.target.value as 'CHAPERONE' | 'STUDENT' })}
-              >
-                <option value="CHAPERONE">Chaperón</option>
-                <option value="STUDENT">Beca para estudiante</option>
-              </select>
-            </label>
-          )}
-        </div>
-        <p className="muted">
-          Se informa en la propuesta; todavía no cambia el precio. El costo del chaperón ya está en el bloque
-          de chaperones.
-        </p>
-      </section>
-
       <section aria-labelledby="itinerario">
         <h2 id="itinerario">Itinerario</h2>
         {itinerary.map((d, i) => (
