@@ -527,7 +527,12 @@ export const ReviewQuote = z.strictObject({
   rowVersion: z.number().int().min(1),
   comment: OptionalText(2000),
 });
-export const ReturnQuote = z.strictObject({ rowVersion: z.number().int().min(1), comment: ShortText(2000) });
+/** reject = the committee turns the option down ("Rechazar"); it still goes back to the quoter. */
+export const ReturnQuote = z.strictObject({
+  rowVersion: z.number().int().min(1),
+  comment: ShortText(2000),
+  reject: z.boolean().optional(),
+});
 
 export const DeliveryChannel = z.enum(['EMAIL', 'WHATSAPP', 'IN_PERSON', 'OTHER']);
 export type DeliveryChannel = z.infer<typeof DeliveryChannel>;
@@ -591,7 +596,10 @@ export type ExecutiveDashboardQuery = z.infer<typeof ExecutiveDashboardQuery>;
 
 /** Global lists (V2 "Aprobaciones" and "Propuestas enviadas"). */
 /** No status = "Cotizaciones": every live version (working copies only where internal costs are visible). */
-export const VersionListQuery = z.strictObject({ status: z.enum(['IN_REVIEW', 'SENT']).optional() });
+/** APPROVAL = the approvals tray: versions in review plus those already authorized and not yet sent. */
+export const VersionListQuery = z.strictObject({
+  status: z.enum(['IN_REVIEW', 'APPROVAL', 'SENT']).optional(),
+});
 export type VersionListQuery = z.infer<typeof VersionListQuery>;
 
 const HexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Usa un color #RRGGBB');

@@ -216,6 +216,19 @@ export function needsTwoLevels(rules: ApprovalRules, v: FullVersion): boolean {
   return marginAndMxn(v).margin.lt(new D(rules.twoLevelBelowMarginRate));
 }
 
+export const REJECTED_PREFIX = 'Rechazada: ';
+
+/** Which authorization rule applies to a version, as shown to the approval committee. */
+export function policyFor(rules: ApprovalRules, v: FullVersion): string {
+  try {
+    if (needsTwoLevels(rules, v))
+      return `Doble firma (margen < ${pct(new D(rules.twoLevelBelowMarginRate!))})`;
+  } catch (e) {
+    if (!(e instanceof QuoteEngineError)) throw e;
+  }
+  return 'Una firma de «Autorizar viaje»';
+}
+
 /** Approvals given since the version last went back to the quoter, for the same calculation. */
 function approvalsThisRound(v: FullVersion) {
   const lastReturn = v.reviews.findLastIndex((x) => x.decision === 'RETURNED');
@@ -463,9 +476,15 @@ export class QuotesController {
   @Get('requests/:id/scenarios')
   async list(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
     await this.request(this.prisma, id, user);
+    const rules = await approvalRules(this.prisma, user.agencyId);
     const scenarios = await this.prisma.quoteScenario.findMany({
       where: { requestId: id },
-      include: { versions: { orderBy: { number: 'desc' }, include: full } },
+      include: {
+        versions: {
+          orderBy: { number: 'desc' },
+          include: { ...full, createdBy: { select: { name: true } } },
+        },
+      },
       orderBy: { createdAt: 'asc' },
     });
     return scenarios.map((s) => ({
@@ -474,6 +493,8 @@ export class QuotesController {
       createdAt: s.createdAt.toISOString(),
       versions: s.versions.map((v) => ({ id: v.id, number: v.number, status: v.status })),
       latest: toDto(s.versions[0]!),
+      preparedBy: s.versions[0]!.createdBy.name,
+      policy: policyFor(rules, s.versions[0]!),
     }));
   }
 
@@ -906,9 +927,12 @@ export class QuotesController {
     @Param('id', uuid) id: string,
     @Body(new ZodPipe(ReturnQuote)) body: z.infer<typeof ReturnQuote>,
   ) {
-    const dto = await this.review(user, req, id, body.rowVersion, 'quote.rejected_for_changes', (v, r) => {
+    const action = body.reject ? 'quote.rejected' : 'quote.rejected_for_changes';
+    const dto = await this.review(user, req, id, body.rowVersion, action, (v, r) => {
       this.assertReviewer(user, v, r);
-      return { status: 'RETURNED', decision: 'RETURNED', comment: body.comment };
+      // shortcut: a rejection is a return whose comment starts with REJECTED_PREFIX; add a decision if it needs its own status.
+      const comment = body.reject ? `${REJECTED_PREFIX}${body.comment}` : body.comment;
+      return { status: 'RETURNED', decision: 'RETURNED', comment };
     });
     void this.notifier.notify({ kind: 'RETURNED', versionId: id }, user.id);
     return dto;

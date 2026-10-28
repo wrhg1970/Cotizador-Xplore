@@ -16,6 +16,7 @@
   --brand-yellow: #ffa723;
   --danger: #b42318;
   --ok: #11683f;
+  --warn: #92400e;
   --focus: #2f8ee0;
   --radius: 18px;
   --font-body: var(--font-sans, system-ui), system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -38,6 +39,7 @@
     --ink-text: #10233f;
     --danger: #ff8a7a;
     --ok: #5fd39a;
+    --warn: #ffc66b;
     --focus: #8bb8f0;
     color-scheme: dark;
   }
@@ -1125,4 +1127,108 @@ dialog.welcome ol {
   .landing .trust .muted {
     color: #d6e4f2;
   }
+}
+
+/* Approvals tray (V2 "Bandeja central") and the committee decision page. */
+.tray-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.tray-head h1 {
+  margin: 0 0 4px;
+  font-size: 1.4rem;
+}
+.tray-head p,
+.tray-head .tabs {
+  margin: 0;
+}
+.card.flush {
+  padding: 0;
+  overflow-x: auto;
+}
+.tray th,
+.tray td {
+  padding: 12px 10px;
+}
+.tray thead th {
+  white-space: normal;
+}
+.tray th .wrap,
+.tray td.wrap {
+  white-space: normal;
+  min-width: 10rem;
+  font-weight: 400;
+}
+.tray td.wrap a {
+  text-decoration: none;
+}
+.tray .strong,
+.decision .state {
+  font-weight: 700;
+}
+.ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+.fine {
+  font-size: 0.85rem;
+}
+.tray .delta {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.tray td.ok .delta {
+  color: var(--ok);
+}
+.decision {
+  margin-top: 16px;
+}
+.decision-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.decision-head h2 {
+  margin: 4px 0;
+  font-size: 1.1rem;
+}
+.decision h3 {
+  font-size: 0.9rem;
+  margin: 12px 0 8px;
+}
+button.approve {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: var(--surface);
+}
+button.changes {
+  background: transparent;
+  border-color: var(--warn);
+  color: var(--warn);
+}
+ol.decision-log {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+ol.decision-log li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
 }
