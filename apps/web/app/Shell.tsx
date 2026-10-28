@@ -47,6 +47,9 @@ export function Shell({ children }: { children: ReactNode }) {
               <Link href="/enviadas" aria-current={current('/enviadas')}>
                 Enviadas
               </Link>
+              <Link href="/colegios" aria-current={current('/colegios')}>
+                Colegios
+              </Link>
               {me?.roles.some((r) => ['OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'].includes(r.role)) && (
                 <Link href="/tablero" aria-current={current('/tablero')}>
                   Dashboard ejecutivo

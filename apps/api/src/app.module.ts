@@ -28,6 +28,7 @@ import { IntegrationsController, ReportsController } from './reports/reports.con
 import { HttpWeTravel, type WeTravel, WETRAVEL } from './integrations/wetravel.js';
 import { BANXICO, type Banxico, HttpBanxico } from './rates/banxico.js';
 import { CronController } from './cron/cron.controller.js';
+import { SchoolsController } from './schools/schools.controller.js';
 import { AlertSettingsController } from './alerts/alerts.controller.js';
 
 @Module({})
@@ -99,6 +100,7 @@ export class AppModule {
         IntegrationsController,
         CronController,
         AlertSettingsController,
+        SchoolsController,
       ],
       providers: [
         { provide: ENV, useValue: env },

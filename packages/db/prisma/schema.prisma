@@ -60,6 +60,7 @@ model User {
   fxRates        QuoteFxRate[]
   officialRates  OfficialRate[]
   settings       AppSetting[]
+  schoolContacts SchoolContact[]
   reviews        QuoteReview[]
   deliveries     ProposalDelivery[]
   rolePolicies   RolePolicy[]
@@ -71,15 +72,16 @@ model User {
 }
 
 model Office {
-  id        String           @id @default(uuid()) @db.Uuid
-  code      String           @unique
-  name      String
-  active    Boolean          @default(true)
-  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
-  userRoles UserOfficeRole[]
-  requests  TravelRequest[]
-  templates QuoteTemplate[]
+  id             String           @id @default(uuid()) @db.Uuid
+  code           String           @unique
+  name           String
+  active         Boolean          @default(true)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  userRoles      UserOfficeRole[]
+  requests       TravelRequest[]
+  templates      QuoteTemplate[]
+  schoolContacts SchoolContact[]
 
   @@map("offices")
 }
@@ -534,4 +536,23 @@ model AppSetting {
   updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: Restrict)
 
   @@map("app_settings")
+}
+
+/// People at a school (ficha por colegio). Requests are matched by schoolKey = normalized client name.
+model SchoolContact {
+  id          String   @id @default(uuid()) @db.Uuid
+  officeId    String   @map("office_id") @db.Uuid
+  schoolKey   String   @map("school_key")
+  schoolName  String   @map("school_name")
+  name        String
+  role        String?
+  email       String?
+  phone       String?
+  createdById String   @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  office      Office   @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([officeId, schoolKey])
+  @@map("school_contacts")
 }

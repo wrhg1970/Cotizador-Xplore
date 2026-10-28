@@ -91,6 +91,13 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `POST /cron/daily` (sin sesión; header `X-Cron-Secret`): Banxico y correo diario de pendientes atrasados (uno por persona, una vez al día). 404 si no hay `CRON_SECRET`.
 - `GET|PUT /settings/alerts`: umbrales en días (sin cotizar, autorización pendiente, enviada sin respuesta, anticipación de pagos); escribir solo administrador del sistema, auditado. `GET /dashboard` incluye `alerts` del usuario.
 
+### Propuesta y colegio (2026-10-28)
+- `GET /quotes/{id}/proposal/cover`, `GET /public/proposals/{token}/cover`: foto del destino (imagen adjunta elegida en la cotización).
+- `POST /public/proposals/{token}/accept` (sin sesión, 5/min): `{signerName, signerRole, accepted: true}`. Solo versión enviada con solicitud en "Enviada"; registra nombre, cargo, fecha, IP y navegador (append-only), marca la solicitud ganada y avisa al equipo. 409 si ya tiene respuesta.
+- `GET /requests/{id}/wetravel/payments`: lo pagado por el grupo en WeTravel (en vivo).
+- `GET /quotes/{id}/compare`: cambios contra la versión anterior del mismo escenario.
+- `GET /schools`, `GET /schools/detail?officeId&key`, `POST /schools/contacts`, `DELETE /schools/contacts/{id}`: ficha por colegio (agrupa por nombre del cliente normalizado, por oficina).
+
 ## Contratos de referencia
 ### Crear solicitud
 ```json

@@ -216,6 +216,20 @@ export const SetRequestTeam = z
   );
 
 /** School link (V2 portal): days until it stops working. */
+/** A person at a school, for the "ficha por colegio"; the school is the request's client name. */
+export const CreateSchoolContact = z.strictObject({
+  officeId: z.uuid(),
+  schoolName: ShortText(200),
+  name: ShortText(150),
+  role: OptionalText(150),
+  email: z.email().max(200).optional(),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^[+\d][\d\s()-]{6,24}$/, 'Teléfono no válido')
+    .optional(),
+});
+
 /** The school's acceptance on the shared link: who signs and with what position. */
 export const AcceptProposal = z.strictObject({
   signerName: ShortText(150),
