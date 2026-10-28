@@ -1,7 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import type { PrismaClient } from '@ee/db';
 import type { z } from 'zod';
-import { ApprovalRules, DEFAULT_APPROVAL_RULES } from '@ee/contracts';
+import { ApprovalRules, DEFAULT_APPROVAL_RULES, OfficeGoals } from '@ee/contracts';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
 import { isSystemAdmin } from '../auth/authz.js';
@@ -48,3 +48,7 @@ export function putSetting<T extends object>(
 export const APPROVAL_RULES_KEY = 'approvalRules';
 export const approvalRules = (prisma: PrismaClient) =>
   getSetting(prisma, APPROVAL_RULES_KEY, ApprovalRules, DEFAULT_APPROVAL_RULES);
+
+export const goalsKey = (year: number) => `officeGoals.${year}`;
+export const officeGoals = (prisma: PrismaClient, year: number) =>
+  getSetting(prisma, goalsKey(year), OfficeGoals, {});

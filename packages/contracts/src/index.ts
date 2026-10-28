@@ -364,6 +364,9 @@ export const ApprovalRules = z.strictObject({
   twoLevelBelowMarginRate: Rate01.nullable(),
 });
 export type ApprovalRules = z.infer<typeof ApprovalRules>;
+/** Annual sales goal per office (V2 "Meta anual"), in MXN; key = office id. Offices without one have no goal. */
+export const OfficeGoals = z.record(z.uuid(), NonNegative);
+export type OfficeGoals = z.infer<typeof OfficeGoals>;
 export const DEFAULT_APPROVAL_RULES: ApprovalRules = {
   autoApprove: false,
   autoMinMarginRate: '0.18',

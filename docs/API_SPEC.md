@@ -100,6 +100,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `GET /quotes/{id}/compare`: cambios contra la versión anterior del mismo escenario.
 - `GET /schools`, `GET /schools/detail?officeId&key`, `POST /schools/contacts`, `DELETE /schools/contacts/{id}`: ficha por colegio (agrupa por nombre del cliente normalizado, por oficina).
 - `GET /suppliers` (roles que ven costos internos), `POST /suppliers`, `PATCH /suppliers/{id}`, `POST /suppliers/{id}/rates`, `PATCH /supplier-rates/{id}` (solo administrador del sistema, auditado): catálogo de proveedores/DMC y tarifas; el editor copia la tarifa al concepto (`costSource` = proveedor).
+- `GET /settings/goals/{año}` y `PUT /settings/goals/{año}` (solo administrador del sistema, auditado): meta anual de venta en MXN por oficina, `{ "<officeId>": "5500000" }`. `GET /dashboard/executive` agrega `goals: { year, offices: [{ id, code, name, goalMxn, wonMxn, progress, withoutRate }] }` del año de `to`, solo oficinas del alcance con meta; `wonMxn` suma ganadas por fecha de cierre con su precio en MXN, y `withoutRate` cuenta las ganadas en otra moneda sin tipo de cambio a MXN (no se infiere).
 
 ## Contratos de referencia
 ### Crear solicitud

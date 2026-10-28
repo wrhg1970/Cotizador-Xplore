@@ -42,6 +42,8 @@ export default function AdminPage() {
   const [rates, setRates] = useState<OfficialRateDto[]>([]);
   const [alerts, setAlerts] = useState<AlertSettings | null>(null);
   const [rules, setRules] = useState<ApprovalRules | null>(null);
+  const [goalYear, setGoalYear] = useState(() => new Date().getFullYear());
+  const [goals, setGoals] = useState<Record<string, string> | null>(null);
   const [integrations, setIntegrations] = useState<{ key: string; name: string; configured: boolean }[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +61,13 @@ export default function AdminPage() {
   useEffect(() => {
     if (isSysAdmin) reload();
   }, [isSysAdmin, reload]);
+  useEffect(() => {
+    setGoals(null);
+    if (isSysAdmin)
+      api<Record<string, string>>(`/settings/goals/${goalYear}`).then(setGoals, (e) =>
+        setError(errorText(e)),
+      );
+  }, [isSysAdmin, goalYear]);
 
   async function run(done: string, call: () => Promise<unknown>) {
     setError(null);
@@ -138,6 +147,23 @@ export default function AdminPage() {
     await run('Reglas de autorización guardadas', () =>
       api('/settings/approval-rules', { method: 'PUT', body }),
     );
+  }
+
+  async function saveGoals(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    // Empty = no goal for that office.
+    const body = Object.fromEntries(
+      offices
+        .map((o) => [o.id, String(f.get(o.id) ?? '').replace(/[,\s$]/g, '')])
+        .filter(([, v]) => v !== ''),
+    );
+    if (
+      await run(`Metas ${goalYear} guardadas`, () =>
+        api(`/settings/goals/${goalYear}`, { method: 'PUT', body }),
+      )
+    )
+      setGoals(body);
   }
 
   async function pullBanxico() {
@@ -461,6 +487,58 @@ export default function AdminPage() {
           </form>
         </section>
       )}
+
+      <section aria-labelledby="metas">
+        <h2 id="metas">Meta anual por oficina</h2>
+        <p className="muted">
+          Venta ganada en pesos por año (por fecha de cierre). Se ve en el Dashboard ejecutivo; cada oficina
+          ve la suya. Vacío = sin meta.
+        </p>
+        <label>
+          Año
+          <input
+            type="number"
+            min={2020}
+            max={2100}
+            value={goalYear}
+            onChange={(e) => setGoalYear(Number(e.target.value) || new Date().getFullYear())}
+          />
+        </label>
+        {goals && (
+          <form key={goalYear} onSubmit={saveGoals}>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Oficina</th>
+                    <th>Meta {goalYear} (MXN)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {offices
+                    .filter((o) => o.active || goals[o.id])
+                    .map((o) => (
+                      <tr key={o.id}>
+                        <th scope="row">
+                          {o.code} · {o.name}
+                        </th>
+                        <td>
+                          <input
+                            name={o.id}
+                            inputMode="decimal"
+                            aria-label={`Meta ${goalYear} de ${o.code}`}
+                            defaultValue={goals[o.id] ?? ''}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+            <button>Guardar metas</button>
+          </form>
+        )}
+      </section>
 
       <section aria-labelledby="integraciones">
         <h2 id="integraciones">Integraciones</h2>

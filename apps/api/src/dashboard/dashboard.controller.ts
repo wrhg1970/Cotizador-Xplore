@@ -10,6 +10,7 @@ import { engine } from '../quotes/quotes.controller.js';
 import type { z } from 'zod';
 import { ZodPipe } from '../zod.pipe.js';
 import { alertSettings, computeAlerts } from '../alerts/alerts.js';
+import { officeGoals } from '../settings/settings.js';
 
 export type TaskKind =
   'SUBMIT_REQUEST' | 'ASSIGN' | 'QUOTE' | 'FIX_QUOTE' | 'APPROVE' | 'SEND' | 'RECORD_OUTCOME';
@@ -97,6 +98,17 @@ const priceOf = (v: Parameters<typeof engine>[0]) => {
   }
 };
 
+/** Price per student in MXN as Finance shows it; null when it can't be known without inferring a rate. */
+const mxnPerParticipant = (v: Parameters<typeof engine>[0]): Dec | null => {
+  try {
+    const t = engine(v);
+    return v.saleCurrency === 'MXN' ? t.pricePerParticipant : t.pricePerParticipantMxn;
+  } catch (e) {
+    if (e instanceof QuoteEngineError) return null;
+    throw e;
+  }
+};
+
 const stageOf = (status: RequestStatus, versions: { status: string }[]): Stage => {
   if (status === 'SENT' || status === 'WON') return 4;
   if (status !== 'QUOTING') return 1;
@@ -167,6 +179,7 @@ export class DashboardController {
         ? {}
         : { officeId: { in: scope } };
     const soon = new Date(Date.now() + UPCOMING_DAYS * 86_400_000);
+    const year = Number(to.slice(0, 4));
 
     // shortcut: whole cohort loaded and aggregated in memory, fine for pilot volumes; move to SQL if it grows.
     const [rows, upcoming] = await Promise.all([
@@ -195,6 +208,7 @@ export class DashboardController {
         take: TASK_LIMIT,
       }),
     ]);
+    const goals = await this.goals(q.officeId ? [q.officeId] : scope, year);
 
     type Bucket = {
       requests: number;
@@ -265,6 +279,55 @@ export class DashboardController {
         participants: r.participants,
         chaperones: r.chaperones,
       })),
+      goals,
+    };
+  }
+
+  /**
+   * V2 "Meta anual": MXN won per office in the goal's year (by closing date) against its goal.
+   * Only offices with a goal; a won trip in another currency without an MXN rate is counted apart.
+   */
+  private async goals(scope: string[] | 'ALL', year: number) {
+    const set = await officeGoals(this.prisma, year);
+    const ids = Object.keys(set);
+    if (!ids.length) return { year, offices: [] };
+    const visible = scope === 'ALL' ? ids : ids.filter((id) => scope.includes(id));
+    const [rows, names] = await Promise.all([
+      this.prisma.travelRequest.findMany({
+        where: {
+          officeId: { in: visible },
+          status: 'WON',
+          closedAt: { gte: new Date(`${year}-01-01T00:00:00Z`), lt: new Date(`${year + 1}-01-01T00:00:00Z`) },
+        },
+        select: { officeId: true, wonVersion: { include: { lines: true, fxRates: true } } },
+      }),
+      this.prisma.office.findMany({
+        where: { id: { in: visible } },
+        select: { id: true, code: true, name: true },
+      }),
+    ]);
+    return {
+      year,
+      offices: names
+        .sort((a, b) => a.code.localeCompare(b.code))
+        .map((o) => {
+          let won = new D(0);
+          let withoutRate = 0;
+          for (const r of rows.filter((x) => x.officeId === o.id && x.wonVersion)) {
+            const v = r.wonVersion!;
+            const each = mxnPerParticipant(v);
+            if (each) won = won.plus(each.mul(v.participants));
+            else withoutRate++;
+          }
+          const goal = new D(set[o.id]!);
+          return {
+            ...o,
+            goalMxn: goal.toFixed(2),
+            wonMxn: won.toFixed(2),
+            progress: goal.gt(0) ? Number(won.div(goal).mul(100).toFixed(1)) : null,
+            withoutRate,
+          };
+        }),
     };
   }
 

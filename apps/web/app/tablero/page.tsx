@@ -31,6 +31,18 @@ interface Executive {
     participants: number;
     chaperones: number;
   }[];
+  goals: {
+    year: number;
+    offices: {
+      id: string;
+      code: string;
+      name: string;
+      goalMxn: string;
+      wonMxn: string;
+      progress: number | null;
+      withoutRate: number;
+    }[];
+  };
 }
 interface Office {
   id: string;
@@ -49,6 +61,8 @@ const amounts = (a: Record<string, string>) =>
     )
     .join(' · ') || '—';
 const pct = (x: number | null) => (x === null ? '—' : `${x}%`);
+// Display only: the API keeps the exact decimal.
+const mxn = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
 
 /** Single-series horizontal bar; the number is always printed, so the bar is never the only cue. */
 function Bar({ label, value, max }: { label: string; value: number; max: number }) {
@@ -248,6 +262,50 @@ export default function ExecutivePage() {
               </table>
             </div>
           </section>
+
+          {data.goals.offices.length > 0 && (
+            <section className="card" aria-labelledby="metas" style={{ marginTop: 16 }}>
+              <h2 id="metas" style={{ marginTop: 0 }}>
+                Meta anual {data.goals.year}
+              </h2>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Oficina</th>
+                      <th className="num">Meta (MXN)</th>
+                      <th className="num">Ganado (MXN)</th>
+                      <th>Avance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.goals.offices.map((o) => (
+                      <tr key={o.id}>
+                        <th scope="row">
+                          {o.code} · {o.name}
+                        </th>
+                        <td className="num">{mxn.format(Number(o.goalMxn))}</td>
+                        <td className="num">
+                          {mxn.format(Number(o.wonMxn))}
+                          {o.withoutRate > 0 && (
+                            <div className="muted">+ {o.withoutRate} sin tipo de cambio a MXN</div>
+                          )}
+                        </td>
+                        <td>
+                          <progress
+                            max={100}
+                            value={Math.min(100, o.progress ?? 0)}
+                            aria-label={`Avance ${o.code}`}
+                          />{' '}
+                          {o.progress === null ? '—' : `${o.progress}%`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           <section className="card" aria-labelledby="por-oficina" style={{ marginTop: 16 }}>
             <h2 id="por-oficina" style={{ marginTop: 0 }}>
