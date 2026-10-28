@@ -22,7 +22,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `DELETE /quote-templates/{id}` — retira la plantilla (quien la creó o el coordinador)
 - `POST /concept-templates`, `PATCH /concept-templates/{id}` — solo administrador del sistema, con auditoría
 - `GET /users?officeId=...` (solo administradores autorizados)
-- `GET /dashboard` — «Mi trabajo»: pendientes del usuario (`SUBMIT_REQUEST`, `ASSIGN`, `QUOTE`, `FIX_QUOTE`, `APPROVE`, `SEND`) y conteo de solicitudes por oficina y estado, dentro de su alcance (sin borradores ajenos)
+- `GET /dashboard` — «Mi trabajo»: pendientes del usuario (`SUBMIT_REQUEST`, `ASSIGN`, `QUOTE`, `FIX_QUOTE`, `APPROVE`, `SEND`, `RECORD_OUTCOME`), conteo de solicitudes por oficina y estado, y `requests`: hasta 100 solicitudes abiertas de su alcance (más las ganadas que aún no salen) con etapa 1–4 (Solicitada, Cotizada, Aprobada, Enviada), rol del usuario (`REQUESTER`, `ASSIGNEE`, `SUPPORT`), número de escenarios y precio por alumno de la versión más avanzada (nunca costos). Sin borradores ajenos
 - `GET /role-policies`, `PUT /role-policies/{role}` — permisos por rol (`canView`, `canCreate`, `canEdit`, `canDelete`, `allOffices`, `viewInternalCosts`, `exportInternalXlsx`, `approvalLimitMxn`); solo administrador del sistema, con auditoría. `SYSTEM_ADMIN` no es editable. `GET /me` incluye `policies`
 - `POST /offices` — alta de oficina (administrador del sistema)
 - `PUT /users/{id}/offices` — `{officeIds}`: oficinas donde aplican los privilegios del usuario (todos salvo administrador del sistema); solo administrador del sistema, auditado como `user.offices_updated`. `GET /users` incluye `officeIds` solo para el administrador del sistema

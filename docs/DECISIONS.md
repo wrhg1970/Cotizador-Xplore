@@ -91,3 +91,9 @@
 - «Nueva solicitud» puede llenarse desde un .xlsx/.csv o una liga de Google Sheets con el mismo lector de Gemini (Vertex AI) que el importador de costos, con otro esquema e instrucciones.
 - Solo propone: no guarda ni elige oficina; el usuario revisa y pulsa «Guardar borrador», que pasa por la validación y autorización normales.
 - La bitácora guarda qué campos se llenaron, no sus valores (pueden traer nombres del colegio u otros datos del cliente).
+
+## «Mi trabajo» por etapas (2026-10-28)
+- Formato pedido por Will: cuatro etapas (Solicitada, Cotizada, Aprobada, Enviada), filtros «Todas / Mi turno hoy / Soy titular / Comité o apoyo», buscador y vista en filas o tarjetas comprimidas.
+- Etapa: Solicitada = borrador, por asignar o cotizando sin nada en revisión; Cotizada = alguna versión en revisión o devuelta; Aprobada = alguna autorizada; Enviada = enviada o ganada (las ganadas se quedan hasta la salida).
+- El precio mostrado es el precio al cliente por alumno de la versión ganadora o la más avanzada; nunca costos ni margen.
+- No se agregó el botón «Pasar a Aprobada»: autorizar sigue siendo una acción del autorizador dentro de la cotización.

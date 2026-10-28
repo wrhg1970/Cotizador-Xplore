@@ -11,7 +11,10 @@ const dashboard = async (cookie: string) =>
   (await api().get('/api/v1/dashboard').set('Cookie', cookie).expect(200)).body as {
     tasks: { kind: string; requestId: string; quoteId: string | null }[];
     offices: { id: string; byStatus: Record<string, number> }[];
+    requests: { id: string; stage: number; role: string; scenarios: number; price: unknown }[];
   };
+const card = async (cookie: string, requestId: string) =>
+  (await dashboard(cookie)).requests.find((r) => r.id === requestId);
 const kinds = async (cookie: string, requestId: string) =>
   (await dashboard(cookie)).tasks.filter((t) => t.requestId === requestId).map((t) => t.kind);
 
@@ -61,6 +64,8 @@ describe('dashboard "Mi trabajo" (Sprint C)', () => {
     const id = await newRequest('Roma 2027');
     expect(await kinds(c.advisor, id)).toEqual(['SUBMIT_REQUEST']);
     expect(await kinds(c.adminA, id)).toEqual([]); // drafts stay private
+    expect(await card(c.advisor, id)).toMatchObject({ stage: 1, role: 'REQUESTER', price: null });
+    expect(await card(c.adminA, id)).toBeUndefined();
 
     await api()
       .post(`/api/v1/requests/${id}/submit`)
@@ -70,6 +75,8 @@ describe('dashboard "Mi trabajo" (Sprint C)', () => {
     expect(await kinds(c.advisor, id)).toEqual([]);
     expect(await kinds(c.adminA, id)).toEqual(['ASSIGN']);
     expect(await kinds(c.adminB, id)).toEqual([]); // other office
+    expect(await card(c.adminA, id)).toMatchObject({ stage: 1, role: 'SUPPORT' });
+    expect(await card(c.adminB, id)).toBeUndefined();
 
     await api()
       .post(`/api/v1/requests/${id}/assign`)
@@ -113,6 +120,7 @@ describe('dashboard "Mi trabajo" (Sprint C)', () => {
     expect(await kinds(c.quoter, id)).toEqual([]); // waiting on the approver now
     expect(await kinds(c.approver, id)).toEqual(['APPROVE']);
     expect(await kinds(c.adminA, id)).toEqual([]); // admins are not approvers
+    expect(await card(c.quoter, id)).toMatchObject({ stage: 2, role: 'ASSIGNEE', scenarios: 1 });
 
     const inReview = await prisma.quoteVersion.findUniqueOrThrow({ where: { id: ready.id } });
     await api()
@@ -138,6 +146,11 @@ describe('dashboard "Mi trabajo" (Sprint C)', () => {
     expect(await kinds(c.quoter, id)).toEqual(['SEND']);
     expect(await kinds(c.adminA, id)).toEqual(['SEND']);
     expect(await kinds(c.approver, id)).toEqual([]);
+    // 10 students × 1 000 MXN at 0% commission: the client price, never the cost breakdown.
+    expect(await card(c.adminA, id)).toMatchObject({
+      stage: 3,
+      price: { amount: '1000.00', currency: 'MXN' },
+    });
   });
 
   it('an approver never gets their own quote to approve', async () => {

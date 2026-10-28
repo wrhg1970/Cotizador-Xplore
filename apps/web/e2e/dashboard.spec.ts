@@ -29,12 +29,21 @@ test('"Mi trabajo" lists what is waiting on the user and links to it', async ({ 
   const page = await ctx.newPage();
   await page.goto('/');
   await expect(page).toHaveURL(/\/inicio$/);
-  const row = page.getByRole('row').filter({ hasText: folio });
-  await expect(row).toContainText('Tablero Roma 2027');
+  const card = page.getByRole('article', { name: `${folio} Tablero Roma 2027` });
+  await expect(card).toContainText('Etapa actual: 01. Solicitada');
+  await expect(card).toContainText('Rol: Cotizador titular');
+  await expect(card).toContainText('Requiere tu acción');
+  await page.getByRole('button', { name: 'Comité / apoyo (0)' }).click();
+  await expect(card).toBeHidden();
+  await page.getByRole('button', { name: /^Mi turno hoy/ }).click();
+  await page.getByRole('searchbox', { name: 'Buscar' }).fill(folio.toLowerCase());
+  await expect(card).toBeVisible();
+  await page.getByRole('button', { name: 'Tarjetas comprimidas' }).click();
+  await expect(card.getByText('Requiere tu acción')).toBeHidden();
   await expect(page.getByRole('row', { name: `${office.code} · Oficina E2E` })).toHaveText(
     `${office.code} · Oficina E2E0010000—`,
   );
-  await row.getByRole('link', { name: 'Cotizar' }).click();
+  await card.getByRole('link', { name: 'Cotizar →' }).click();
   await expect(page).toHaveURL(new RegExp(`/solicitudes/${req.id}$`));
   await ctx.close();
 });

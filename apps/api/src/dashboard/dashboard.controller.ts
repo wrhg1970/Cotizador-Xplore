@@ -1,10 +1,12 @@
 import { Controller, Get, Inject } from '@nestjs/common';
-import type { RoleName } from '@ee/contracts';
+import type { RequestStatus, RoleName } from '@ee/contracts';
 import type { Prisma, PrismaClient } from '@ee/db';
 import type { AuthUser } from '../auth/auth.types.js';
 import { officeScope, officesWithRole } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
+import { QuoteEngineError } from '@ee/quote-engine';
+import { engine } from '../quotes/quotes.controller.js';
 
 export type TaskKind =
   'SUBMIT_REQUEST' | 'ASSIGN' | 'QUOTE' | 'FIX_QUOTE' | 'APPROVE' | 'SEND' | 'RECORD_OUTCOME';
@@ -55,8 +57,53 @@ const task = (
   quoteLabel: quote ? `${quote.scenario.name} · v${quote.number}` : null,
 });
 
+/** The four stages of "Mi trabajo": Solicitada, Cotizada, Aprobada, Enviada. */
+export type Stage = 1 | 2 | 3 | 4;
+
+export interface DashboardRequest {
+  id: string;
+  folio: string;
+  status: RequestStatus;
+  stage: Stage;
+  officeCode: string;
+  city: string;
+  countryCode: string;
+  departureDate: string;
+  groupName: string;
+  clientName: string | null;
+  program: string | null;
+  participants: number;
+  chaperones: number;
+  scenarios: number;
+  /** Client price per student of the version that best represents the request, never costs. */
+  price: { amount: string; currency: string } | null;
+  role: 'REQUESTER' | 'ASSIGNEE' | 'SUPPORT';
+}
+
+const QUOTED = ['IN_REVIEW', 'RETURNED', 'APPROVED', 'SENT'] as const;
+/** Which version's price to show: the winner, else the most advanced one. */
+const RANK: Record<string, number> = { SENT: 4, APPROVED: 3, IN_REVIEW: 2, RETURNED: 1 };
+
+/** A version that no longer computes (e.g. a missing exchange rate) shows no price instead of failing the page. */
+const priceOf = (v: Parameters<typeof engine>[0]) => {
+  try {
+    return { amount: engine(v).pricePerParticipant.toFixed(2), currency: v.saleCurrency };
+  } catch (e) {
+    if (e instanceof QuoteEngineError) return null;
+    throw e;
+  }
+};
+
+const stageOf = (status: RequestStatus, versions: { status: string }[]): Stage => {
+  if (status === 'SENT' || status === 'WON') return 4;
+  if (status !== 'QUOTING') return 1;
+  if (versions.some((v) => v.status === 'APPROVED')) return 3;
+  return versions.some((v) => v.status === 'IN_REVIEW' || v.status === 'RETURNED') ? 2 : 1;
+};
+
 // shortcut: unpaged lists capped at TASK_LIMIT per kind, fine for pilot volumes; page them if offices grow.
 const TASK_LIMIT = 50;
+const REQUEST_LIMIT = 100;
 
 /** "Mi trabajo": what is waiting on the current user, and request counts per office in their scope. */
 @Controller('dashboard')
@@ -65,10 +112,74 @@ export class DashboardController {
 
   @Get()
   async get(@CurrentUser() user: AuthUser) {
-    const [tasks, offices] = await Promise.all([this.tasks(user), this.officeCounts(user)]);
+    const [tasks, offices, requests] = await Promise.all([
+      this.tasks(user),
+      this.officeCounts(user),
+      this.requests(user),
+    ]);
     const byDue = (a: DashboardTask, b: DashboardTask) =>
       (a.dueDate ?? a.departureDate).localeCompare(b.dueDate ?? b.departureDate);
-    return { tasks: tasks.sort(byDue), offices };
+    return { tasks: tasks.sort(byDue), offices, requests };
+  }
+
+  /** Open requests in the user's scope (won trips until they depart), same visibility as the counts. */
+  private async requests(user: AuthUser): Promise<DashboardRequest[]> {
+    const scope = officeScope(user);
+    const rows = await this.prisma.travelRequest.findMany({
+      where: {
+        ...(scope === 'ALL' ? {} : { officeId: { in: scope } }),
+        OR: [
+          { status: { in: ['SUBMITTED', 'QUOTING', 'SENT'] } },
+          { status: 'DRAFT', requesterId: user.id },
+          { status: 'WON', departureDate: { gte: new Date(new Date().toISOString().slice(0, 10)) } },
+        ],
+      },
+      orderBy: [{ departureDate: 'asc' }, { id: 'asc' }],
+      take: REQUEST_LIMIT,
+      include: {
+        office: { select: { code: true } },
+        scenarios: {
+          select: {
+            versions: {
+              where: { status: { in: [...QUOTED] } },
+              include: { lines: true, fxRates: true },
+            },
+          },
+        },
+      },
+    });
+    return rows.map((r) => {
+      const versions = r.scenarios.flatMap((s) => s.versions);
+      const shown =
+        versions.find((v) => v.id === r.wonVersionId) ??
+        versions.reduce<(typeof versions)[number] | undefined>(
+          (best, v) =>
+            !best ||
+            RANK[v.status]! > RANK[best.status]! ||
+            (RANK[v.status] === RANK[best.status] && v.updatedAt > best.updatedAt)
+              ? v
+              : best,
+          undefined,
+        );
+      return {
+        id: r.id,
+        folio: r.folio,
+        status: r.status,
+        stage: stageOf(r.status, versions),
+        officeCode: r.office.code,
+        city: r.city,
+        countryCode: r.countryCode,
+        departureDate: day(r.departureDate)!,
+        groupName: r.groupName,
+        clientName: r.clientName,
+        program: r.program,
+        participants: r.participants,
+        chaperones: r.chaperones,
+        scenarios: r.scenarios.length,
+        price: shown ? priceOf(shown) : null,
+        role: r.requesterId === user.id ? 'REQUESTER' : r.assigneeId === user.id ? 'ASSIGNEE' : 'SUPPORT',
+      };
+    });
   }
 
   private async tasks(user: AuthUser): Promise<DashboardTask[]> {
