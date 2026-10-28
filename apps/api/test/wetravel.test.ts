@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PaymentLinkBody, WeTravel } from '../src/integrations/wetravel.js';
-import { WeTravelError } from '../src/integrations/wetravel.js';
+import { sumPayments, WeTravelError } from '../src/integrations/wetravel.js';
 import { loginAs, makeApp, makeOffice, makeUser, prisma, uniq } from './helpers.js';
 
 class FakeWeTravel implements WeTravel {
@@ -12,6 +12,12 @@ class FakeWeTravel implements WeTravel {
     const uuid = `wt-${uniq()}`;
     return { uuid, checkoutUrl: `https://wetravel.example/checkout/${uuid}` };
   }
+  async linkPayments(uuid: string) {
+    if (this.fail) throw new WeTravelError(500, 'WeTravel respondió 500 al leer los pagos');
+    this.read.push(uuid);
+    return { collected: { MXN: 1000000 }, payments: 2, payers: 2, lastPaymentAt: '2026-11-01T10:00:00Z' };
+  }
+  read: string[] = [];
 }
 
 const wt = new FakeWeTravel();
@@ -146,5 +152,52 @@ describe('WeTravel not configured', () => {
     await prisma.travelRequest.update({ where: { id: r.id }, data: { assigneeId: u.id } });
     await bare.http().post(`/api/v1/quotes/${r.version}/wetravel`).set('Cookie', cookie).expect(503);
     await bare.app.close();
+  });
+});
+
+describe('payments read from WeTravel', () => {
+  it('sums payments minus refunds per currency and skips failed ones', () => {
+    expect(
+      sumPayments([
+        {
+          amount: 500000,
+          currency: 'mxn',
+          status: 'processed',
+          buyer: { email: 'A@x.mx' },
+          created_at: '2026-11-01T00:00:00Z',
+        },
+        {
+          amount: 500000,
+          refunded_amount: 100000,
+          currency: 'MXN',
+          buyer: { email: 'a@x.mx' },
+          created_at: '2026-11-03T00:00:00Z',
+        },
+        { amount: 900000, currency: 'MXN', status: 'failed' },
+        { amount: 100, currency: 'USD' },
+      ]),
+    ).toEqual({
+      collected: { MXN: 900000, USD: 100 },
+      payments: 3,
+      payers: 1,
+      lastPaymentAt: '2026-11-03T00:00:00Z',
+    });
+  });
+
+  it('shows the collected total to whoever sees the request, only once a link exists', async () => {
+    const r = await wonRequest();
+    const pay = (cookie?: string) => {
+      const q = ctx.http().get(`/api/v1/requests/${r.id}/wetravel/payments`);
+      return cookie ? q.set('Cookie', cookie) : q;
+    };
+    await pay(c.quoter).expect(404);
+    await link(c.quoter, r.version).expect(201);
+    const res = (await pay(c.quoter).expect(200)).body;
+    expect(res).toMatchObject({ collected: { MXN: 1000000 }, payments: 2 });
+    await pay(c.adminB).expect(404);
+    await pay().expect(401);
+    wt.fail = true;
+    await pay(c.quoter).expect(502);
+    wt.fail = false;
   });
 });

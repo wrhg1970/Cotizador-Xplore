@@ -857,6 +857,21 @@ export class QuotesController {
    * Publishes the winning proposal as a WeTravel payment link (price and payment plan per participant).
    * One link per request: a second call returns 409 with the existing URL.
    */
+  /** What the group has paid through the WeTravel link, read live (nothing about payers is stored). */
+  @Get('requests/:id/wetravel/payments')
+  async wetravelPayments(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
+    await this.request(this.prisma, id, user);
+    const r = await this.prisma.travelRequest.findUniqueOrThrow({ where: { id } });
+    if (!r.wetravelLinkId) throw new NotFoundException('La solicitud no tiene liga de WeTravel');
+    if (!this.wetravel) throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
+    try {
+      return await this.wetravel.linkPayments(r.wetravelLinkId);
+    } catch (e) {
+      if (!(e instanceof WeTravelError)) throw e;
+      throw new BadGatewayException(e.message);
+    }
+  }
+
   @Post('quotes/:id/wetravel')
   async wetravelLink(@CurrentUser() user: AuthUser, @Req() req: Request, @Param('id', uuid) id: string) {
     const v = await this.prisma.quoteVersion.findUnique({ where: { id }, include: full });

@@ -17,6 +17,7 @@ import { can, canSeeQuotes, isOfficeAdmin, useMe } from '../../lib/useMe';
 import { type ProposalRow, Proposals } from '../Proposals';
 import { RequestFiles } from '../RequestFiles';
 import { RequestTeam } from '../RequestTeam';
+import { WeTravelPayments } from '../WeTravelPayments';
 import { Scenarios } from '../Scenarios';
 
 interface Timeline {
@@ -295,6 +296,14 @@ export default function RequestDetailPage() {
                   'Sin crear'
                 )}
               </dd>
+              {r.wetravelUrl && (
+                <>
+                  <dt>Pagado en WeTravel</dt>
+                  <dd>
+                    <WeTravelPayments requestId={r.id} />
+                  </dd>
+                </>
+              )}
             </>
           )}
           {r.lostReason && (
