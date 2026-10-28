@@ -1,6 +1,7 @@
 import { AlertSettings, DEFAULT_ALERT_SETTINGS } from '@ee/contracts';
 import type { PrismaClient } from '@ee/db';
 import type { Mailer } from '../notify/notifier.js';
+import { getSetting } from '../settings/settings.js';
 import { full, toDto } from '../quotes/quotes.controller.js';
 
 export type AlertKind = 'UNQUOTED' | 'REVIEW_PENDING' | 'SENT_NO_ANSWER' | 'PAYMENT_DUE';
@@ -26,11 +27,8 @@ export const ALERT_LABEL: Record<AlertKind, string> = {
 
 export const ALERTS_KEY = 'alerts';
 
-export async function alertSettings(prisma: PrismaClient): Promise<AlertSettings> {
-  const row = await prisma.appSetting.findUnique({ where: { key: ALERTS_KEY } });
-  const parsed = AlertSettings.safeParse(row?.value);
-  return parsed.success ? parsed.data : DEFAULT_ALERT_SETTINGS;
-}
+export const alertSettings = (prisma: PrismaClient) =>
+  getSetting(prisma, ALERTS_KEY, AlertSettings, DEFAULT_ALERT_SETTINGS);
 
 const DAY = 86_400_000;
 const iso = (d: Date) => d.toISOString().slice(0, 10);

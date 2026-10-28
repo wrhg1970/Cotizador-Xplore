@@ -373,13 +373,14 @@ enum ReviewDecision {
 model QuoteReview {
   id              String         @id @default(uuid()) @db.Uuid
   versionId       String         @map("version_id") @db.Uuid
-  reviewerId      String         @map("reviewer_id") @db.Uuid
+  /// Null when an auto-authorization rule approved it (the comment says which).
+  reviewerId      String?        @map("reviewer_id") @db.Uuid
   decision        ReviewDecision
   comment         String?
   calculationHash String         @map("calculation_hash")
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   version         QuoteVersion   @relation(fields: [versionId], references: [id], onDelete: Restrict)
-  reviewer        User           @relation(fields: [reviewerId], references: [id], onDelete: Restrict)
+  reviewer        User?          @relation(fields: [reviewerId], references: [id], onDelete: Restrict)
 
   @@index([versionId, createdAt])
   @@map("quote_reviews")

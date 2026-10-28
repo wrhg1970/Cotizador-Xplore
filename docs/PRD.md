@@ -143,3 +143,6 @@ El estado `QUOTE_APPROVED` aplica a la versión aprobada, no necesariamente al e
 
 ## Alertas de vencimiento (2026-10-28)
 Cuatro alertas con umbral en días configurable en Administración (0 = apagada): solicitud enviada sin cotización en autorización (al cotizador asignado o, sin asignar, a los administradores de la oficina), cotización en autorización (a los autorizadores de la oficina que no la armaron), propuesta enviada sin respuesta (ejecutivo y cotizador) y pagos de los alumnos por vencer según el plan de la versión ganada (ejecutivo y cotizador). Se ven en Mi trabajo y llegan en un correo diario sin precios.
+
+## Reglas de autorización (2026-10-28)
+Excepción formal a la aprobación manual, configurada solo por el administrador del sistema y auditada: si "Autorizar automáticamente" está activo, una versión que se manda a autorizar con margen efectivo (comisión del grupo ÷ precio del grupo) igual o mayor al mínimo y total del grupo en MXN igual o menor al tope queda autorizada sola, con una revisión "Regla automática" que dice qué regla aplicó. Versiones en otra moneda sin tipo de cambio a MXN nunca califican. Con margen menor al umbral de "dos firmas", la autorización necesita a dos autorizadores distintos (la primera firma deja la versión en revisión). Por defecto todo está apagado.

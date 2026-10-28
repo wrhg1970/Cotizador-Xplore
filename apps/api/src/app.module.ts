@@ -29,7 +29,7 @@ import { HttpWeTravel, type WeTravel, WETRAVEL } from './integrations/wetravel.j
 import { BANXICO, type Banxico, HttpBanxico } from './rates/banxico.js';
 import { CronController } from './cron/cron.controller.js';
 import { SchoolsController } from './schools/schools.controller.js';
-import { AlertSettingsController } from './alerts/alerts.controller.js';
+import { SettingsController } from './alerts/alerts.controller.js';
 
 @Module({})
 export class AppModule {
@@ -99,7 +99,7 @@ export class AppModule {
         ReportsController,
         IntegrationsController,
         CronController,
-        AlertSettingsController,
+        SettingsController,
         SchoolsController,
       ],
       providers: [

@@ -1,47 +1,44 @@
-import { Body, Controller, ForbiddenException, Get, Inject, Put, Req } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Put, Req } from '@nestjs/common';
 import type { Request } from 'express';
-import { AlertSettings } from '@ee/contracts';
+import { AlertSettings, ApprovalRules } from '@ee/contracts';
 import type { PrismaClient } from '@ee/db';
-import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
-import { isSystemAdmin } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
+import { APPROVAL_RULES_KEY, approvalRules, putSetting } from '../settings/settings.js';
 import { ZodPipe } from '../zod.pipe.js';
 import { ALERTS_KEY, alertSettings } from './alerts.js';
 
-/** Administración → Alertas: thresholds in days for the daily digest and "Mi trabajo". */
-@Controller('settings/alerts')
-export class AlertSettingsController {
+/** Administración: alert thresholds and authorization rules. Everyone reads; system admins write. */
+@Controller('settings')
+export class SettingsController {
   constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
 
-  @Get()
-  get() {
+  @Get('alerts')
+  alerts() {
     return alertSettings(this.prisma);
   }
 
-  @Put()
-  async put(
+  @Put('alerts')
+  putAlerts(
     @CurrentUser() user: AuthUser,
     @Req() req: Request,
     @Body(new ZodPipe(AlertSettings)) body: AlertSettings,
   ) {
-    if (!isSystemAdmin(user)) throw new ForbiddenException('Solo un administrador del sistema');
-    return this.prisma.$transaction(async (tx) => {
-      await tx.appSetting.upsert({
-        where: { key: ALERTS_KEY },
-        create: { key: ALERTS_KEY, value: body, updatedById: user.id },
-        update: { value: body, updatedById: user.id },
-      });
-      await audit(tx, {
-        actorUserId: user.id,
-        action: 'settings.alerts.updated',
-        entityType: 'AppSetting',
-        entityId: ALERTS_KEY,
-        correlationId: req.correlationId,
-        diff: body,
-      });
-      return body;
-    });
+    return putSetting(this.prisma, user, req.correlationId, ALERTS_KEY, body);
+  }
+
+  @Get('approval-rules')
+  rules() {
+    return approvalRules(this.prisma);
+  }
+
+  @Put('approval-rules')
+  putRules(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Body(new ZodPipe(ApprovalRules)) body: ApprovalRules,
+  ) {
+    return putSetting(this.prisma, user, req.correlationId, APPROVAL_RULES_KEY, body);
   }
 }
