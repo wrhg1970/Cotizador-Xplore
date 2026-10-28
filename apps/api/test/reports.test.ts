@@ -223,8 +223,20 @@ describe('global approvals and sent proposals', () => {
     expect(list.find((v) => v.id === q.versionId)).toMatchObject({
       sentOn: '2026-10-28',
       channel: 'EMAIL',
-      request: { status: 'WON' },
+      recipients: 'direccion@colegio.example',
+      sentVia: 'MANUAL',
+      request: { status: 'WON', wonVersionId: q.versionId },
     });
+    // A sent version replaced later stays in the trace.
+    await prisma.quoteVersion.update({ where: { id: q.versionId }, data: { status: 'SUPERSEDED' } });
+    const after = (
+      await api().get('/api/v1/reports/versions?status=SENT').set('Cookie', c.advisor).expect(200)
+    ).body as { id: string }[];
+    expect(after.some((v) => v.id === q.versionId)).toBe(true);
+    const other = (
+      await api().get('/api/v1/reports/versions?status=SENT').set('Cookie', c.adminB).expect(200)
+    ).body as { id: string }[];
+    expect(other.some((v) => v.id === q.versionId)).toBe(false); // other office
   });
 });
 
