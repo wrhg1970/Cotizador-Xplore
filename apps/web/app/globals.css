@@ -1126,3 +1126,424 @@ dialog.welcome ol {
     color: #d6e4f2;
   }
 }
+
+/* Executive dashboard (V2 "Panel de control comercial"): hero cards, funnel, charts, KPI grid. */
+:root {
+  --c-budget: #2f8ee0;
+  --c-volume: #ec6206;
+  --c-commission: #1f9a5c;
+  --c-step1: #3d4e66;
+  --c-step2: #2f8ee0;
+  --c-step3: #ec6206;
+  --c-step4: #00457f;
+  --c-step5: #1f9a5c;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-budget: #3b82c4;
+    --c-volume: #d9733f;
+    --c-commission: #2e9e66;
+    --c-step1: #6b7c96;
+    --c-step2: #3b82c4;
+    --c-step3: #d9733f;
+    --c-step4: #2f6fae;
+    --c-step5: #2e9e66;
+  }
+}
+.dx-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.dx-hero,
+.dx-two {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  margin-bottom: 16px;
+}
+.dx-hero .eyebrow,
+.dx-funnel .eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.dx-big {
+  font-family: var(--font-head);
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin: 6px 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+.dx-big small {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.dx-money {
+  color: var(--ok);
+}
+.dx-sub {
+  margin: 14px 0 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.dx-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--subtle);
+}
+.dx-mini.boxed {
+  margin: 0;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.dx-mini dt {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.dx-mini dd {
+  margin: 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.dx-prog {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+}
+.dx-prog .track,
+.hbar .track {
+  grid-column: 1 / -1;
+  height: 8px;
+  background: var(--subtle);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.dx-prog .fill {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  border-radius: 4px;
+}
+.dx-stack {
+  margin-top: 18px;
+  font-size: 0.85rem;
+}
+.dx-stack-head {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.dx-stack-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--subtle);
+}
+.dx-stack-bar .empty {
+  flex: 1;
+}
+.dx-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.dx-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.s-won {
+  background: var(--c-step5);
+}
+.s-sent {
+  background: var(--c-step4);
+}
+.s-approve {
+  background: var(--c-step3);
+}
+.dx-funnel {
+  margin-bottom: 16px;
+}
+.dx-sechead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--subtle);
+}
+.dx-sechead h2,
+.dx-two h2,
+.dx-sechead p {
+  margin: 4px 0;
+}
+.dx-funnel-body {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(240px, 2fr) 3fr;
+}
+.dx-funnel-chart {
+  margin: 0;
+  background: var(--subtle);
+  border-radius: 14px;
+  padding: 16px;
+}
+.dx-funnel-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin-bottom: 12px;
+}
+.n1 {
+  fill: var(--c-step1);
+  background: var(--c-step1);
+}
+.n2 {
+  fill: var(--c-step2);
+  background: var(--c-step2);
+}
+.n3 {
+  fill: var(--c-step3);
+  background: var(--c-step3);
+}
+.n4 {
+  fill: var(--c-step4);
+  background: var(--c-step4);
+}
+.n5 {
+  fill: var(--c-step5);
+  background: var(--c-step5);
+}
+.dx-fbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px auto 0;
+  padding: 5px 10px;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.dx-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dx-hop {
+  font-size: 0.8rem;
+  margin: 6px 0 6px 14px;
+}
+.dx-step {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  font-weight: 400;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 14px;
+}
+.dx-step:hover,
+.dx-step.on {
+  border-color: var(--ink);
+  background: var(--subtle);
+}
+.dx-step-name .muted {
+  display: block;
+  font-size: 0.85rem;
+}
+.dx-step-fig {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+.dx-step-fig small {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.dx-num {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: #fff;
+  font-weight: 800;
+}
+.hbar .fill.st-NEW {
+  background: var(--c-step1);
+}
+.hbar .fill.st-QUOTING {
+  background: var(--c-step2);
+}
+.hbar .fill.st-APPROVAL {
+  background: var(--c-step3);
+}
+.hbar .fill.st-SENT {
+  background: var(--c-step4);
+}
+.hbar .fill.st-WON {
+  background: var(--c-step5);
+}
+.hbar .fill.st-LOST {
+  background: var(--danger);
+}
+.dx-two .hbar {
+  grid-template-columns: minmax(0, 11rem) 1fr auto;
+}
+.dx-two .hbar .track {
+  grid-column: auto;
+  height: 14px;
+}
+.dx-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.dx-svg text {
+  font-size: 11px;
+  fill: var(--muted);
+}
+.dx-svg .grid {
+  stroke: var(--subtle);
+  stroke-width: 1;
+}
+.v-budget {
+  fill: var(--c-budget);
+  background: var(--c-budget);
+}
+.v-volume {
+  fill: var(--c-volume);
+  background: var(--c-volume);
+}
+.v-commission {
+  fill: var(--c-commission);
+  background: var(--c-commission);
+}
+polyline.l-req,
+polyline.l-stu {
+  stroke-width: 2;
+  fill: none;
+}
+.l-req {
+  stroke: var(--c-step4);
+  fill: var(--c-step4);
+}
+.l-stu {
+  stroke: var(--c-commission);
+  fill: var(--c-commission);
+}
+.dx-foot {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--subtle);
+  text-align: right;
+}
+.dx-filter {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+}
+.dx-filter input {
+  flex: 1 1 240px;
+  max-width: 360px;
+}
+.dx-kpis {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  margin-bottom: 16px;
+}
+.dx-kpis .card {
+  padding: 16px 18px;
+}
+.dx-kpi {
+  font-family: var(--font-head);
+  font-size: 1.9rem;
+  font-weight: 800;
+  margin: 6px 0;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.dx-kpi.warn {
+  color: var(--accent);
+}
+.dx-kpi.ok {
+  color: var(--ok);
+}
+.dx-kpi.bad {
+  color: var(--danger);
+}
+.dx-table {
+  margin-bottom: 16px;
+}
+.dx-act {
+  min-height: 36px;
+  padding: 6px 14px;
+}
+.dx-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+  border: 1px solid var(--border);
+}
+.dx-card .badge {
+  align-self: flex-start;
+  margin-top: 6px;
+}
+@media (max-width: 900px) {
+  .dx-funnel-body {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .dx-step {
+    grid-template-columns: auto 1fr;
+  }
+  .dx-step-fig {
+    align-items: flex-start;
+  }
+  .dx-fbar {
+    width: 100% !important;
+  }
+}
