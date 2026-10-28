@@ -15,6 +15,8 @@ import {
 } from '../../lib/types';
 import { can, canSeeQuotes, isOfficeAdmin, useMe } from '../../lib/useMe';
 import { type ProposalRow, Proposals } from '../Proposals';
+import { RequestFiles } from '../RequestFiles';
+import { RequestTeam } from '../RequestTeam';
 import { Scenarios } from '../Scenarios';
 
 interface Timeline {
@@ -330,6 +332,25 @@ export default function RequestDetailPage() {
           </>
         )}
       </section>
+
+      <div className="sheet" style={{ marginTop: 16 }}>
+        <div className="card">
+          <RequestTeam
+            requestId={r.id}
+            canManage={
+              !['WON', 'LOST', 'CANCELLED'].includes(r.status) && (r.requester.id === me?.id || admin)
+            }
+          />
+        </div>
+        <div className="card">
+          <RequestFiles
+            requestId={r.id}
+            canUpload={r.status !== 'CANCELLED' && can(me, r.office.id, 'canEdit')}
+            canDeleteAny={can(me, r.office.id, 'canDelete')}
+            meId={me?.id}
+          />
+        </div>
+      </div>
 
       {r.status !== 'DRAFT' && !canSeeQuotes(me, r.office.id) && <Proposals requestId={r.id} />}
       {r.status !== 'DRAFT' && canSeeQuotes(me, r.office.id) && (

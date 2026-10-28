@@ -35,6 +35,8 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `GET /requests`
 - `GET /requests/{requestId}`
 - `PATCH /requests/{requestId}` — incluye `specifications` (objeto `TripSpecs` con 7 bloques de texto opcionales, o `null` para borrarlas), igual que `POST /requests`
+- `GET|POST /requests/{requestId}/attachments`, `GET|DELETE /requests/{requestId}/attachments/{attachmentId}` — archivos de la solicitud. Subir: `{fileName, fileBase64}` (3 MB, máximo 20 por solicitud), quien vea la solicitud y tenga «Editar» en su oficina; el tipo se detecta por los bytes contra una lista permitida (PDF, PNG, JPG, XLSX, DOCX, PPTX, CSV, TXT) y se descarga siempre como adjunto con `nosniff`. Borrar: quien lo subió o un rol con «Borrar». Auditoría `request.attachment_added|removed` con nombre y tamaño, nunca el contenido.
+- `GET|PUT /requests/{requestId}/team`, `GET /requests/{requestId}/team/candidates` — ejecutivo comercial (uno) y personas de apoyo (hasta 20), solo de la oficina de la solicitud. Lo arma el solicitante o el coordinador mientras la solicitud esté abierta; auditado como `request.team_updated`. El ejecutivo comercial cuenta como titular en «Mi trabajo».
 - `POST /requests/{requestId}/submit`
 - `POST /requests/{requestId}/assign`
 - `POST /requests/{requestId}/outcome` — respuesta del cliente a una solicitud enviada (`SENT`): `{outcome:"WON", versionId, version}` (la versión debe estar enviada y ser de esa solicitud) o `{outcome:"LOST", reason, version}`. Solo el cotizador asignado o el coordinador; la solicitud queda cerrada y se audita (`request.won` / `request.lost`). `GET /requests/{id}/proposals` incluye `sent`

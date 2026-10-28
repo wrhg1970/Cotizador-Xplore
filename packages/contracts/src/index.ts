@@ -185,6 +185,31 @@ export const UpdateRequest = z
   .refine(datesInOrder, datesMessage);
 export type UpdateRequest = z.infer<typeof UpdateRequest>;
 
+/** 3 MB file as base64 (4/3 overhead), sniffed server-side against an allowlist. */
+export const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
+export const UploadAttachment = z.strictObject({
+  fileName: ShortText(200),
+  fileBase64: z
+    .string()
+    .min(1)
+    .max(Math.ceil((MAX_ATTACHMENT_BYTES * 4) / 3) + 4),
+});
+/** Request team (V2): one commercial executive and up to 20 support people, all from the request's office. */
+export const SetRequestTeam = z
+  .strictObject({
+    commercialExecutiveId: z.uuid().nullable(),
+    supportIds: z.array(z.uuid()).max(20),
+  })
+  .refine(
+    (t) =>
+      new Set(t.supportIds).size === t.supportIds.length &&
+      !t.supportIds.includes(t.commercialExecutiveId ?? ''),
+    {
+      message: 'Cada persona aparece una sola vez en el equipo',
+      path: ['supportIds'],
+    },
+  );
+
 export const VersionOnly = z.strictObject({ version: z.number().int().min(1) });
 export const AssignRequest = z.strictObject({ assigneeId: z.uuid(), version: z.number().int().min(1) });
 export const CancelRequest = z.strictObject({ reason: ShortText(1000), version: z.number().int().min(1) });

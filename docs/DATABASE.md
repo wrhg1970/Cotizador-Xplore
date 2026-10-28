@@ -5,7 +5,9 @@
 - `Office`: oficina y configuración.
 - `UserOfficeRole`: usuario, oficina, rol y permisos.
 - `TravelRequest`: grupo, destino, fechas, cantidades, presupuesto, moneda, estado, solicitante y responsable.
-- `RequestComment`, `Attachment`, `ActivityEvent`.
+- `RequestComment`, `ActivityEvent`.
+- `RequestAttachment` (2026-10-28): archivo en Postgres (`bytea`, máx. 3 MB por CHECK), nombre, tipo detectado, tamaño y quién lo subió.
+- `RequestMember` (2026-10-28): equipo de la solicitud (`COMMERCIAL` único por índice parcial, `SUPPORT`).
 - `QuoteScenario`: escenario de una solicitud y descripción.
 - `QuoteVersion`: snapshot/versionado de datos y cálculo, moneda, FX, estado, totales, creador, hash.
 - `ConceptTemplate`: catálogo de rubros de la hoja EE (nombre, bloque/categoría, base, interno, cantidad = días del viaje, orden, activo). Los escenarios nuevos copian los rubros base con costo cero; cambiar el catálogo no toca cotizaciones existentes.
