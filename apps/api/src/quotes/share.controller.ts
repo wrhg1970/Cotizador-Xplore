@@ -28,6 +28,7 @@ import { canView } from '../requests/request-policy.js';
 import { ZodPipe } from '../zod.pipe.js';
 import { Notifier } from '../notify/notifier.js';
 import { clientProposal, full } from './quotes.controller.js';
+import { agencyOfOffice, toBrand } from '../agency/brand.js';
 
 const uuid = new ParseUUIDPipe({ version: '4' });
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
@@ -196,7 +197,8 @@ export class ProposalShareController {
       where: { id: s.id },
       data: { viewCount: { increment: 1 }, lastViewAt: new Date() },
     });
-    const { request, id: _id, ...proposal } = clientProposal(s.version, r);
+    const brand = toBrand(await agencyOfOffice(this.prisma, r.officeId));
+    const { request, id: _id, ...proposal } = clientProposal(s.version, r, brand);
     const { id: _rid, ...publicRequest } = request;
     const a = s.version.acceptance;
     return {

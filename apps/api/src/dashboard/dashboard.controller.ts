@@ -27,10 +27,9 @@ export interface DashboardTask {
   quoteLabel: string | null;
 }
 
-const officesWith = (user: AuthUser, roles: readonly RoleName[]): Prisma.TravelRequestWhereInput => {
-  const ids = officesWithRole(user, roles);
-  return ids === 'ALL' ? {} : { officeId: { in: ids } };
-};
+const officesWith = (user: AuthUser, roles: readonly RoleName[]): Prisma.TravelRequestWhereInput => ({
+  officeId: { in: officesWithRole(user, roles) },
+});
 
 const requestSelect = {
   id: true,
@@ -142,7 +141,9 @@ export class DashboardController {
       this.tasks(user),
       this.officeCounts(user),
       this.requests(user),
-      alertSettings(this.prisma).then((s) => computeAlerts(this.prisma, s)),
+      alertSettings(this.prisma, user.agencyId).then((s) =>
+        computeAlerts(this.prisma, user.agencyOfficeIds, s),
+      ),
     ]);
     const byDue = (a: DashboardTask, b: DashboardTask) =>
       (a.dueDate ?? a.departureDate).localeCompare(b.dueDate ?? b.departureDate);
@@ -164,20 +165,16 @@ export class DashboardController {
     @Query(new ZodPipe(ExecutiveDashboardQuery)) q: z.infer<typeof ExecutiveDashboardQuery>,
   ) {
     const scope = officesWithRole(user, EXECUTIVES);
-    if (scope !== 'ALL' && scope.length === 0)
+    if (scope.length === 0)
       throw new ForbiddenException(
         'Solo coordinadores, auditores y administradores ven el tablero ejecutivo',
       );
-    if (q.officeId && scope !== 'ALL' && !scope.includes(q.officeId)) throw new ForbiddenException();
+    if (q.officeId && !scope.includes(q.officeId)) throw new ForbiddenException();
 
     const today = new Date().toISOString().slice(0, 10);
     const from = q.from ?? `${today.slice(0, 4)}-01-01`;
     const to = q.to ?? today;
-    const offices: Prisma.TravelRequestWhereInput = q.officeId
-      ? { officeId: q.officeId }
-      : scope === 'ALL'
-        ? {}
-        : { officeId: { in: scope } };
+    const offices: Prisma.TravelRequestWhereInput = { officeId: q.officeId ?? { in: scope } };
     const soon = new Date(Date.now() + UPCOMING_DAYS * 86_400_000);
     const year = Number(to.slice(0, 4));
 
@@ -208,7 +205,7 @@ export class DashboardController {
         take: TASK_LIMIT,
       }),
     ]);
-    const goals = await this.goals(q.officeId ? [q.officeId] : scope, year);
+    const goals = await this.goals(user.agencyId, q.officeId ? [q.officeId] : scope, year);
 
     type Bucket = {
       requests: number;
@@ -287,11 +284,11 @@ export class DashboardController {
    * V2 "Meta anual": MXN won per office in the goal's year (by closing date) against its goal.
    * Only offices with a goal; a won trip in another currency without an MXN rate is counted apart.
    */
-  private async goals(scope: string[] | 'ALL', year: number) {
-    const set = await officeGoals(this.prisma, year);
+  private async goals(agencyId: string, scope: string[], year: number) {
+    const set = await officeGoals(this.prisma, agencyId, year);
     const ids = Object.keys(set);
     if (!ids.length) return { year, offices: [] };
-    const visible = scope === 'ALL' ? ids : ids.filter((id) => scope.includes(id));
+    const visible = ids.filter((id) => scope.includes(id));
     const [rows, names] = await Promise.all([
       this.prisma.travelRequest.findMany({
         where: {
@@ -336,7 +333,7 @@ export class DashboardController {
     const scope = officeScope(user);
     const rows = await this.prisma.travelRequest.findMany({
       where: {
-        ...(scope === 'ALL' ? {} : { officeId: { in: scope } }),
+        officeId: { in: scope },
         OR: [
           { status: { in: ['SUBMITTED', 'QUOTING', 'SENT'] } },
           { status: 'DRAFT', requesterId: user.id },
@@ -465,17 +462,16 @@ export class DashboardController {
   /** Same visibility as the inbox: other people's drafts are not counted. */
   private async officeCounts(user: AuthUser) {
     const scope = officeScope(user);
-    const inScope = scope === 'ALL' ? {} : { id: { in: scope } };
     const [offices, groups] = await Promise.all([
       this.prisma.office.findMany({
-        where: inScope,
+        where: { id: { in: scope } },
         select: { id: true, code: true, name: true },
         orderBy: { code: 'asc' },
       }),
       this.prisma.travelRequest.groupBy({
         by: ['officeId', 'status'],
         where: {
-          ...(scope === 'ALL' ? {} : { officeId: { in: scope } }),
+          officeId: { in: scope },
           OR: [{ status: { not: 'DRAFT' } }, { requesterId: user.id }],
         },
         _count: { _all: true },

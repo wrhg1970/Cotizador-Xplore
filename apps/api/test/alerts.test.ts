@@ -108,7 +108,7 @@ describe('overdue alerts', () => {
     });
 
     const mine = new Set([old.id, fresh.id, review.id, sent.id, won.id]);
-    const alerts = (await computeAlerts(prisma, DEFAULT_ALERT_SETTINGS, NOW)).filter((a) =>
+    const alerts = (await computeAlerts(prisma, [officeId], DEFAULT_ALERT_SETTINGS, NOW)).filter((a) =>
       mine.has(a.requestId),
     );
     const by = (kind: string) => alerts.filter((a) => a.kind === kind);
@@ -127,6 +127,7 @@ describe('overdue alerts', () => {
 
     const off = await computeAlerts(
       prisma,
+      [officeId],
       { unquotedDays: 0, reviewDays: 0, sentNoAnswerDays: 0, paymentReminderDays: 0 },
       NOW,
     );
@@ -141,9 +142,9 @@ describe('overdue alerts', () => {
     const toAdvisor = mailer.sent.filter((m) => m.text.includes('Grupo alertas'));
     expect(toAdvisor.length).toBeGreaterThan(0);
     expect(toAdvisor[0]!.text).toContain('https://web.example/');
-    expect(await sendDigest(prisma, mailer, 'https://web.example', NOW)).toEqual({
-      skipped: 'already sent today',
-    });
+    const again = await sendDigest(prisma, mailer, 'https://web.example', NOW);
+    expect(again).toMatchObject({ sent: 0, alerts: 0 });
+    expect(again.skipped).toBeGreaterThan(0);
   });
 
   it('only a system admin changes the thresholds, audited and validated', async () => {

@@ -23,9 +23,44 @@ enum Role {
   AUDITOR
 }
 
+/// A travel agency using the cotizador (multi-tenant root). Offices, users and agency-wide catalogs hang from it;
+/// the server filters every read by the session user's agency. Estudiantes Embajadores has a fixed id (migration).
+model Agency {
+  id               String            @id @default(uuid()) @db.Uuid
+  code             String            @unique
+  name             String
+  active           Boolean           @default(true)
+  /// Branding (null = Xplore Together default): name shown, colors, proposal footer, email sender name.
+  brandName        String?           @map("brand_name")
+  primaryColor     String?           @map("primary_color") @db.Char(7)
+  accentColor      String?           @map("accent_color") @db.Char(7)
+  proposalFooter   String?           @map("proposal_footer")
+  mailFromName     String?           @map("mail_from_name")
+  /// Google Workspace domains that may sign in (EE also keeps ALLOWED_GOOGLE_DOMAINS from the environment).
+  allowedDomains   String[]          @default([]) @map("allowed_domains")
+  /// Own hostname (cotizador.agencia.com) that serves this agency's brand and links.
+  customDomain     String?           @unique @map("custom_domain")
+  /// PNG/JPEG checked from the bytes, max 512 KB (CHECK in the migration); served publicly for the login page.
+  logo             Bytes?
+  logoMime         String?           @map("logo_mime")
+  logoUpdatedAt    DateTime?         @map("logo_updated_at") @db.Timestamptz(3)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  offices          Office[]
+  users            User[]
+  rolePolicies     RolePolicy[]
+  officialRates    OfficialRate[]
+  conceptTemplates ConceptTemplate[]
+  suppliers        Supplier[]
+  settings         AppSetting[]
+
+  @@map("agencies")
+}
+
 /// Configurable permissions per role (contracts RolePolicyInput); SYSTEM_ADMIN has no row and is always global.
 model RolePolicy {
-  role               Role     @id
+  agencyId           String   @map("agency_id") @db.Uuid
+  role               Role
   allOffices         Boolean  @default(false) @map("all_offices")
   canView            Boolean  @default(true) @map("can_view")
   canCreate          Boolean  @default(false) @map("can_create")
@@ -37,12 +72,16 @@ model RolePolicy {
   updatedById        String?  @map("updated_by_id") @db.Uuid
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
   updatedBy          User?    @relation(fields: [updatedById], references: [id], onDelete: Restrict)
+  agency             Agency   @relation(fields: [agencyId], references: [id], onDelete: Restrict)
 
+  @@id([agencyId, role])
   @@map("role_policies")
 }
 
 model User {
   id                String              @id @default(uuid()) @db.Uuid
+  agencyId          String              @map("agency_id") @db.Uuid
+  /// Unique across agencies: a Google account belongs to one agency.
   email             String              @unique
   googleSub         String?             @unique @map("google_sub")
   name              String
@@ -68,13 +107,16 @@ model User {
   memberships       RequestMember[]
   proposalShares    ProposalShare[]
   pushSubscriptions PushSubscription[]
+  agency            Agency              @relation(fields: [agencyId], references: [id], onDelete: Restrict)
 
+  @@index([agencyId])
   @@map("users")
 }
 
 model Office {
   id             String           @id @default(uuid()) @db.Uuid
-  code           String           @unique
+  agencyId       String           @map("agency_id") @db.Uuid
+  code           String
   name           String
   active         Boolean          @default(true)
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -83,7 +125,9 @@ model Office {
   requests       TravelRequest[]
   templates      QuoteTemplate[]
   schoolContacts SchoolContact[]
+  agency         Agency           @relation(fields: [agencyId], references: [id], onDelete: Restrict)
 
+  @@unique([agencyId, code])
   @@map("offices")
 }
 
@@ -112,9 +156,12 @@ model AuditLog {
   diff          Json?
   /// Set by a DB trigger from the entity (request, version, template, office, role grant); null = global.
   officeId      String?  @map("office_id") @db.Uuid
+  /// Set by a DB trigger from the office or the actor when not given; null = platform (e.g. a rejected login).
+  agencyId      String?  @map("agency_id") @db.Uuid
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([entityType, entityId, createdAt])
+  @@index([agencyId, createdAt])
   @@index([officeId, createdAt])
   @@index([actorUserId, createdAt])
   @@map("audit_logs")
@@ -346,6 +393,7 @@ model QuoteLine {
 /// Official EE exchange rates kept by Finance; append-only, the latest rate per pair is the current one.
 model OfficialRate {
   id           String   @id @default(uuid()) @db.Uuid
+  agencyId     String   @map("agency_id") @db.Uuid
   fromCurrency String   @map("from_currency") @db.Char(3)
   toCurrency   String   @map("to_currency") @db.Char(3)
   /// Units of toCurrency per 1 fromCurrency.
@@ -356,8 +404,9 @@ model OfficialRate {
   capturedById String?  @map("captured_by_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   capturedBy   User?    @relation(fields: [capturedById], references: [id], onDelete: Restrict)
+  agency       Agency   @relation(fields: [agencyId], references: [id], onDelete: Restrict)
 
-  @@index([fromCurrency, toCurrency, createdAt])
+  @@index([agencyId, fromCurrency, toCurrency, createdAt])
   @@map("official_rates")
 }
 
@@ -428,6 +477,7 @@ model ProposalDelivery {
 /// Catalog of quote concepts ("rubros") that admins maintain; new scenarios start with the base ones (EE sheet).
 model ConceptTemplate {
   id           String       @id @default(uuid()) @db.Uuid
+  agencyId     String       @map("agency_id") @db.Uuid
   label        String
   category     LineCategory
   internalOnly Boolean      @default(false) @map("internal_only")
@@ -439,8 +489,9 @@ model ConceptTemplate {
   active       Boolean      @default(true)
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  agency       Agency       @relation(fields: [agencyId], references: [id], onDelete: Restrict)
 
-  @@unique([category, label])
+  @@unique([agencyId, category, label])
   @@map("concept_templates")
 }
 
@@ -545,12 +596,15 @@ model ProposalAcceptance {
 
 /// Small admin-editable settings (contracts AlertSettings, …) keyed by name; the value is validated in the API.
 model AppSetting {
-  key         String   @id
+  agencyId    String   @map("agency_id") @db.Uuid
+  key         String
   value       Json
   updatedById String?  @map("updated_by_id") @db.Uuid
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
   updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: Restrict)
+  agency      Agency   @relation(fields: [agencyId], references: [id], onDelete: Restrict)
 
+  @@id([agencyId, key])
   @@map("app_settings")
 }
 
@@ -576,7 +630,8 @@ model SchoolContact {
 /// Supplier / DMC catalog (block 10). Internal: only roles that see costs read it.
 model Supplier {
   id        String         @id @default(uuid()) @db.Uuid
-  name      String         @unique
+  agencyId  String         @map("agency_id") @db.Uuid
+  name      String
   kind      String?
   country   String?
   email     String?
@@ -586,7 +641,9 @@ model Supplier {
   createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
   rates     SupplierRate[]
+  agency    Agency         @relation(fields: [agencyId], references: [id], onDelete: Restrict)
 
+  @@unique([agencyId, name])
   @@map("suppliers")
 }
 

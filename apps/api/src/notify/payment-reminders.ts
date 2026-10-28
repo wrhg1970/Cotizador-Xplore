@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import type { PrismaClient } from '@ee/db';
+import { clientMailBrand, agencyOfOffice } from '../agency/brand.js';
 import { alertSettings } from '../alerts/alerts.js';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
@@ -29,7 +30,7 @@ const ACTION = 'request.payment_reminder_sent';
 const DAY = 86_400_000;
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-const wonRequests = (prisma: PrismaClient, where: { id?: string } = {}) =>
+const wonRequests = (prisma: PrismaClient, where: { id?: string; office?: { agencyId: string } } = {}) =>
   prisma.travelRequest.findMany({
     where: { ...where, status: 'WON', wonVersionId: { not: null } },
     include: { wonVersion: { include: full } },
@@ -53,6 +54,7 @@ async function remind(
   actorUserId: string | null,
   correlationId: string,
 ) {
+  const brand = clientMailBrand(await agencyOfOffice(prisma, r.officeId), origin);
   await mailer.send(
     paymentReminderMail({
       to,
@@ -63,7 +65,7 @@ async function remind(
       amount: p.amount,
       currency: r.wonVersion!.saleCurrency,
       url: r.wetravelUrl,
-      origin,
+      brand,
     }),
   );
   await audit(prisma, {
@@ -86,27 +88,33 @@ export async function sendPaymentReminders(
   origin: string,
   now = new Date(),
 ) {
-  const { paymentReminderDays: days } = await alertSettings(prisma);
-  if (!days) return { skipped: 'off' };
   const today = iso(now);
-  const until = iso(new Date(now.getTime() + days * DAY));
   let sent = 0;
   let failed = 0;
-  for (const r of await wonRequests(prisma)) {
-    const to = schoolEmails(r);
-    if (!r.wonVersion?.paymentPlan || !to) continue;
-    for (const p of toDto(r.wonVersion).paymentSchedule ?? []) {
-      if (p.dueDate < today || p.dueDate > until) continue;
-      const done = await prisma.auditLog.findFirst({
-        where: { action: ACTION, entityId: r.id, diff: { path: ['number'], equals: p.number } },
-        select: { id: true },
-      });
-      if (done) continue;
-      try {
-        await remind(prisma, mailer, origin, r, p, to, null, `cron-${today}`);
-        sent++;
-      } catch {
-        failed++; // retried on the next run: nothing was audited
+  // Each agency sets its own "Recordatorio de pagos" days.
+  for (const { id: agencyId } of await prisma.agency.findMany({
+    where: { active: true },
+    select: { id: true },
+  })) {
+    const { paymentReminderDays: days } = await alertSettings(prisma, agencyId);
+    if (!days) continue;
+    const until = iso(new Date(now.getTime() + days * DAY));
+    for (const r of await wonRequests(prisma, { office: { agencyId } })) {
+      const to = schoolEmails(r);
+      if (!r.wonVersion?.paymentPlan || !to) continue;
+      for (const p of toDto(r.wonVersion).paymentSchedule ?? []) {
+        if (p.dueDate < today || p.dueDate > until) continue;
+        const done = await prisma.auditLog.findFirst({
+          where: { action: ACTION, entityId: r.id, diff: { path: ['number'], equals: p.number } },
+          select: { id: true },
+        });
+        if (done) continue;
+        try {
+          await remind(prisma, mailer, origin, r, p, to, null, `cron-${today}`);
+          sent++;
+        } catch {
+          failed++; // retried on the next run: nothing was audited
+        }
       }
     }
   }

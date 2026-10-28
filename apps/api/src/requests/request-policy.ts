@@ -13,10 +13,7 @@ const EDITABLE: readonly RequestStatus[] = ['DRAFT', 'SUBMITTED', 'QUOTING'];
 const CLOSED: readonly RequestStatus[] = ['WON', 'LOST', 'CANCELLED'];
 
 const isOfficeAdmin = (u: AuthUser, r: RequestRef) => hasOfficeRole(u, r.officeId, ['OFFICE_ADMIN']);
-const isMember = (u: AuthUser, r: RequestRef) => {
-  const scope = officeScope(u);
-  return scope === 'ALL' || scope.includes(r.officeId);
-};
+const isMember = (u: AuthUser, r: RequestRef) => officeScope(u).includes(r.officeId);
 
 /** Drafts stay private to their author and office admins (US-010). */
 export const canView = (u: AuthUser, r: RequestRef): boolean =>

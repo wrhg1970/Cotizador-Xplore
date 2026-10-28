@@ -44,7 +44,15 @@ export class CronController {
     const result: Record<string, unknown> = {};
     if (this.banxico) {
       try {
-        result.banxico = await refreshFromBanxico(this.prisma, this.banxico, null, req.correlationId);
+        // Banxico's rates are public: every active agency gets them, each in its own catalog.
+        const rates = await this.banxico.latest();
+        const agencies = await this.prisma.agency.findMany({ where: { active: true }, select: { id: true } });
+        const published: string[] = [];
+        for (const a of agencies)
+          published.push(
+            ...(await refreshFromBanxico(this.prisma, a.id, rates, null, req.correlationId)).published,
+          );
+        result.banxico = { published: [...new Set(published)] };
       } catch (e) {
         // The last official rate stays current; nothing is inferred.
         result.banxico = { error: e instanceof Error ? e.message : 'error' };

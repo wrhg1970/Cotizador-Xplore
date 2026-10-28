@@ -15,8 +15,7 @@ import { engine } from '../quotes/quotes.controller.js';
 import { ZodPipe } from '../zod.pipe.js';
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
-const inOffices = (scope: string[] | 'ALL'): Prisma.TravelRequestWhereInput =>
-  scope === 'ALL' ? {} : { officeId: { in: scope } };
+const inOffices = (scope: string[]): Prisma.TravelRequestWhereInput => ({ officeId: { in: scope } });
 /** A version that no longer computes shows no figures instead of failing the list. */
 const calc = (v: Parameters<typeof engine>[0]) => {
   try {
@@ -112,9 +111,9 @@ export class ReportsController {
     @Query(new ZodPipe(ExecutiveDashboardQuery)) q: z.infer<typeof ExecutiveDashboardQuery>,
   ) {
     const scope = exportScope(user);
-    if (scope !== 'ALL' && scope.length === 0)
+    if (scope.length === 0)
       throw new ForbiddenException('Tu rol no tiene permiso para descargar reportes internos');
-    if (q.officeId && scope !== 'ALL' && !scope.includes(q.officeId)) throw new ForbiddenException();
+    if (q.officeId && !scope.includes(q.officeId)) throw new ForbiddenException();
     const year = new Date().getUTCFullYear();
     const from = q.from ?? `${year}-01-01`;
     const to = q.to ?? `${year}-12-31`;

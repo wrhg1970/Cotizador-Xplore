@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
 import { api, isPublicPath } from './lib/api';
-import { Logo } from './Logo';
+import { BrandColors, Logo } from './Logo';
+import { brandName, useBrand } from './lib/useBrand';
 import { useMe } from './lib/useMe';
 import { Welcome } from './Welcome';
 import { WorkNotifier } from './WorkNotifier';
@@ -13,6 +14,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const bare = isPublicPath(pathname);
   const me = useMe();
+  const brand = useBrand(bare);
   // Phones: the 12 links would fill the first screen, so they fold behind "Menú".
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => setMenuOpen(false), [pathname]);
@@ -32,11 +34,12 @@ export function Shell({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <BrandColors brand={brand} />
       {!bare && (
         <header className="top">
           <div className="bar">
             <Link className="brand" href="/inicio">
-              <Logo height={44} />
+              <Logo height={44} src={brand?.logoUrl} alt={brandName(brand)} />
             </Link>
             <button
               type="button"

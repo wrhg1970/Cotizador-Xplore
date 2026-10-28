@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import { createPrismaClient, type Role } from '@ee/db';
+import { createPrismaClient, EE_AGENCY_ID, type Role } from '@ee/db';
 import request from 'supertest';
 import type { IdClaims, LoginChecks, OidcProvider } from '../src/auth/oidc.js';
 import { createApp } from '../src/app.js';
@@ -29,7 +29,9 @@ export const testEnv = (overrides: Record<string, string> = {}) =>
 /** Mimics Google: state must round-trip, claims are whatever the test sets. */
 export class FakeOidc implements OidcProvider {
   claims: IdClaims = { sub: 'nobody' };
-  async authorizationUrl({ state }: LoginChecks): Promise<URL> {
+  redirectUri?: string;
+  async authorizationUrl({ state }: LoginChecks, redirectUri?: string): Promise<URL> {
+    this.redirectUri = redirectUri;
     return new URL(`https://accounts.example/auth?state=${state}`);
   }
   async exchange(url: URL, checks: LoginChecks): Promise<IdClaims> {
@@ -66,24 +68,42 @@ export async function makeApp(
 
 export const uniq = () => crypto.randomUUID().slice(0, 8);
 
-export async function makeOffice() {
-  return prisma.office.create({ data: { code: `T-${uniq()}`.toUpperCase(), name: 'Oficina prueba' } });
+export async function makeOffice(agencyId = EE_AGENCY_ID) {
+  return prisma.office.create({
+    data: { agencyId, code: `T-${uniq()}`.toUpperCase(), name: 'Oficina prueba' },
+  });
+}
+
+export async function makeAgency() {
+  return prisma.agency.create({
+    data: { code: `AG-${uniq()}`.toUpperCase(), name: 'Agencia prueba', allowedDomains: [DOMAIN] },
+  });
 }
 
 export async function makeUser(
   roles: { officeId: string; role: Role }[],
   status: 'INVITED' | 'ACTIVE' = 'INVITED',
+  agencyId = EE_AGENCY_ID,
 ) {
   const email = `u-${uniq()}@${DOMAIN}`;
   return prisma.user.create({
-    data: { email, name: 'Usuario', status, officeRoles: { create: roles } },
+    data: { agencyId, email, name: 'Usuario', status, officeRoles: { create: roles } },
   });
 }
 
 /** Runs the full fake login and returns the session cookie header. */
-export async function loginAs(ctx: Awaited<ReturnType<typeof makeApp>>, email: string, sub = `sub-${email}`) {
-  ctx.oidc.claims = { sub, email, email_verified: true, hd: DOMAIN, name: 'Usuario' };
-  const start = await ctx.http().get('/api/v1/auth/google/login').expect(302);
+export async function loginAs(
+  ctx: Awaited<ReturnType<typeof makeApp>>,
+  email: string,
+  sub = `sub-${email}`,
+  host?: string,
+) {
+  ctx.oidc.claims = { sub, email, email_verified: true, hd: email.split('@')[1], name: 'Usuario' };
+  const start = await ctx
+    .http()
+    .get('/api/v1/auth/google/login')
+    .set('X-Forwarded-Host', host ?? '127.0.0.1')
+    .expect(302);
   const state = new URL(start.headers.location as string).searchParams.get('state');
   const loginCookie = (start.headers['set-cookie'] as unknown as string[])[0]!.split(';')[0]!;
   const cb = await ctx

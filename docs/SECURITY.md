@@ -11,8 +11,8 @@
 
 ## Controles obligatorios
 1. OIDC con Google; validar `issuer`, `audience`, `state`, `nonce`, expiración y redirect URI exacta.
-2. Lista de dominios permitidos más control de acceso explícito. Un dominio válido no equivale automáticamente a rol de administrador.
-3. RBAC + scope por oficina y recurso en cada endpoint.
+2. Lista de dominios permitidos por agencia (Workspace, claim `hd`) más invitación explícita. Un dominio válido no equivale automáticamente a rol de administrador. Solo un administrador del sistema de EE da de alta agencias y sus dominios; el administrador de cada agencia solo invita correos de sus propios dominios. Un login desde el dominio propio de una agencia guarda ese origen en la cookie firmada del inicio de sesión, así que la redirección nunca depende del encabezado Host del callback.
+3. RBAC + scope por agencia, oficina y recurso en cada endpoint. Aislamiento multi-agencia: la sesión carga la agencia del usuario y sus oficinas (`agencyOfficeIds`); `officeScope`/`officesWithRole` devuelven siempre una lista de oficinas de esa agencia (ya no existe «todas»), `hasOfficeRole` y demás reglas nunca aceptan una oficina ajena aunque el usuario sea administrador del sistema, y los catálogos/configuración de agencia se consultan con `agency_id` del usuario. Una agencia desactivada pierde el acceso en la siguiente petición. Pruebas: `apps/api/test/agency-isolation.test.ts`.
 4. Cookies `HttpOnly`, `Secure`, `SameSite`; rotación/expiración de sesión y CSRF según arquitectura. Sesión de 12 h como máximo y cierre por inactividad tras `SESSION_IDLE_MINUTES` (120 por defecto) sin ninguna petición; la web lleva a login con el aviso "Tu sesión se cerró por inactividad".
 5. HTTPS obligatorio; cifrado en reposo administrado por proveedor.
 6. Secrets manager; `.env` ignorado por Git.
@@ -43,6 +43,7 @@ Registrar, contener, revocar credenciales, preservar evidencia, evaluar alcance,
 
 ## Checklist antes de producción
 - [ ] Revisión de seguridad independiente.
+- [ ] Pruebas IDOR/BOLA y separación por agencia (`apps/api/test/agency-isolation.test.ts` cubre las rutas principales; falta extender `permissions-audit.test.ts` a dos agencias).
 - [x] Pruebas IDOR/BOLA y separación por oficina (`apps/api/test/permissions-audit.test.ts`, 2026-10-28: 29 rutas por id y 12 listados/reportes, para los 5 roles de oficina, con control positivo).
 - [ ] OAuth y sesión revisados.
 - [ ] Pruebas de autorización de PDF/XLSX.

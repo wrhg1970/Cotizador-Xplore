@@ -89,6 +89,8 @@ export const Me = z.object({
   name: z.string(),
   roles: z.array(z.object({ officeId: z.uuid(), role: RoleName })),
   policies: z.partialRecord(EditableRole, RolePolicyInput).optional(),
+  /** System admin of Estudiantes Embajadores: registers other agencies. */
+  platformAdmin: z.boolean().optional(),
 });
 export type Me = z.infer<typeof Me>;
 
@@ -583,6 +585,69 @@ export type ExecutiveDashboardQuery = z.infer<typeof ExecutiveDashboardQuery>;
 export const VersionListQuery = z.strictObject({ status: z.enum(['IN_REVIEW', 'SENT']) });
 export type VersionListQuery = z.infer<typeof VersionListQuery>;
 
+const HexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Usa un color #RRGGBB');
+/** A hostname such as cotizador.agencia.com: no scheme, port or path. */
+const Hostname = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(253)
+  .regex(
+    /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/,
+    'Escribe solo el dominio, p. ej. cotizador.agencia.com',
+  );
+
+/** Agency branding (Administración → Marca); null = the Xplore Together default. */
+export const AgencyBrandingInput = z.strictObject({
+  brandName: ShortText(80).nullable(),
+  primaryColor: HexColor.nullable(),
+  accentColor: HexColor.nullable(),
+  proposalFooter: z.string().trim().max(1000).nullable(),
+  mailFromName: ShortText(80)
+    .regex(/^[^"<>\r\n]+$/, 'Sin comillas ni < >')
+    .nullable(),
+  customDomain: Hostname.nullable(),
+});
+export type AgencyBrandingInput = z.infer<typeof AgencyBrandingInput>;
+
+/** What pages need to draw the brand; logoUrl is null when the agency uses the default logo. */
+export interface AgencyBrand extends AgencyBrandingInput {
+  name: string;
+  logoUrl: string | null;
+}
+
+export const MAX_LOGO_BYTES = 512 * 1024;
+export const UploadLogo = z.strictObject({
+  fileName: ShortText(200),
+  fileBase64: z
+    .string()
+    .min(1)
+    .max(Math.ceil((MAX_LOGO_BYTES * 4) / 3) + 4),
+});
+
+/** Google Workspace domains whose accounts may sign in to an agency (the login also checks the hd claim). */
+export const AllowedDomains = z.array(Hostname).min(1).max(20);
+
+/** A new agency with its first office and system admin (Administración → Agencias, Xplore only). */
+export const CreateAgency = z.strictObject({
+  code: z
+    .string()
+    .trim()
+    .regex(/^[A-Z0-9-]{2,20}$/, 'Código: 2–20 mayúsculas, dígitos o guiones'),
+  name: Name,
+  allowedDomains: AllowedDomains,
+  officeCode: CreateOffice.shape.code,
+  officeName: Name,
+  adminEmail: Email,
+  adminName: Name,
+});
+export type CreateAgency = z.infer<typeof CreateAgency>;
+
+export const UpdateAgency = z
+  .strictObject({ name: Name, allowedDomains: AllowedDomains, active: z.boolean() })
+  .partial()
+  .refine((b) => Object.keys(b).length > 0, 'Nada que cambiar');
+export type UpdateAgency = z.infer<typeof UpdateAgency>;
 /** Past trip from an EE cost workbook (historic migration); prices only, no line detail. */
 export const HistoryOption = z.strictObject({
   name: ShortText(100),

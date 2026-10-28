@@ -41,8 +41,8 @@ export class SettingsController {
   constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
 
   @Get('alerts')
-  alerts() {
-    return alertSettings(this.prisma);
+  alerts(@CurrentUser() user: AuthUser) {
+    return alertSettings(this.prisma, user.agencyId);
   }
 
   @Put('alerts')
@@ -55,8 +55,8 @@ export class SettingsController {
   }
 
   @Get('approval-rules')
-  rules() {
-    return approvalRules(this.prisma);
+  rules(@CurrentUser() user: AuthUser) {
+    return approvalRules(this.prisma, user.agencyId);
   }
 
   @Put('approval-rules')
@@ -72,7 +72,7 @@ export class SettingsController {
   @Get('goals/:year')
   goals(@CurrentUser() user: AuthUser, @Param('year', YEAR) year: number) {
     if (!isSystemAdmin(user)) throw new ForbiddenException('Solo un administrador del sistema');
-    return officeGoals(this.prisma, inRange(year));
+    return officeGoals(this.prisma, user.agencyId, inRange(year));
   }
 
   @Put('goals/:year')

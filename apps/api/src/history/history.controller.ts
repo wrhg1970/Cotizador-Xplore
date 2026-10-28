@@ -55,7 +55,7 @@ export class HistoryController {
       throw new BadRequestException({ code: 'SHEET_IMPORT', message: 'El archivo pesa más de 3 MB' });
     try {
       const sheet = await readHistorySheet(file);
-      const offices = await this.prisma.office.findMany({ where: { active: true } });
+      const offices = await this.prisma.office.findMany({ where: { active: true, agencyId: user.agencyId } });
       const wanted = sheet.officeName ? norm(sheet.officeName) : null;
       const office = wanted ? offices.find((o) => norm(o.name).includes(wanted)) : undefined;
       return { ...sheet, officeId: office?.id ?? null };
@@ -74,7 +74,9 @@ export class HistoryController {
     @Body(new ZodPipe(ImportHistory)) body: ImportHistory,
   ) {
     this.admin(user);
-    const office = await this.prisma.office.findUnique({ where: { id: body.officeId } });
+    const office = await this.prisma.office.findFirst({
+      where: { id: body.officeId, agencyId: user.agencyId },
+    });
     if (!office) throw new NotFoundException('Oficina no encontrada');
     const sentOn = toDate(body.sentOn);
     const won = body.outcome === 'WON' ? body.options[body.wonOption!]! : null;

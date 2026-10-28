@@ -18,33 +18,35 @@ import { isSystemAdmin } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { ZodPipe } from '../zod.pipe.js';
-import { BANXICO, type Banxico } from './banxico.js';
+import { BANXICO, type Banxico, type BanxicoRate } from './banxico.js';
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 
 /**
- * Publishes Banxico's latest rates as official ones, skipping pairs whose current rate already has
+ * Publishes Banxico's latest rates as the agency's official ones, skipping pairs whose current rate already has
  * the same source and date, so the daily job and the admin button can both run any number of times.
  * actorUserId null = the scheduled process.
  */
 export async function refreshFromBanxico(
   prisma: PrismaClient,
-  banxico: Banxico,
+  agencyId: string,
+  rates: BanxicoRate[],
   actorUserId: string | null,
   correlationId: string,
 ) {
   const published: string[] = [];
-  for (const r of await banxico.latest()) {
+  for (const r of rates) {
     const current = await prisma.officialRate.findFirst({
-      where: { fromCurrency: r.fromCurrency, toCurrency: r.toCurrency },
+      where: { agencyId, fromCurrency: r.fromCurrency, toCurrency: r.toCurrency },
       orderBy: { createdAt: 'desc' },
     });
     if (current && current.source === r.source && day(current.rateDate) === r.rateDate) continue;
     await prisma.$transaction(async (tx) => {
       const row = await tx.officialRate.create({
-        data: { ...r, rateDate: new Date(`${r.rateDate}T00:00:00Z`), capturedById: actorUserId },
+        data: { ...r, agencyId, rateDate: new Date(`${r.rateDate}T00:00:00Z`), capturedById: actorUserId },
       });
       await audit(tx, {
+        agencyId,
         actorUserId,
         action: 'official_rate.published',
         entityType: 'OfficialRate',
@@ -59,7 +61,7 @@ export async function refreshFromBanxico(
 }
 
 /**
- * Official EE exchange rates (V2 "Parámetros financieros"): everyone reads the current rate per
+ * The agency's official exchange rates (V2 "Parámetros financieros"): everyone reads the current rate per
  * pair to prefill a quote, only system admins publish one. Quotes still freeze their own copy.
  */
 @Controller('official-rates')
@@ -70,8 +72,9 @@ export class OfficialRatesController {
   ) {}
 
   @Get()
-  async current() {
+  async current(@CurrentUser() user: AuthUser) {
     const rows = await this.prisma.officialRate.findMany({
+      where: { agencyId: user.agencyId },
       distinct: ['fromCurrency', 'toCurrency'],
       orderBy: [{ fromCurrency: 'asc' }, { toCurrency: 'asc' }, { createdAt: 'desc' }],
       include: { capturedBy: { select: { name: true } } },
@@ -93,7 +96,13 @@ export class OfficialRatesController {
   async fromBanxico(@CurrentUser() user: AuthUser, @Req() req: Request) {
     if (!isSystemAdmin(user)) throw new ForbiddenException('Solo un administrador del sistema');
     if (!this.banxico) throw new ServiceUnavailableException('Banxico no está configurado');
-    return refreshFromBanxico(this.prisma, this.banxico, user.id, req.correlationId);
+    return refreshFromBanxico(
+      this.prisma,
+      user.agencyId,
+      await this.banxico.latest(),
+      user.id,
+      req.correlationId,
+    );
   }
 
   @Post()
@@ -105,7 +114,12 @@ export class OfficialRatesController {
     if (!isSystemAdmin(user)) throw new ForbiddenException('Solo un administrador del sistema');
     return this.prisma.$transaction(async (tx) => {
       const r = await tx.officialRate.create({
-        data: { ...body, rateDate: new Date(`${body.rateDate}T00:00:00Z`), capturedById: user.id },
+        data: {
+          ...body,
+          agencyId: user.agencyId,
+          rateDate: new Date(`${body.rateDate}T00:00:00Z`),
+          capturedById: user.id,
+        },
       });
       await audit(tx, {
         actorUserId: user.id,

@@ -32,6 +32,7 @@ import {
 } from '@ee/contracts';
 import {
   Prisma,
+  EE_AGENCY_ID,
   type PrismaClient,
   type ProposalDelivery,
   type QuoteFxRate,
@@ -67,7 +68,8 @@ import { ZodPipe } from '../zod.pipe.js';
 import { quoteWorkbook } from './quote-xlsx.js';
 import { compareVersions } from './compare.js';
 import { approvalRules } from '../settings/settings.js';
-import { type ApprovalRules } from '@ee/contracts';
+import { agencyOfOffice, clientMailBrand, toBrand } from '../agency/brand.js';
+import { type AgencyBrand, type ApprovalRules } from '@ee/contracts';
 import { paymentLinkBody, type WeTravel, WETRAVEL, WeTravelError } from '../integrations/wetravel.js';
 
 type Tx = Prisma.TransactionClient;
@@ -142,7 +144,7 @@ export const engine = (v: QuoteVersion & { lines: QuoteLine[]; fxRates: QuoteFxR
   });
 
 /** Client-safe proposal (PRD §PDF): price, group, validity and included concepts; never costs or margin. */
-export function clientProposal(v: FullVersion, r: TravelRequest) {
+export function clientProposal(v: FullVersion, r: TravelRequest, brand: AgencyBrand) {
   const dto = toDto(v);
   const { totals, validUntil, assumptions } = dto;
   return {
@@ -173,6 +175,13 @@ export function clientProposal(v: FullVersion, r: TravelRequest) {
     hasCover: !!v.coverAttachmentId,
     // Only the winning proposal carries the payment link, the same one WeTravel's checkout shows.
     paymentUrl: r.wonVersionId === v.id ? r.wetravelUrl : null,
+    brand: {
+      name: brand.brandName ?? brand.name,
+      logoUrl: brand.logoUrl,
+      footer: brand.proposalFooter,
+      primaryColor: brand.primaryColor,
+      accentColor: brand.accentColor,
+    },
     includes: v.lines
       // Base concepts start at zero; an unpriced one is not something the trip includes.
       .filter(
@@ -492,7 +501,7 @@ export class QuotesController {
         ? QuoteLineInput.array().parse(template.lines)
         : (
             await tx.conceptTemplate.findMany({
-              where: { active: true, isBase: true },
+              where: { agencyId: user.agencyId, active: true, isBase: true },
               orderBy: [{ category: 'asc' }, { position: 'asc' }, { label: 'asc' }],
             })
           ).map((t) => ({
@@ -639,7 +648,7 @@ export class QuotesController {
     const r = v && (await this.prisma.travelRequest.findUnique({ where: { id: v.scenario.requestId } }));
     if (!v || !r || !canView(user, r) || r.status === 'DRAFT')
       throw new NotFoundException('Cotización no encontrada');
-    return clientProposal(v, r);
+    return clientProposal(v, r, toBrand(await agencyOfOffice(this.prisma, r.officeId)));
   }
 
   /** Changes against the previous version of the same scenario (null when this is v1). */
@@ -835,7 +844,7 @@ export class QuotesController {
     @Param('id', uuid) id: string,
     @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
   ) {
-    const rules = await approvalRules(this.prisma);
+    const rules = await approvalRules(this.prisma, user.agencyId);
     let auto: string | null = null;
     const dto = await this.review(user, req, id, body.rowVersion, 'quote.submitted_for_approval', (v, r) => {
       this.assertWork(user, r);
@@ -872,7 +881,7 @@ export class QuotesController {
     @Param('id', uuid) id: string,
     @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
   ) {
-    const rules = await approvalRules(this.prisma);
+    const rules = await approvalRules(this.prisma, user.agencyId);
     let final = true;
     const dto = await this.review(user, req, id, body.rowVersion, 'quote.approved', (v, r) => {
       this.assertReviewer(user, v, r);
@@ -921,14 +930,15 @@ export class QuotesController {
       data: { versionId: v.id, tokenHash: tokenHash(token), expiresAt, createdById: user.id },
     });
     const request = await tx.travelRequest.findUniqueOrThrow({ where: { id: r.id } });
+    const brand = clientMailBrand(await agencyOfOffice(tx, request.officeId), this.env.WEB_ORIGIN);
     try {
       await this.mailer!.send(
         proposalMail({
           to,
           folio: request.folio,
           groupName: request.groupName,
-          url: `${this.env.WEB_ORIGIN}/p/${token}`,
-          origin: this.env.WEB_ORIGIN,
+          url: `${brand.origin}/p/${token}`,
+          brand,
           message,
           sender: user.name,
         }),
@@ -1015,7 +1025,9 @@ export class QuotesController {
     await this.request(this.prisma, id, user);
     const r = await this.prisma.travelRequest.findUniqueOrThrow({ where: { id } });
     if (!r.wetravelLinkId) throw new NotFoundException('La solicitud no tiene liga de WeTravel');
-    if (!this.wetravel) throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
+    // shortcut: the server's WeTravel key is EE's account; other agencies need their own key first (multi-agency step 5).
+    if (!this.wetravel || user.agencyId !== EE_AGENCY_ID)
+      throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
     try {
       return await this.wetravel.linkPayments(r.wetravelLinkId);
     } catch (e) {
@@ -1039,7 +1051,9 @@ export class QuotesController {
         code: 'WETRAVEL_EXISTS',
         message: `Ya existe la liga: ${r.wetravelUrl}`,
       });
-    if (!this.wetravel) throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
+    // shortcut: the server's WeTravel key is EE's account; other agencies need their own key first (multi-agency step 5).
+    if (!this.wetravel || user.agencyId !== EE_AGENCY_ID)
+      throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
     const dto = toDto(v);
     if (!dto.totals || dto.warnings.length)
       throw new BadRequestException('La cotización tiene avisos pendientes (tipo de cambio o plan de pagos)');

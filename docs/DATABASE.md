@@ -1,9 +1,10 @@
 # Modelo de datos (PostgreSQL / Prisma)
 
 ## Entidades principales
-- `User`: identidad Google, nombre, email, estado.
-- `Office`: oficina y configuración.
-- `UserOfficeRole`: usuario, oficina, rol y permisos.
+- `Agency` (tabla `agencies`, 2026-10-28, base multi-agencia): agencia de viajes que usa el cotizador (código único, nombre, activa). Estudiantes Embajadores tiene id fijo `00000000-0000-4000-8000-0000000000ee` (`EE_AGENCY_ID`) y la migración `20261028190000_agencies` le asignó todo lo existente. Cuelgan de ella: `Office`, `User`, `RolePolicy`, `OfficialRate`, `ConceptTemplate`, `Supplier`, `AppSetting` y `AuditLog.agency_id`; lo demás (solicitudes, colegios, plantillas, metas por oficina) cuelga de la oficina. Reversión manual: `packages/db/prisma/rollback/20261028190000_agencies.sql` (solo mientras exista una agencia). Marca (migración `20261028200000_agency_branding`): nombre visible, colores `#RRGGBB` (CHECK), pie de propuesta, remitente de correo, dominio propio único y logo `bytea` PNG/JPG ≤ 512 KB (CHECK); todo nulo = marca Xplore Together.
+- `User`: identidad Google, nombre, email (único global: una cuenta pertenece a una sola agencia), estado, agencia.
+- `Office`: oficina y configuración; código único por agencia.
+- `UserOfficeRole`: usuario, oficina, rol y permisos. Un trigger impide asignar a un usuario una oficina de otra agencia.
 - `TravelRequest`: grupo, destino, fechas, cantidades, presupuesto, moneda, estado, solicitante y responsable.
 - `RequestComment`, `ActivityEvent`.
 - `RequestAttachment` (2026-10-28): archivo en Postgres (`bytea`, máx. 3 MB por CHECK), nombre, tipo detectado, tamaño y quién lo subió.
@@ -13,7 +14,7 @@
 - `ConceptTemplate`: catálogo de rubros de la hoja EE (nombre, bloque/categoría, base, interno, cantidad = días del viaje, orden, activo). Los escenarios nuevos copian los rubros base con costo cero; cambiar el catálogo no toca cotizaciones existentes.
 - `QuoteVersion` (Sprint B): `payment_plan` (JSON validado), `students_per_free_place`, `free_place_benefit`, `itinerary` (JSON), `exclusions`. El calendario de pagos se calcula, no se guarda.
 - `QuoteTemplate`: plantilla por oficina con conceptos (JSON), % de comisión, itinerario, «no incluye» y condiciones; sin tipos de cambio ni fechas de pago.
-- `RolePolicy` (Sprint C): permisos configurables por rol (`all_offices`, `view_internal_costs`, `export_internal_xlsx`, `approval_limit_mxn`). Valores iniciales = reglas fijas anteriores; `SYSTEM_ADMIN` no tiene fila (siempre global); el Excel interno exige ver costos (constraint).
+- `RolePolicy` (Sprint C; por agencia desde 2026-10-28, PK `(agency_id, role)`): permisos configurables por rol (`all_offices`, `view_internal_costs`, `export_internal_xlsx`, `approval_limit_mxn`). Valores iniciales = reglas fijas anteriores; `SYSTEM_ADMIN` no tiene fila (siempre abarca toda su agencia); el Excel interno exige ver costos (constraint).
 - `QuoteLine`: concepto, cantidad, unidad, coste unitario, moneda, regla de reparto, flags de visibilidad.
 - `FormulaSet`, `FormulaRule`: reglas versionadas, vigencia y definición validada.
 - `Approval`: decisión, aprobador, fecha, comentarios y hash de versión aprobada.
@@ -25,7 +26,7 @@
 - `TravelRequest.specifications` (JSON, 2026-10-28): especificaciones del viaje validadas con `TripSpecs` (alojamiento, escuela receptora, cursos, traslados y alimentación, vuelos y excursiones, seguro y accesibilidad, no incluidos).
 - `Supplier` / `SupplierRate` (tablas `suppliers`, `supplier_rates`, 2026-10-28): catálogo de proveedores/DMC con contacto y tarifas (concepto, bloque, costo unitario decimal ≥ 0, moneda, vigencia). Interno. Agregar una tarifa a una cotización copia los valores a la línea; editar la tarifa no cambia cotizaciones existentes.
 - `IntegrationConnection`, `IntegrationJob`, `WebhookEvent`, `ExternalReference`.
-- `AuditLog`: actor, acción, entidad, entityId, timestamp, correlationId, diff redactado y `office_id`. `office_id` lo llena un trigger `BEFORE INSERT` a partir de la entidad (solicitud, versión, plantilla, oficina, rol de usuario); nulo = evento global (inicio de sesión, permisos, catálogo). La tabla es append-only (trigger que impide UPDATE/DELETE).
+- `AuditLog`: actor, acción, entidad, entityId, timestamp, correlationId, diff redactado y `office_id`. `office_id` lo llena un trigger `BEFORE INSERT` a partir de la entidad (solicitud, versión, plantilla, oficina, rol de usuario); nulo = evento de toda la agencia (inicio de sesión, permisos, catálogo). `agency_id` lo llena el mismo trigger desde la oficina o, si no hay, desde el actor; los procesos programados lo pasan explícito; nulo = evento de plataforma (login rechazado). La tabla es append-only (trigger que impide UPDATE/DELETE).
 
 ## Reglas de almacenamiento
 - IDs UUID.
@@ -40,6 +41,7 @@
 
 ## Esquema conceptual de relaciones
 ```text
+Agency 1---* Office, User, RolePolicy, OfficialRate, ConceptTemplate, Supplier, AppSetting
 Office 1---* UserOfficeRole *---1 User
 Office 1---* TravelRequest *---1 User (requester)
 TravelRequest 1---* QuoteScenario 1---* QuoteVersion

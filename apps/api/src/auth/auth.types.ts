@@ -9,6 +9,10 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  /** Tenant boundary: every query is limited to this agency's offices and catalogs. */
+  agencyId: string;
+  /** Every office of the agency, inactive ones too; what "all offices" means for admins and national roles. */
+  agencyOfficeIds: string[];
   roles: OfficeRole[];
   /** Loaded from role_policies on each request; missing entries fall back to DEFAULT_POLICIES. */
   policies?: Partial<Record<EditableRole, RolePolicyInput>>;

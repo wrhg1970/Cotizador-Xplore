@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loginAs, makeApp, makeOffice, makeUser, prisma } from './helpers.js';
+import { loginAs, makeAgency, makeApp, makeOffice, makeUser, prisma } from './helpers.js';
 
 let ctx: Awaited<ReturnType<typeof makeApp>>;
 let admin: string;
@@ -181,6 +181,19 @@ describe('historic import', () => {
       .set('Cookie', coordinator)
       .send({ ...base, outcome: 'SENT' })
       .expect(403);
+  });
+
+  it("never matches nor imports into another agency's office", async () => {
+    const other = await makeOffice((await makeAgency()).id);
+    const p = (await preview(admin, await eeWorkbook(other.name))).body;
+    expect(p.officeId).not.toBe(other.id);
+    const { officeName: _n, warnings: _w, ...sheet } = p;
+    await ctx
+      .http()
+      .post('/api/v1/history')
+      .set('Cookie', admin)
+      .send({ ...sheet, officeId: other.id, sourceFile: 'x.xlsx', sentOn: '2025-02-01', outcome: 'SENT' })
+      .expect(404);
   });
 
   it('explains a file that is not an EE workbook', async () => {

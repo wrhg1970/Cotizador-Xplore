@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Logo } from '../../../Logo';
+import { BrandColors, Logo } from '../../../Logo';
 import { PaymentSchedule } from '../ProposalContent';
 import {
   fmtDate,
@@ -38,6 +38,14 @@ export interface Proposal {
   hasCover: boolean;
   /** WeTravel checkout, only on the winning proposal. */
   paymentUrl: string | null;
+  /** The agency's brand; null fields fall back to Xplore Together. */
+  brand: {
+    name: string;
+    logoUrl: string | null;
+    footer: string | null;
+    primaryColor: string | null;
+    accentColor: string | null;
+  };
 }
 
 /** Client-facing proposal body, shared by the print view and the school's link. */
@@ -54,6 +62,7 @@ export function ProposalView({
 
   return (
     <article className="proposal">
+      <BrandColors brand={p.brand} />
       <p className="no-print row">
         {actions}
         <button onClick={() => window.print()}>Imprimir o guardar PDF</button>
@@ -63,7 +72,7 @@ export function ProposalView({
         {p.hasCover && <img src={coverSrc} alt={`Foto de ${p.request.city}`} />}
         <div className="hero-text">
           <span className="brand">
-            <Logo height={56} />
+            <Logo height={56} src={p.brand.logoUrl} alt={p.brand.name} />
           </span>
           <p className="kicker">
             Propuesta de viaje · {p.request.city}, {p.request.countryCode}
@@ -168,6 +177,11 @@ export function ProposalView({
         </>
       )}
       {legend}
+      {p.brand.footer && (
+        <footer className="muted" style={{ whiteSpace: 'pre-wrap' }}>
+          {p.brand.footer}
+        </footer>
+      )}
     </article>
   );
 }

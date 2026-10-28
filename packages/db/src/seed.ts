@@ -1,6 +1,6 @@
-import { createPrismaClient } from './index.js';
+import { createPrismaClient, EE_AGENCY_ID } from './index.js';
 
-/** Bootstraps the first office and SYSTEM_ADMIN; idempotent. Real admin emails come from env, never fixtures. */
+/** Bootstraps EE's first office and SYSTEM_ADMIN; idempotent. Real admin emails come from env, never fixtures. */
 const required = (name: string): string => {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`Falta la variable ${name}`);
@@ -10,15 +10,19 @@ const required = (name: string): string => {
 const prisma = createPrismaClient(required('DATABASE_URL'));
 try {
   const office = await prisma.office.upsert({
-    where: { code: required('SEED_OFFICE_CODE') },
+    where: { agencyId_code: { agencyId: EE_AGENCY_ID, code: required('SEED_OFFICE_CODE') } },
     update: {},
-    create: { code: required('SEED_OFFICE_CODE'), name: required('SEED_OFFICE_NAME') },
+    create: {
+      agencyId: EE_AGENCY_ID,
+      code: required('SEED_OFFICE_CODE'),
+      name: required('SEED_OFFICE_NAME'),
+    },
   });
   const email = required('SEED_ADMIN_EMAIL').toLowerCase();
   const user = await prisma.user.upsert({
     where: { email },
     update: {},
-    create: { email, name: required('SEED_ADMIN_NAME') },
+    create: { agencyId: EE_AGENCY_ID, email, name: required('SEED_ADMIN_NAME') },
   });
   await prisma.userOfficeRole.upsert({
     where: { userId_officeId_role: { userId: user.id, officeId: office.id, role: 'SYSTEM_ADMIN' } },

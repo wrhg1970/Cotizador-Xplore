@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sendPaymentReminders } from '../src/notify/payment-reminders.js';
+import { BRAND_OMIT, clientMailBrand } from '../src/agency/brand.js';
+import { proposalMail } from '../src/notify/client-mail.js';
 import { FakeMailer, loginAs, makeApp, makeOffice, makeUser, prisma } from './helpers.js';
 
 let ctx: Awaited<ReturnType<typeof makeApp>>;
@@ -197,5 +199,39 @@ describe('emails to the school', () => {
     expect(manual.body).toMatchObject({ number: 1, dueDate: '2030-05-10', recipients: 1 });
     await api().post(`/api/v1/requests/${requestId}/payment-reminder`).set('Cookie', c.approver).expect(403);
     await api().post(`/api/v1/requests/${requestId}/payment-reminder`).set('Cookie', c.adminB).expect(404);
+  });
+});
+
+describe('school emails carry the agency brand', () => {
+  it("uses the agency's name, colors, logo, sender and domain instead of EE's", async () => {
+    const agency = await prisma.agency.create({
+      data: {
+        code: `AG-${crypto.randomUUID().slice(0, 8)}`.toUpperCase(),
+        name: 'Viajes Norte',
+        brandName: 'Norte <Tours>',
+        primaryColor: '#112233',
+        accentColor: '#445566',
+        mailFromName: 'Norte Tours',
+        customDomain: `cotiza-${crypto.randomUUID().slice(0, 8)}.example`,
+      },
+      omit: BRAND_OMIT,
+    });
+    const brand = clientMailBrand(agency, 'https://app.example');
+    const m = proposalMail({
+      to: ['a@b.example'],
+      folio: 'F',
+      groupName: 'G',
+      url: 'u',
+      brand,
+      sender: 'Ana',
+    });
+    expect(m.fromName).toBe('Norte Tours');
+    expect(m.html).toContain('#112233');
+    expect(m.html).toContain('#445566');
+    expect(m.html).toContain('Norte &lt;Tours&gt;');
+    expect(m.html).not.toContain('Xplore');
+    expect(m.html).not.toContain('<img'); // no logo uploaded, and EE's is not borrowed
+    expect(m.text).toContain('Ana, Norte <Tours>.');
+    expect(brand.origin).toBe(`https://${agency.customDomain}`);
   });
 });

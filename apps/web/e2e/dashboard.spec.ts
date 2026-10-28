@@ -67,8 +67,9 @@ test('system admin changes a role policy and creates an office', async ({ browse
   await expect(limit).toHaveValue('');
 
   const code = `E2E${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-  await page.getByLabel('Código').fill(code);
-  await page.getByLabel('Nombre', { exact: true }).fill('Oficina Monterrey');
+  const offices = page.getByRole('region', { name: 'Oficinas', exact: true });
+  await offices.getByLabel('Código').fill(code);
+  await offices.getByLabel('Nombre', { exact: true }).fill('Oficina Monterrey');
   await page.getByRole('button', { name: 'Agregar oficina' }).click();
   await expect(page.getByRole('status')).toHaveText(`Oficina ${code} creada`);
   const row = page

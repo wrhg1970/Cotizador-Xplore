@@ -5,12 +5,12 @@ import type { Prisma, PrismaClient } from '@ee/db';
 import type { z } from 'zod';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
-import { officesWithRole } from '../auth/authz.js';
+import { agencyWide, officesWithRole } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { ZodPipe } from '../zod.pipe.js';
 
-// Office admins and auditors read their offices' entries; global ones (logins, policies, catalog) stay with system admins.
+// Office admins and auditors read their offices' entries; agency-wide ones (logins, policies, catalog) need agency-wide readers.
 const READERS = ['OFFICE_ADMIN', 'AUDITOR'] as const;
 const EXPORT_LIMIT = 10_000;
 /** RFC 4180 quoting, and a leading quote on cells Excel would run as a formula (CSV injection). */
@@ -26,9 +26,9 @@ export class AuditLogController {
 
   private async filter(user: AuthUser, q: z.infer<typeof ListAuditLogsQuery>) {
     const scope = officesWithRole(user, READERS);
-    if (scope !== 'ALL' && scope.length === 0)
+    if (scope.length === 0 && !agencyWide(user, READERS))
       throw new ForbiddenException('Solo coordinadores, auditores y administradores consultan la bitácora');
-    if (q.officeId && scope !== 'ALL' && !scope.includes(q.officeId)) throw new ForbiddenException();
+    if (q.officeId && !scope.includes(q.officeId)) throw new ForbiddenException();
 
     const actor = q.actorEmail
       ? await this.prisma.user.findUnique({
@@ -44,7 +44,7 @@ export class AuditLogController {
       : [];
     const where: Prisma.AuditLogWhereInput = {
       AND: [
-        scope === 'ALL' ? {} : { officeId: { in: scope } },
+        agencyWide(user, READERS) ? { agencyId: user.agencyId } : { officeId: { in: scope } },
         q.officeId ? { officeId: q.officeId } : {},
         q.action ? { action: { startsWith: q.action } } : {},
         // Unknown email: match nothing rather than ignoring the filter.
