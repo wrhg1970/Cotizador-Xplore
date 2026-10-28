@@ -31,7 +31,7 @@ import { clientProposal, full } from './quotes.controller.js';
 
 const uuid = new ParseUUIDPipe({ version: '4' });
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
-const hash = (token: string) => createHash('sha256').update(token).digest('hex');
+export const hash = (token: string) => createHash('sha256').update(token).digest('hex');
 const SHAREABLE = ['APPROVED', 'SENT'];
 const OPEN = ['QUOTING', 'SENT', 'WON'];
 

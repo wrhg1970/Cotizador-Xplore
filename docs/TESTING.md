@@ -28,3 +28,9 @@ Antes de producción, Finanzas debe proporcionar casos representativos aprobados
 
 ## Definition of Done
 Criterios de aceptación satisfechos, tests automáticos ejecutados, migraciones verificadas, revisión de permisos, documentación actualizada y sin defectos críticos abiertos.
+
+## E2E en cada PR (2026-10-28)
+- CI (`.github/workflows/ci.yml`) corre `pnpm test:e2e` en cada PR contra Postgres real, con API y web de producción (`next start`).
+- `apps/web/e2e/full-flow.spec.ts` recorre la venta completa solo con pantallas: login (botón de Google), solicitud del vendedor, asignación, escenario, autorización por otro usuario, registro de envío y Ganada.
+- Si falla, el job sube `playwright-results` (capturas y trazas) como artefacto por 7 días.
+- El intercambio con Google no se prueba en E2E (necesitaría una cuenta real); lo cubren las pruebas de API con un proveedor OIDC falso. Staging no se prueba desde CI porque exige login de Google.

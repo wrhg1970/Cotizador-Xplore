@@ -47,7 +47,12 @@ export class SessionGuard implements CanActivate {
 
     const token: unknown = req.cookies?.[SESSION_COOKIE];
     const user = typeof token === 'string' ? await this.auth.userForToken(token) : null;
-    if (!user) throw new UnauthorizedException('Sesión no válida o expirada');
+    if (!user)
+      throw new UnauthorizedException(
+        typeof token === 'string'
+          ? { code: 'SESSION_EXPIRED', message: 'Tu sesión se cerró por inactividad o expiró' }
+          : 'Sesión no válida o expirada',
+      );
     req.user = user;
     return true;
   }

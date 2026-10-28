@@ -18,7 +18,7 @@ export interface SheetReader {
 }
 export const SHEET_READER = Symbol('SHEET_READER');
 
-const cellText = (v: ExcelJS.CellValue): string => {
+export const cellText = (v: ExcelJS.CellValue): string => {
   if (v === null || v === undefined) return '';
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   if (typeof v === 'object') {

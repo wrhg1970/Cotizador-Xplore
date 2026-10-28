@@ -7,6 +7,7 @@ import {
   ForbiddenException,
   Get,
   Inject,
+  Logger,
   NotFoundException,
   Param,
   ParseUUIDPipe,
@@ -16,6 +17,7 @@ import {
   Res,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import type { Request, Response } from 'express';
 import {
   CreateScenario,
@@ -54,7 +56,10 @@ import type { z } from 'zod';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
 import { CurrentUser } from '../auth/session.guard.js';
-import { Notifier } from '../notify/notifier.js';
+import { MAILER, type Mailer, Notifier } from '../notify/notifier.js';
+import { parseEmails, proposalMail } from '../notify/client-mail.js';
+import { ENV, type Env } from '../env.js';
+import { hash as tokenHash } from './share.controller.js';
 import { PRISMA } from '../prisma.service.js';
 import { approvalLimitMxn, canExportInternalXlsx, hasOfficeRole } from '../auth/authz.js';
 import { canView, canViewQuotes, canWorkQuotes, type RequestRef } from '../requests/request-policy.js';
@@ -261,7 +266,7 @@ function sheet(v: FullVersion) {
 }
 
 /** What an approval vouches for: every input and the resulting figures (US-071, US-075). */
-function snapshotHash(v: FullVersion) {
+export function snapshotHash(v: FullVersion) {
   const {
     id: _i,
     scenarioId: _s,
@@ -409,10 +414,14 @@ async function copyVersion(tx: Tx, src: FullVersion, scenarioId: string, number:
 
 @Controller()
 export class QuotesController {
+  private readonly logger = new Logger(QuotesController.name);
+
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     private readonly notifier: Notifier,
     @Inject(WETRAVEL) private readonly wetravel: WeTravel | null,
+    @Inject(MAILER) private readonly mailer: Mailer | null,
+    @Inject(ENV) private readonly env: Env,
   ) {}
 
   /** Loads the request behind a quote; anything the user may not see is a 404 (US-004). */
@@ -896,6 +905,52 @@ export class QuotesController {
     return dto;
   }
 
+  /** Branded email with a fresh 30-day school link; inside the send transaction, so a failed send records nothing. */
+  private async emailProposal(
+    tx: Tx,
+    user: AuthUser,
+    v: FullVersion,
+    r: RequestRef & { id: string },
+    to: string[],
+    message: string | undefined,
+    correlationId: string,
+  ) {
+    const token = randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + 30 * 86_400_000);
+    const share = await tx.proposalShare.create({
+      data: { versionId: v.id, tokenHash: tokenHash(token), expiresAt, createdById: user.id },
+    });
+    const request = await tx.travelRequest.findUniqueOrThrow({ where: { id: r.id } });
+    try {
+      await this.mailer!.send(
+        proposalMail({
+          to,
+          folio: request.folio,
+          groupName: request.groupName,
+          url: `${this.env.WEB_ORIGIN}/p/${token}`,
+          origin: this.env.WEB_ORIGIN,
+          message,
+          sender: user.name,
+        }),
+      );
+    } catch (err) {
+      // No addresses in logs: SMTP errors can echo recipients.
+      this.logger.warn({ mail: 'proposal', code: (err as { code?: string }).code ?? 'UNKNOWN' });
+      throw new BadGatewayException(
+        'No se pudo enviar el correo; no se registró el envío. Intenta de nuevo.',
+      );
+    }
+    // Count only: addresses are already in the delivery record.
+    await audit(tx, {
+      actorUserId: user.id,
+      action: 'quote.emailed',
+      entityType: 'QuoteVersion',
+      entityId: v.id,
+      correlationId,
+      diff: { recipients: to.length, shareId: share.id, expiresAt: expiresAt.toISOString() },
+    });
+  }
+
   /** US-074, US-075: records the manual send; refused unless the approved calculation is unchanged. */
   @Post('quotes/:id/send')
   send(
@@ -915,9 +970,20 @@ export class QuotesController {
           code: 'APPROVAL_STALE',
           message: 'La cotización cambió después de autorizarse; vuelve a enviarla a autorización',
         });
+      const to = body.emailClient ? parseEmails(body.recipients) : null;
+      if (body.emailClient) {
+        if (!this.mailer)
+          throw new ServiceUnavailableException('El correo del cotizador no está configurado');
+        if (body.channel !== 'EMAIL' || !to)
+          throw new BadRequestException({
+            code: 'BAD_RECIPIENTS',
+            message: 'Para enviar por correo escribe hasta 10 correos separados por coma',
+          });
+      }
       return {
         status: 'SENT',
         after: async () => {
+          if (to) await this.emailProposal(tx, user, v, r, to, body.message, req.correlationId);
           await tx.proposalDelivery.create({
             data: {
               versionId: v.id,
@@ -925,7 +991,9 @@ export class QuotesController {
               recipients: body.recipients,
               channel: body.channel,
               sentOn: toDate(body.sentOn),
-              notes: body.notes,
+              notes: to
+                ? [body.notes, 'Enviada por correo desde el cotizador'].filter(Boolean).join(' · ')
+                : body.notes,
             },
           });
           await tx.travelRequest.updateMany({

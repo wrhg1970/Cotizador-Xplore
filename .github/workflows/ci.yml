@@ -44,9 +44,16 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm --filter @ee/web exec playwright install --with-deps chromium
+      # Every PR runs the screens end to end, including e2e/full-flow.spec.ts (request → won).
       - run: pnpm test:e2e
         env:
           CI: 'true'
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: apps/web/test-results
+          retention-days: 7
 
   # Builds the deployable images and boots them against a real database (no registry push yet).
   docker:

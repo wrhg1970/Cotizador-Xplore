@@ -13,7 +13,7 @@
 1. OIDC con Google; validar `issuer`, `audience`, `state`, `nonce`, expiración y redirect URI exacta.
 2. Lista de dominios permitidos más control de acceso explícito. Un dominio válido no equivale automáticamente a rol de administrador.
 3. RBAC + scope por oficina y recurso en cada endpoint.
-4. Cookies `HttpOnly`, `Secure`, `SameSite`; rotación/expiración de sesión y CSRF según arquitectura.
+4. Cookies `HttpOnly`, `Secure`, `SameSite`; rotación/expiración de sesión y CSRF según arquitectura. Sesión de 12 h como máximo y cierre por inactividad tras `SESSION_IDLE_MINUTES` (120 por defecto) sin ninguna petición; la web lleva a login con el aviso "Tu sesión se cerró por inactividad".
 5. HTTPS obligatorio; cifrado en reposo administrado por proveedor.
 6. Secrets manager; `.env` ignorado por Git.
 7. DTO con allowlist, límites de tamaño, normalización y validación de entrada.
@@ -35,6 +35,7 @@
 - Acceso de integración es mínimo y por sistema.
 - Permisos por rol configurables (Sprint C) solo por el administrador del sistema y auditados (`role_policy.updated`). Ver/Crear/Editar/Borrar se evalúan en el servidor por oficina (`canDo`, `officeScope`) además de las reglas fijas del flujo; las oficinas por usuario solo las cambia el administrador del sistema (`user.offices_updated`). El tope de autorización se compara con el total del grupo en MXN; si la cotización no está en MXN y no tiene tipo de cambio a pesos, la autorización con tope se bloquea.
 - Avisos por correo: solo folio, grupo y liga al cotizador; nunca precios, costos, márgenes ni comentarios de autorización. Se envían después de confirmar la acción y un fallo de SMTP no la revierte. Los logs registran solo el tipo de aviso y el código de error, sin direcciones. La contraseña de la cuenta va en Secret Manager.
+- Correos al colegio (2026-10-28): salen de la cuenta del cotizador solo cuando el cotizador marca "Mandar el correo al colegio" al registrar el envío de una versión autorizada, o con "Enviar recordatorio de pago". La propuesta va como liga nueva de 30 días (mismo control que la liga para el colegio, revocable); nunca costos ni márgenes. El recordatorio lleva el monto por estudiante del plan de pagos (precio de venta, no costo). Destinatarios: hasta 10 correos validados; la bitácora guarda solo el conteo. Si el SMTP falla, el envío no se registra.
 - Importador con IA: la hoja se procesa en memoria y no se guarda; solo se envía su texto a Vertex AI dentro del proyecto de Google Cloud de EE, con la cuenta de servicio (sin claves). La respuesta de la IA se valida como una edición manual y nunca se guarda sin revisión del cotizador. La bitácora solo registra conteos. Las ligas de Google Sheets se reconstruyen desde el ID (sin SSRF a otros hosts).
 
 ## Incidentes
@@ -42,7 +43,7 @@ Registrar, contener, revocar credenciales, preservar evidencia, evaluar alcance,
 
 ## Checklist antes de producción
 - [ ] Revisión de seguridad independiente.
-- [ ] Pruebas IDOR/BOLA y separación por oficina.
+- [x] Pruebas IDOR/BOLA y separación por oficina (`apps/api/test/permissions-audit.test.ts`, 2026-10-28: 29 rutas por id y 12 listados/reportes, para los 5 roles de oficina, con control positivo).
 - [ ] OAuth y sesión revisados.
 - [ ] Pruebas de autorización de PDF/XLSX.
 - [ ] Restauración de backup probada.
