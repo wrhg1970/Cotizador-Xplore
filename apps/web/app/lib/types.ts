@@ -116,6 +116,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'request.team_updated': 'Cambió el equipo de la solicitud',
   'proposal.share_created': 'Creó una liga para el colegio',
   'proposal.share_revoked': 'Revocó una liga para el colegio',
+  'report.financial_exported': 'Descargó el reporte financiero',
   'request.import_previewed': 'Importó una solicitud desde una hoja con IA (vista previa)',
   'quote.submitted_for_approval': 'Envió a autorización',
   'quote.approved': 'Autorizó la cotización',

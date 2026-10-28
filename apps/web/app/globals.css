@@ -554,6 +554,25 @@ input[type='radio'] {
 .wcards.compact {
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 }
+/* Kanban: one column per stage; scrolls sideways on narrow screens instead of squeezing cards. */
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(260px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+}
+.kanban > section {
+  background: var(--subtle);
+  border-radius: 16px;
+  padding: 10px;
+}
+.kanban h3 {
+  margin: 4px 4px 10px;
+  font-size: 1rem;
+}
+.kanban .wcards.compact {
+  grid-template-columns: 1fr;
+}
 .wcard h3 {
   margin: 4px 0;
   font-size: 1.15rem;

@@ -118,3 +118,9 @@
 - La crea quien envía propuestas (cotizador asignado o coordinador), con vigencia de 1 a 90 días; se puede revocar. Se ve cuántas veces se abrió.
 - El token se muestra una sola vez y solo se guarda su hash: ni la base ni la bitácora permiten reconstruir la liga. Si se pierde, se crea otra.
 - Fuera de alcance por ahora: que el colegio acepte o rechace desde la liga (la respuesta se sigue registrando en «Ganada/Perdida»).
+
+## Pantallas extra de la V2 (2026-10-28)
+- «Aprobaciones» y «Propuestas enviadas»: listas de todas las oficinas que el usuario puede ver, con precio al cliente. Autorizar se sigue haciendo en la cotización; la lista solo marca dónde el usuario sí puede autorizar.
+- Reporte financiero: Excel interno de viajes ganados por fecha de salida, con costo y comisión. Lo descarga quien tiene «Descarga Excel interno» en la oficina, desde el Dashboard ejecutivo; cada descarga queda en bitácora. Montos por moneda, sin convertir.
+- Kanban: una vista más de «Mi trabajo» (columnas por etapa) sobre los mismos datos; no se arrastran tarjetas, porque cada etapa cambia por una acción con sus reglas (autorizar, enviar).
+- Integraciones: en Administración se ve qué conectores tiene el despliegue; se configuran con su llave al desplegar, no desde la pantalla.

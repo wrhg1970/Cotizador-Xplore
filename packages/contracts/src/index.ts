@@ -475,3 +475,7 @@ export const ExecutiveDashboardQuery = z
   })
   .refine((q) => !q.from || !q.to || q.from <= q.to, { message: 'El inicio no puede ser posterior al fin' });
 export type ExecutiveDashboardQuery = z.infer<typeof ExecutiveDashboardQuery>;
+
+/** Global lists (V2 "Aprobaciones" and "Propuestas enviadas"). */
+export const VersionListQuery = z.strictObject({ status: z.enum(['IN_REVIEW', 'SENT']) });
+export type VersionListQuery = z.infer<typeof VersionListQuery>;

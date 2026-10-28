@@ -66,6 +66,9 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `GET /quotes/{quoteVersionId}/documents`
 
 ### Resultado y reportes
+- `GET /reports/versions?status=IN_REVIEW|SENT` — pantallas «Aprobaciones» y «Propuestas enviadas»: versiones de las oficinas que el usuario puede ver (hasta 200, las más recientes), con precio por estudiante al cliente (nunca costos), quién preparó, fecha y medio del último envío, estado de la solicitud y `canApprove` (misma regla que autorizar: «Autorizar viaje» y no haberla preparado ni ser el cotizador)
+- `GET /reports/financial.xlsx?officeId&from&to` — reporte financiero interno: viajes ganados por fecha de salida (por omisión el año en curso) con precio, venta, costo, comisión y % por viaje, más totales por moneda (no se convierten). Solo oficinas donde el rol tiene «Descarga Excel interno»; 403 fuera de ellas. Auditado como `report.financial_exported` con el periodo y el número de filas
+- `GET /integrations` — solo administrador del sistema: qué conectores están configurados (Google, correo, IA de hojas, WeTravel, Wissify), nunca las llaves
 - `POST /requests/{requestId}/outcome/accept`
 - `POST /requests/{requestId}/outcome/reject`
 - `POST /requests/{requestId}/outcome/expire`

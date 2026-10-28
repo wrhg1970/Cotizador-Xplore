@@ -24,6 +24,7 @@ import { OfficialRatesController } from './rates/official-rates.controller.js';
 import { AttachmentsController } from './requests/attachments.controller.js';
 import { RequestTeamController } from './requests/team.controller.js';
 import { ProposalShareController } from './quotes/share.controller.js';
+import { IntegrationsController, ReportsController } from './reports/reports.controller.js';
 import { HttpWeTravel, type WeTravel, WETRAVEL } from './integrations/wetravel.js';
 
 @Module({})
@@ -89,6 +90,8 @@ export class AppModule {
         AttachmentsController,
         RequestTeamController,
         ProposalShareController,
+        ReportsController,
+        IntegrationsController,
       ],
       providers: [
         { provide: ENV, useValue: env },

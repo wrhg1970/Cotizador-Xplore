@@ -41,6 +41,12 @@ export function Shell({ children }: { children: ReactNode }) {
                 Solicitudes
               </Link>
               <Link href="/solicitudes?assignedToMe=true">Mis tareas</Link>
+              <Link href="/aprobaciones" aria-current={current('/aprobaciones')}>
+                Aprobaciones
+              </Link>
+              <Link href="/enviadas" aria-current={current('/enviadas')}>
+                Enviadas
+              </Link>
               {me?.roles.some((r) => ['OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'].includes(r.role)) && (
                 <Link href="/tablero" aria-current={current('/tablero')}>
                   Dashboard ejecutivo
