@@ -1,6 +1,7 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { SimulationController } from './auth/simulation.controller.js';
 import { AuthController } from './auth/auth.controller.js';
 import { AuthService } from './auth/auth.service.js';
 import { GoogleOidcProvider, OIDC, type OidcProvider } from './auth/oidc.js';
@@ -97,6 +98,7 @@ export class AppModule {
       controllers: [
         HealthController,
         AuthController,
+        SimulationController,
         UsersController,
         RequestsController,
         OfficeQuotersController,

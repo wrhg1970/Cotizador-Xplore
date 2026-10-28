@@ -17,7 +17,7 @@ import { PRISMA } from '../prisma.service.js';
 import { LoginRejected, AuthService, SESSION_TTL_MS } from './auth.service.js';
 import type { AuthUser } from './auth.types.js';
 import { type LoginChecks, newLoginChecks, OIDC, type OidcProvider } from './oidc.js';
-import { CurrentUser, Public, SESSION_COOKIE } from './session.guard.js';
+import { AllowWhileSimulating, CurrentUser, Public, SESSION_COOKIE } from './session.guard.js';
 
 const LOGIN_COOKIE = 'ee_oidc';
 const LOGIN_TTL_MS = 10 * 60 * 1000;
@@ -105,13 +105,18 @@ export class AuthController {
   }
 
   @Post('logout')
+  @AllowWhileSimulating()
   @HttpCode(204)
   async logout(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
     @CurrentUser() user: AuthUser,
   ) {
-    await this.auth.logout(String(req.cookies[SESSION_COOKIE]), user.id, req.correlationId);
+    await this.auth.logout(
+      String(req.cookies[SESSION_COOKIE]),
+      user.simulatedBy?.id ?? user.id,
+      req.correlationId,
+    );
     res.clearCookie(SESSION_COOKIE, { path: '/' });
   }
 }

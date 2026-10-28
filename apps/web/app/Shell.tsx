@@ -7,7 +7,8 @@ import { api, isPublicPath } from './lib/api';
 import type { Me } from './lib/types';
 import { BrandColors, Logo } from './Logo';
 import { brandName, useBrand } from './lib/useBrand';
-import { useMe } from './lib/useMe';
+import { isSystemAdmin, useMe } from './lib/useMe';
+import { SimulatePicker, SimulationBar } from './SimulateUser';
 import { Welcome } from './Welcome';
 import { WorkNotifier } from './WorkNotifier';
 
@@ -125,8 +126,10 @@ export function Shell({ children }: { children: ReactNode }) {
         </nav>
       </aside>
       <div className="content">
+        {me?.simulatedBy && <SimulationBar me={me} />}
         <header className="top">
           <div className="user">
+            {me && !me.simulatedBy && isSystemAdmin(me) && <SimulatePicker />}
             {me && <WorkNotifier />}
             <Link href="/guia" aria-current={pathname.startsWith('/guia') ? 'page' : undefined}>
               Ayuda

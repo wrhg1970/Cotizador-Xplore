@@ -17,6 +17,8 @@ export interface Me {
   policies?: Partial<Record<string, RolePolicy>>;
   /** EE system admin: registers other agencies. */
   platformAdmin?: boolean;
+  /** The system admin really signed in while viewing the app as this user (read only). */
+  simulatedBy?: { id: string; name: string; email: string };
 }
 
 export interface RolePolicy {

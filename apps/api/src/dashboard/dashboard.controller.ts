@@ -108,7 +108,7 @@ const mxnPerParticipant = (v: Parameters<typeof engine>[0]): Dec | null => {
   }
 };
 
-const stageOf = (status: RequestStatus, versions: { status: string }[]): Stage => {
+export const stageOf = (status: RequestStatus, versions: { status: string }[]): Stage => {
   if (status === 'SENT' || status === 'WON') return 4;
   if (status !== 'QUOTING') return 1;
   if (versions.some((v) => v.status === 'APPROVED')) return 3;

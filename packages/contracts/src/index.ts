@@ -91,7 +91,12 @@ export const Me = z.object({
   policies: z.partialRecord(EditableRole, RolePolicyInput).optional(),
   /** System admin of Estudiantes Embajadores: registers other agencies. */
   platformAdmin: z.boolean().optional(),
+  /** Set while a system admin views the app as this user (read only). */
+  simulatedBy: z.object({ id: z.uuid(), name: z.string(), email: z.string() }).optional(),
 });
+
+export const StartSimulation = z.strictObject({ userId: z.uuid() });
+export type StartSimulation = z.infer<typeof StartSimulation>;
 export type Me = z.infer<typeof Me>;
 
 // ---- Travel requests (PRD §6) ----
@@ -263,7 +268,9 @@ export const ListRequestsQuery = z.strictObject({
   officeId: z.uuid().optional(),
   status: RequestStatus.optional(),
   assignedToMe: z.enum(['true', 'false']).optional(),
-  /** Folio (exact) or group name (contains). */
+  /** V2 tabs: En cotización, Por aprobar, Enviadas / negociación, Aceptadas. */
+  stage: z.enum(['QUOTING', 'APPROVAL', 'SENT', 'WON']).optional(),
+  /** Folio (exact), or group, school or city (contains). */
   q: z.string().trim().max(100).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(25),

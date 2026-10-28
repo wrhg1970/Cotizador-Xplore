@@ -12,7 +12,7 @@ export function useMe() {
   return me;
 }
 
-const isSystemAdmin = (me: Me | null) => !!me?.roles.some((r) => r.role === 'SYSTEM_ADMIN');
+export const isSystemAdmin = (me: Me | null) => !!me?.roles.some((r) => r.role === 'SYSTEM_ADMIN');
 
 /** Mirrors the API (authz.ts): grants acting in the office, local or national by role policy. */
 const policiesIn = (me: Me | null, officeId: string): RolePolicy[] =>

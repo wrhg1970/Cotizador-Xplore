@@ -13,7 +13,8 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 ## Endpoints propuestos
 ### Identidad / catálogos
 - `GET /health` (vivo) y `GET /health/ready` (vivo y con base de datos; 503 si no responde), públicos, cuerpo `{ "status": "ok" }`.
-- `GET /me`
+- `GET /me` — mientras un administrador del sistema «ve como» otra persona trae `simulatedBy` (el administrador real)
+- `GET /simulation/users`, `POST /simulation {userId}`, `DELETE /simulation` — «Ver como» (solo `SYSTEM_ADMIN`, usuarios activos de su agencia). Mientras dura, la sesión usa los roles y oficinas de esa persona y toda escritura responde 403 `SIMULATION_READ_ONLY` (salvo salir y cerrar sesión). Auditado como `auth.simulation_started` / `auth.simulation_ended` con el administrador real como actor
 - `GET /offices`
 - `GET /catalogs/countries`
 - `GET /catalogs/currencies`
@@ -37,7 +38,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 
 ### Solicitudes
 - `POST /requests`
-- `GET /requests`
+- `GET /requests` — filtros `officeId`, `status`, `assignedToMe`, `stage` (`QUOTING` incluye por asignar, `APPROVAL`, `SENT`, `WON`) y `q` (folio exacto, o grupo, colegio o ciudad); cada fila trae `scenarios` (número) y `stage` (1-4 de «Mi trabajo»)
 - `GET /requests/{requestId}`
 - `PATCH /requests/{requestId}` — incluye `specifications` (objeto `TripSpecs` con 7 bloques de texto opcionales, o `null` para borrarlas), igual que `POST /requests`
 - `GET|POST /requests/{requestId}/attachments`, `GET|DELETE /requests/{requestId}/attachments/{attachmentId}` — archivos de la solicitud. Subir: `{fileName, fileBase64}` (3 MB, máximo 20 por solicitud), quien vea la solicitud y tenga «Editar» en su oficina; el tipo se detecta por los bytes contra una lista permitida (PDF, PNG, JPG, XLSX, DOCX, PPTX, CSV, TXT) y se descarga siempre como adjunto con `nosniff`. Borrar: quien lo subió o un rol con «Borrar». Auditoría `request.attachment_added|removed` con nombre y tamaño, nunca el contenido.

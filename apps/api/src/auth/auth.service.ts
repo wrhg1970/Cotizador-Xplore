@@ -1,11 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
-import type { PrismaClient } from '@ee/db';
+import type { Prisma, PrismaClient } from '@ee/db';
 import { audit } from '../audit.js';
 import { ENV, type Env } from '../env.js';
 import { PRISMA } from '../prisma.service.js';
 import type { AuthUser } from './auth.types.js';
-import { toPolicy } from './authz.js';
+import { isSystemAdmin, toPolicy } from './authz.js';
 import { agencyDomains } from '../agency/brand.js';
 import type { IdClaims } from './oidc.js';
 
@@ -22,6 +22,25 @@ export class LoginRejected extends Error {
   ) {
     super(reason);
   }
+}
+
+const userInclude = {
+  officeRoles: { include: { office: true } },
+  agency: { include: { offices: { select: { id: true } }, rolePolicies: true } },
+} satisfies Prisma.UserInclude;
+
+function toAuthUser(user: Prisma.UserGetPayload<{ include: typeof userInclude }>): AuthUser {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    agencyId: user.agencyId,
+    agencyOfficeIds: user.agency.offices.map((o) => o.id),
+    roles: user.officeRoles
+      .filter((r) => r.office.active)
+      .map((r) => ({ officeId: r.officeId, role: r.role })),
+    policies: Object.fromEntries(user.agency.rolePolicies.map((p) => [p.role, toPolicy(p)])),
+  };
 }
 
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
@@ -105,14 +124,7 @@ export class AuthService {
   async userForToken(token: string): Promise<AuthUser | null> {
     const session = await this.prisma.session.findUnique({
       where: { tokenHash: hashToken(token) },
-      include: {
-        user: {
-          include: {
-            officeRoles: { include: { office: true } },
-            agency: { include: { offices: { select: { id: true } }, rolePolicies: true } },
-          },
-        },
-      },
+      include: { user: { include: userInclude } },
     });
     const now = Date.now();
     if (!session || session.expiresAt.getTime() <= now || session.user.status !== 'ACTIVE') return null;
@@ -124,20 +136,22 @@ export class AuthService {
     // One write per minute at most: enough precision for an idle limit counted in minutes.
     if (idle > 60_000)
       await this.prisma.session.update({ where: { id: session.id }, data: { lastSeenAt: new Date(now) } });
-    const { user } = session;
-    if (!user.agency.active) return null;
-    const policies = user.agency.rolePolicies;
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      agencyId: user.agencyId,
-      agencyOfficeIds: user.agency.offices.map((o) => o.id),
-      roles: user.officeRoles
-        .filter((r) => r.office.active)
-        .map((r) => ({ officeId: r.officeId, role: r.role })),
-      policies: Object.fromEntries(policies.map((p) => [p.role, toPolicy(p)])),
-    };
+    if (!session.user.agency.active) return null;
+    const real = toAuthUser(session.user);
+    if (!session.viewAsUserId || !isSystemAdmin(real)) return real;
+    // Only active users of the admin's own agency; anything else falls back to the admin.
+    const target = await this.prisma.user.findFirst({
+      where: { id: session.viewAsUserId, agencyId: real.agencyId, status: 'ACTIVE' },
+      include: userInclude,
+    });
+    return target
+      ? { ...toAuthUser(target), simulatedBy: { id: real.id, name: real.name, email: real.email } }
+      : real;
+  }
+
+  /** "Ver como": stored on the session so every request (and every tab) sees the same user. */
+  async setViewAs(token: string, viewAsUserId: string | null): Promise<void> {
+    await this.prisma.session.update({ where: { tokenHash: hashToken(token) }, data: { viewAsUserId } });
   }
 
   async logout(token: string, actorUserId: string, correlationId: string): Promise<void> {

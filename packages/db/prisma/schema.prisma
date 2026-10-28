@@ -175,6 +175,8 @@ model Session {
   expiresAt  DateTime @map("expires_at") @db.Timestamptz(3)
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   lastSeenAt DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  /// "Ver como" of a system admin; no FK: users are disabled, never deleted, and a stale id is ignored.
+  viewAsUserId String? @map("view_as_user_id") @db.Uuid
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])

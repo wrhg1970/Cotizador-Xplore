@@ -36,6 +36,7 @@ import { CurrentUser } from '../auth/session.guard.js';
 import { Notifier } from '../notify/notifier.js';
 import { PRISMA } from '../prisma.service.js';
 import { ZodPipe } from '../zod.pipe.js';
+import { stageOf } from '../dashboard/dashboard.controller.js';
 import { FOLIO_PATTERN, newFolio } from './folio.js';
 import {
   canAssign,
@@ -60,6 +61,20 @@ const include = {
   requester: { select: { id: true, name: true } },
   assignee: { select: { id: true, name: true } },
 } as const;
+
+/** In review or returned, nothing approved yet: what dashboard stageOf calls stage 2. */
+const awaitingApproval: Prisma.TravelRequestWhereInput[] = [
+  { scenarios: { some: { versions: { some: { status: { in: ['IN_REVIEW', 'RETURNED'] } } } } } },
+  { scenarios: { none: { versions: { some: { status: 'APPROVED' } } } } },
+];
+const STAGE_WHERE: Record<NonNullable<ListRequestsQuery['stage']>, Prisma.TravelRequestWhereInput> = {
+  QUOTING: {
+    OR: [{ status: 'SUBMITTED' }, { status: 'QUOTING', NOT: { AND: awaitingApproval } }],
+  },
+  APPROVAL: { status: 'QUOTING', AND: awaitingApproval },
+  SENT: { status: 'SENT' },
+  WON: { status: 'WON' },
+};
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 const toDate = (s: string) => new Date(`${s}T00:00:00Z`);
@@ -233,10 +248,15 @@ export class RequestsController {
         q.officeId ? { officeId: q.officeId } : {},
         q.status ? { status: q.status } : {},
         q.assignedToMe === 'true' ? { assigneeId: user.id } : {},
+        q.stage ? STAGE_WHERE[q.stage] : {},
         q.q
           ? FOLIO_PATTERN.test(q.q.toUpperCase())
             ? { folio: q.q.toUpperCase() }
-            : { groupName: { contains: q.q, mode: 'insensitive' } }
+            : {
+                OR: (['groupName', 'clientName', 'city'] as const).map((f) => ({
+                  [f]: { contains: q.q, mode: 'insensitive' as const },
+                })),
+              }
           : {},
       ],
     };
@@ -244,13 +264,25 @@ export class RequestsController {
       this.prisma.travelRequest.count({ where }),
       this.prisma.travelRequest.findMany({
         where,
-        include,
+        include: { ...include, scenarios: { select: { versions: { select: { status: true } } } } },
         orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
         skip: (q.page - 1) * q.limit,
         take: q.limit,
       }),
     ]);
-    return { items: rows.map(toDto), total, page: q.page, limit: q.limit };
+    return {
+      items: rows.map(({ scenarios, ...r }) => ({
+        ...toDto(r),
+        scenarios: scenarios.length,
+        stage: stageOf(
+          r.status,
+          scenarios.flatMap((s) => s.versions),
+        ),
+      })),
+      total,
+      page: q.page,
+      limit: q.limit,
+    };
   }
 
   @Get(':id')

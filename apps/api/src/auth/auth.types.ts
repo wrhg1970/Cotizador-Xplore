@@ -16,4 +16,6 @@ export interface AuthUser {
   roles: OfficeRole[];
   /** Loaded from role_policies on each request; missing entries fall back to DEFAULT_POLICIES. */
   policies?: Partial<Record<EditableRole, RolePolicyInput>>;
+  /** The system admin actually signed in while viewing the app as this user; writes are refused. */
+  simulatedBy?: { id: string; name: string; email: string };
 }
