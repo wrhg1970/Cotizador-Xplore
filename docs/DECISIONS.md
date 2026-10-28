@@ -86,3 +86,8 @@
 - Los pasos del flujo siguen fijos: asignar es del coordinador, autorizar del autorizador y nadie autoriza lo que preparó.
 - Valores iniciales = reglas anteriores (asesor y coordinador crean; asesor, cotizador y coordinador editan; solo el coordinador borra), así que nada cambia hasta que el administrador lo decida.
 - Oficinas por usuario (V2 «oficinas con acceso»): el administrador del sistema marca las oficinas en Usuarios y los privilegios de la persona aplican en todas las marcadas. Si alguien tenía privilegios distintos por oficina, al marcar oficinas se unifican.
+
+## Importar una solicitud desde una hoja (2026-10-28)
+- «Nueva solicitud» puede llenarse desde un .xlsx/.csv o una liga de Google Sheets con el mismo lector de Gemini (Vertex AI) que el importador de costos, con otro esquema e instrucciones.
+- Solo propone: no guarda ni elige oficina; el usuario revisa y pulsa «Guardar borrador», que pasa por la validación y autorización normales.
+- La bitácora guarda qué campos se llenaron, no sus valores (pueden traer nombres del colegio u otros datos del cliente).

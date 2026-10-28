@@ -1,6 +1,6 @@
 'use client';
 
-import { CurrencyCode } from '@ee/contracts';
+import { CurrencyCode, type RequestDraft } from '@ee/contracts';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
@@ -21,9 +21,10 @@ const optional = (v: FormDataEntryValue | null) => {
   return s === '' ? undefined : s;
 };
 
-/** Create (no `existing`) or edit form; the server re-validates everything. */
-export function RequestForm({ existing }: { existing?: TravelRequestDto }) {
+/** Create (no `existing`, optionally prefilled from a `draft`) or edit form; the server re-validates everything. */
+export function RequestForm({ existing, draft }: { existing?: TravelRequestDto; draft?: RequestDraft }) {
   const router = useRouter();
+  const init = existing ?? draft;
   const [offices, setOffices] = useState<Office[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
   const [hasBudget, setHasBudget] = useState(!!existing?.budget);
@@ -99,28 +100,23 @@ export function RequestForm({ existing }: { existing?: TravelRequestDto }) {
         )}
         <label>
           Nombre del grupo
-          <input name="groupName" required maxLength={150} defaultValue={existing?.groupName} />
+          <input name="groupName" required maxLength={150} defaultValue={init?.groupName} />
         </label>
         <label>
           Escuela / cliente <span className="hint">opcional</span>
-          <input name="clientName" maxLength={150} defaultValue={existing?.clientName ?? ''} />
+          <input name="clientName" maxLength={150} defaultValue={init?.clientName ?? ''} />
         </label>
         <label>
           Programa <span className="hint">opcional</span>
-          <input name="program" maxLength={150} defaultValue={existing?.program ?? ''} />
+          <input name="program" maxLength={150} defaultValue={init?.program ?? ''} />
         </label>
         <label>
           Ciudad(es)
-          <input name="city" required maxLength={150} defaultValue={existing?.city} />
+          <input name="city" required maxLength={150} defaultValue={init?.city} />
         </label>
         <label>
           País
-          <select
-            name="countryCode"
-            required
-            defaultValue={existing?.countryCode ?? ''}
-            key={countries.length}
-          >
+          <select name="countryCode" required defaultValue={init?.countryCode ?? ''} key={countries.length}>
             <option value="" disabled>
               Selecciona…
             </option>
@@ -133,11 +129,11 @@ export function RequestForm({ existing }: { existing?: TravelRequestDto }) {
         </label>
         <label>
           Salida
-          <input name="departureDate" type="date" required defaultValue={existing?.departureDate} />
+          <input name="departureDate" type="date" required defaultValue={init?.departureDate} />
         </label>
         <label>
           Regreso
-          <input name="returnDate" type="date" required defaultValue={existing?.returnDate} />
+          <input name="returnDate" type="date" required defaultValue={init?.returnDate} />
         </label>
         <label>
           Participantes
@@ -147,22 +143,16 @@ export function RequestForm({ existing }: { existing?: TravelRequestDto }) {
             min={1}
             max={1000}
             required
-            defaultValue={existing?.participants}
+            defaultValue={init?.participants}
           />
         </label>
         <label>
           Chaperones
-          <input
-            name="chaperones"
-            type="number"
-            min={0}
-            max={1000}
-            defaultValue={existing?.chaperones ?? 0}
-          />
+          <input name="chaperones" type="number" min={0} max={1000} defaultValue={init?.chaperones ?? 0} />
         </label>
         <label>
           Staff
-          <input name="staff" type="number" min={0} max={1000} defaultValue={existing?.staff ?? 0} />
+          <input name="staff" type="number" min={0} max={1000} defaultValue={init?.staff ?? 0} />
         </label>
         <label>
           Prioridad
@@ -220,7 +210,7 @@ export function RequestForm({ existing }: { existing?: TravelRequestDto }) {
 
       <label style={{ marginTop: 16 }}>
         Requerimientos <span className="hint">opcional</span>
-        <textarea name="requirements" maxLength={4000} defaultValue={existing?.requirements ?? ''} />
+        <textarea name="requirements" maxLength={4000} defaultValue={init?.requirements ?? ''} />
       </label>
 
       {error && (

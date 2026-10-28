@@ -16,7 +16,7 @@ import { HttpExceptionFilter } from './http-exception.filter.js';
 
 const CORRELATION_ID = /^[A-Za-z0-9-]{1,64}$/;
 
-const IMPORT_ROUTE = /^\/api\/v1\/quotes\/[^/]+\/import$/;
+const IMPORT_ROUTE = /^\/api\/v1\/(quotes\/[^/]+|requests)\/import$/;
 
 export async function createApp(
   env: Env,

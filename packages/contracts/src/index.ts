@@ -146,6 +146,10 @@ const requestFields = {
   dueDate: IsoDate.optional(),
 };
 
+/** Every request field, each optional: what a sheet importer may propose for the form. */
+export const RequestDraft = z.object(requestFields).partial();
+export type RequestDraft = z.infer<typeof RequestDraft>;
+
 const datesInOrder = (r: { departureDate?: string; returnDate?: string }) =>
   !r.departureDate || !r.returnDate || r.returnDate >= r.departureDate;
 const datesMessage = { message: 'El regreso no puede ser anterior a la salida', path: ['returnDate'] };
