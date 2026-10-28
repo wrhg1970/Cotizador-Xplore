@@ -13,6 +13,8 @@
 # WeTravel (opcional): la primera vez correr con WETRAVEL=1 para guardar la llave de la Partner API;
 # después se conecta sola mientras exista el secreto. WETRAVEL_API_URL apunta al sandbox si se quiere.
 # Banxico (opcional): la primera vez correr con BANXICO=1 para guardar el token del SIE; igual que WeTravel.
+# Monitoreo (opcional): ALERT_EMAIL=persona@dominio crea revisiones de disponibilidad (web y API con BD)
+# cada 5 minutos y un aviso por correo a esa dirección si fallan. Basta pasarlo una vez.
 # Siempre crea la tarea diaria de Cloud Scheduler (días hábiles, 13:00 hora de CDMX) que llama a /cron/daily.
 set -euo pipefail
 
@@ -57,7 +59,7 @@ secret() { # secret <nombre> : lee el valor de stdin
 echo "== APIs"
 gcloud services enable run.googleapis.com sqladmin.googleapis.com \
   secretmanager.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com \
-  aiplatform.googleapis.com cloudscheduler.googleapis.com
+  aiplatform.googleapis.com cloudscheduler.googleapis.com monitoring.googleapis.com
 
 echo "== Artifact Registry"
 exists gcloud artifacts repositories describe cotizador --location="$REGION" ||
@@ -177,6 +179,38 @@ if exists gcloud scheduler jobs describe "cotizador$SUFFIX-daily" --location="$R
   gcloud scheduler jobs update http "cotizador$SUFFIX-daily" "${CRON_ARGS[@]/--headers=/--update-headers=}" >/dev/null
 else
   gcloud scheduler jobs create http "cotizador$SUFFIX-daily" "${CRON_ARGS[@]}" >/dev/null
+fi
+
+if [[ -n "${ALERT_EMAIL:-}" ]]; then
+  echo "== Monitoreo (avisos a $ALERT_EMAIL)"
+  CHANNEL="$(gcloud beta monitoring channels list --filter="labels.email_address=\"$ALERT_EMAIL\"" --format='value(name)' | head -1)"
+  [[ -n "$CHANNEL" ]] || CHANNEL="$(gcloud beta monitoring channels create --type=email \
+    --display-name="Cotizador: $ALERT_EMAIL" --channel-labels=email_address="$ALERT_EMAIL" --format='value(name)')"
+  WEB_HOST="$(gcloud run services describe "cotizador-web$SUFFIX" --region="$REGION" --format='value(status.url)')"
+  for CHECK in "web|${WEB_HOST#https://}|/login" "api|${API_URL#https://}|/api/v1/health/ready"; do
+    IFS='|' read -r WHAT HOST CHECK_PATH <<<"$CHECK"
+    NAME="cotizador$SUFFIX-$WHAT"
+    ID="$(gcloud monitoring uptime list-configs --filter="displayName=$NAME" --format='value(name)' | head -1)"
+    [[ -n "$ID" ]] || ID="$(gcloud monitoring uptime create "$NAME" --resource-type=uptime-url \
+      --resource-labels="host=$HOST,project_id=$PROJECT_ID" --path="$CHECK_PATH" --protocol=https \
+      --period=5 --timeout=10 --format='value(name)')"
+    if [[ -z "$(gcloud monitoring policies list --filter="displayName=\"$NAME caído\"" --format='value(name)')" ]]; then
+      POLICY="$(mktemp)"
+      # Google's uptime-check alert recipe: fires when a check fails from more than one region.
+      cat >"$POLICY" <<JSON
+{"displayName": "$NAME caído", "combiner": "OR", "notificationChannels": ["$CHANNEL"],
+ "documentation": {"mimeType": "text/markdown",
+   "content": "https://$HOST$CHECK_PATH no responde. Revisar Cloud Run (servicio) y Cloud SQL en $PROJECT_ID."},
+ "conditions": [{"displayName": "Revisión de disponibilidad falla", "conditionThreshold": {
+   "filter": "metric.type=\\"monitoring.googleapis.com/uptime_check/check_passed\\" AND resource.type=\\"uptime_url\\" AND metric.label.check_id=\\"${ID##*/}\\"",
+   "aggregations": [{"alignmentPeriod": "1200s", "perSeriesAligner": "ALIGN_NEXT_OLDER",
+     "crossSeriesReducer": "REDUCE_COUNT_FALSE", "groupByFields": ["resource.label.*"]}],
+   "comparison": "COMPARISON_GT", "thresholdValue": 1, "duration": "60s", "trigger": {"count": 1}}}]}
+JSON
+      gcloud monitoring policies create --policy-from-file="$POLICY" >/dev/null
+      rm -f "$POLICY"
+    fi
+  done
 fi
 
 echo

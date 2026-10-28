@@ -18,6 +18,11 @@ describe('API', () => {
     expect(res.headers['x-powered-by']).toBeUndefined();
   });
 
+  it('GET /api/v1/health/ready is public and checks the database', async () => {
+    const res = await ctx.http().get('/api/v1/health/ready').expect(200);
+    expect(res.body).toEqual({ status: 'ok' });
+  });
+
   it('errors use the API shape and echo a safe correlation id', async () => {
     const res = await ctx.http().get('/api/v1/nope').set('x-correlation-id', 'abc-123').expect(404);
     expect(res.body).toMatchObject({ code: 'NOT_FOUND', correlationId: 'abc-123', details: [] });

@@ -12,6 +12,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 
 ## Endpoints propuestos
 ### Identidad / catálogos
+- `GET /health` (vivo) y `GET /health/ready` (vivo y con base de datos; 503 si no responde), públicos, cuerpo `{ "status": "ok" }`.
 - `GET /me`
 - `GET /offices`
 - `GET /catalogs/countries`
