@@ -124,3 +124,7 @@
 - Reporte financiero: Excel interno de viajes ganados por fecha de salida, con costo y comisión. Lo descarga quien tiene «Descarga Excel interno» en la oficina, desde el Dashboard ejecutivo; cada descarga queda en bitácora. Montos por moneda, sin convertir.
 - Kanban: una vista más de «Mi trabajo» (columnas por etapa) sobre los mismos datos; no se arrastran tarjetas, porque cada etapa cambia por una acción con sus reglas (autorizar, enviar).
 - Integraciones: en Administración se ve qué conectores tiene el despliegue; se configuran con su llave al desplegar, no desde la pantalla.
+
+## Landing pública (2026-10-28)
+- `/` muestra una página pública breve (qué hace el cotizador, las cuatro etapas, seguridad) con «Entrar con Google». Si ya hay sesión, manda directo a «Mi trabajo».
+- No muestra cifras, clientes ni datos reales; tampoco un «modo demo» como la V2, porque el acceso sigue siendo solo por invitación.

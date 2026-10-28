@@ -11,8 +11,9 @@ export class ApiError extends Error {
   }
 }
 
-/** Pages anyone may open without a session: login and the school's proposal link. */
-export const isPublicPath = (path: string) => path.startsWith('/login') || path.startsWith('/p/');
+/** Pages anyone may open without a session: the landing, login and the school's proposal link. */
+export const isPublicPath = (path: string) =>
+  path === '/' || path.startsWith('/login') || path.startsWith('/p/');
 
 /** Same-origin call to the API (proxied by next.config rewrites); the session cookie rides along. */
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
