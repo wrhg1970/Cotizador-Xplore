@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
 import {
@@ -217,6 +218,9 @@ export default function AdminPage() {
   return (
     <>
       <h1>Administración</h1>
+      <p>
+        <Link href="/historico">Importar histórico de cotizaciones desde Excel</Link>
+      </p>
       {error && (
         <p className="error" role="alert">
           {error}

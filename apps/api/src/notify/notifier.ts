@@ -4,6 +4,7 @@ import nodemailer, { type Transporter } from 'nodemailer';
 import { ENV, type Env } from '../env.js';
 import { PRISMA } from '../prisma.service.js';
 import { agencyOfOffice, mailBrand } from '../agency/brand.js';
+import { Pusher } from './push.js';
 
 export interface Mail {
   to: string;
@@ -11,6 +12,8 @@ export interface Mail {
   text: string;
   /** Agency sender name; the address is always the server's SMTP account. */
   fromName?: string;
+  /** Branded version for clients; `text` stays as the plain-text part. */
+  html?: string;
 }
 
 /** Seam for tests; null in the container means notices are off (no SMTP configured). */
@@ -86,20 +89,31 @@ export class Notifier {
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(ENV) private readonly env: Env,
     @Inject(MAILER) private readonly mailer: Mailer | null,
+    private readonly pusher: Pusher,
   ) {}
 
   // shortcut: sent in-process after commit with no retry; a lost notice is not recovered. Add a queue if that matters.
-  /** Resolves once sent (or skipped); never rejects, so callers can fire and forget. */
+  /** Email and device push; resolves once sent (or skipped), never rejects, so callers can fire and forget. */
   async notify(notice: Notice, actorId: string): Promise<void> {
-    if (!this.mailer) return;
     try {
       const target = await this.target(notice);
       if (!target) return;
       const users = await this.prisma.user.findMany({
         where: { id: { in: target.userIds.filter((id) => id !== actorId) }, status: { not: 'DISABLED' } },
-        select: { email: true },
+        select: { id: true, email: true },
       });
       const { subject, line } = COPY[notice.kind];
+      // Same content rule for push: folio, group and a link, never prices.
+      await this.pusher.push(
+        users.map((u) => u.id),
+        {
+          title: `${subject} ${target.folio}`,
+          body: `${target.groupName}. ${line}`,
+          url: target.path,
+          tag: `${notice.kind}:${target.path}`,
+        },
+      );
+      if (!this.mailer) return;
       const brand = mailBrand(await agencyOfOffice(this.prisma, target.officeId), this.env.WEB_ORIGIN);
       const text = [
         'Hola:',

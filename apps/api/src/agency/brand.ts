@@ -19,7 +19,7 @@ export const toBrand = (a: BrandRow): AgencyBrand => ({
     a.logoUpdatedAt && a.logoMime ? `/api/v1/agencies/${a.id}/logo?v=${a.logoUpdatedAt.getTime()}` : null,
 });
 
-export const agencyOfOffice = (prisma: PrismaClient, officeId: string) =>
+export const agencyOfOffice = (prisma: Pick<PrismaClient, 'agency'>, officeId: string) =>
   prisma.agency.findFirstOrThrow({ where: { offices: { some: { id: officeId } } }, omit: BRAND_OMIT });
 
 /** Agency served on this hostname: the one that owns it as custom domain, else EE (the default brand). */
@@ -37,6 +37,21 @@ export const mailBrand = (a: BrandRow, webOrigin: string) => ({
   origin: a.customDomain ? `https://${a.customDomain}` : webOrigin,
   signature: `Cotizador de ${a.brandName ?? a.name}. Aviso automático, no respondas este correo.`,
 });
+
+/** Look of the emails a school receives: the agency's name, colors and logo; EE's when unset. */
+export const clientMailBrand = (a: BrandRow, webOrigin: string) => {
+  const { fromName, origin } = mailBrand(a, webOrigin);
+  const logo = toBrand(a).logoUrl;
+  return {
+    fromName,
+    origin,
+    name: a.brandName ?? a.name,
+    primaryColor: a.primaryColor ?? '#00457f',
+    accentColor: a.accentColor ?? '#c2410c',
+    logoUrl: logo ? `${origin}${logo}` : a.id === EE_AGENCY_ID ? `${origin}/icon.png` : null,
+  };
+};
+export type ClientMailBrand = ReturnType<typeof clientMailBrand>;
 
 /** Google Workspace domains of an agency; EE also keeps the ones in ALLOWED_GOOGLE_DOMAINS. */
 export const agencyDomains = (

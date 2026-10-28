@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { api, isPublicPath } from './lib/api';
 import { BrandColors, Logo } from './Logo';
 import { brandName, useBrand } from './lib/useBrand';
 import { useMe } from './lib/useMe';
+import { Welcome } from './Welcome';
 import { WorkNotifier } from './WorkNotifier';
 
 export function Shell({ children }: { children: ReactNode }) {
@@ -14,6 +15,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const bare = isPublicPath(pathname);
   const me = useMe();
   const brand = useBrand(bare);
+  // Phones: the 12 links would fill the first screen, so they fold behind "Menú".
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => setMenuOpen(false), [pathname]);
 
   const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefined);
   const initials = me?.name
@@ -37,7 +41,16 @@ export function Shell({ children }: { children: ReactNode }) {
             <Link className="brand" href="/inicio">
               <Logo height={44} src={brand?.logoUrl} alt={brandName(brand)} />
             </Link>
-            <nav aria-label="Principal">
+            <button
+              type="button"
+              className="secondary menu-toggle"
+              aria-expanded={menuOpen}
+              aria-controls="menu-principal"
+              onClick={() => setMenuOpen(!menuOpen)}
+            >
+              Menú
+            </button>
+            <nav id="menu-principal" aria-label="Principal" className={menuOpen ? 'open' : undefined}>
               <Link href="/inicio" aria-current={current('/inicio')}>
                 Mi trabajo
               </Link>
@@ -91,6 +104,9 @@ export function Shell({ children }: { children: ReactNode }) {
             </nav>
             <div className="user">
               {me && <WorkNotifier />}
+              <Link href="/guia" aria-current={current('/guia')}>
+                Ayuda
+              </Link>
               <button className="secondary" onClick={logout}>
                 Cerrar sesión
               </button>
@@ -103,6 +119,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
       )}
+      {!bare && me && <Welcome me={me} />}
       <main className={bare ? 'bare' : undefined}>{children}</main>
     </>
   );

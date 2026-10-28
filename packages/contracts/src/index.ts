@@ -531,6 +531,9 @@ export const SendQuote = z.strictObject({
   channel: DeliveryChannel,
   sentOn: IsoDate,
   notes: OptionalText(2000),
+  /** Email the school a branded message with a 30-day proposal link, from the cotizador account. */
+  emailClient: z.boolean().optional(),
+  message: OptionalText(2000),
 });
 
 /** Sheet importer input: an uploaded .xlsx/.csv (base64, 3 MB max) or a public Google Sheets link. */
@@ -645,3 +648,42 @@ export const UpdateAgency = z
   .partial()
   .refine((b) => Object.keys(b).length > 0, 'Nada que cambiar');
 export type UpdateAgency = z.infer<typeof UpdateAgency>;
+/** Past trip from an EE cost workbook (historic migration); prices only, no line detail. */
+export const HistoryOption = z.strictObject({
+  name: ShortText(100),
+  saleCurrency: CurrencyCode,
+  mxnRate: DecimalString.nullable(),
+  participants: z.number().int().min(1).max(MAX_GROUP_SIZE),
+  targetMarginRate: DecimalString.refine((r) => Number(r) >= 0 && Number(r) < 1, 'Comisión entre 0 y 1'),
+  pricePerParticipant: DecimalString.refine((p) => Number(p) > 0, 'El precio debe ser mayor a cero'),
+});
+export const ImportHistory = z
+  .strictObject({
+    officeId: z.uuid(),
+    sourceFile: ShortText(200),
+    groupName: requestFields.groupName,
+    clientName: requestFields.clientName,
+    program: requestFields.program,
+    city: requestFields.city,
+    countryCode: requestFields.countryCode,
+    departureDate: requestFields.departureDate,
+    returnDate: requestFields.returnDate,
+    chaperones: requestFields.chaperones.default(0),
+    staff: requestFields.staff.default(0),
+    options: z.array(HistoryOption).min(1).max(10),
+    outcome: z.enum(['WON', 'LOST', 'SENT']),
+    /** Index into options; required when WON. */
+    wonOption: z.number().int().min(0).max(9).optional(),
+    lostReason: OptionalText(500),
+    sentOn: IsoDate,
+  })
+  .refine(datesInOrder, datesMessage)
+  .refine((h) => h.outcome !== 'WON' || (h.wonOption !== undefined && h.wonOption < h.options.length), {
+    message: 'Elige qué opción ganó',
+    path: ['wonOption'],
+  })
+  .refine((h) => h.outcome !== 'LOST' || !!h.lostReason, {
+    message: 'Escribe el motivo de la pérdida',
+    path: ['lostReason'],
+  });
+export type ImportHistory = z.infer<typeof ImportHistory>;

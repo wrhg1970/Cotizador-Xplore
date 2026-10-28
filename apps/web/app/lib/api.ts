@@ -23,11 +23,10 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
     credentials: 'same-origin',
   });
-  if (res.status === 401 && typeof window !== 'undefined' && !isPublicPath(window.location.pathname)) {
-    window.location.assign('/login');
-  }
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { code?: string; message?: string; details?: [] };
+    if (res.status === 401 && typeof window !== 'undefined' && !isPublicPath(window.location.pathname))
+      window.location.assign(err.code === 'SESSION_EXPIRED' ? '/login?error=SESSION_EXPIRED' : '/login');
     throw new ApiError(res.status, err.code ?? 'ERROR', err.message ?? 'Error inesperado', err.details ?? []);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;

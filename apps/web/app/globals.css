@@ -486,7 +486,8 @@ article.proposal ol.timeline .day {
 /* Cover: destination photo with the brand navy band over it. */
 article.proposal .hero {
   position: relative;
-  margin: calc(-1 * clamp(24px, 5vw, 48px)) calc(-1 * clamp(24px, 5vw, 48px)) 24px;
+  /* Bleeds to the sheet's sides; the top stays below the actions row (print hides it, see @media print). */
+  margin: 0 calc(-1 * clamp(24px, 5vw, 48px)) 24px;
   border-radius: 28px 28px 0 0;
   overflow: hidden;
   background: #00457f;
@@ -979,4 +980,81 @@ fieldset.editor {
 .editor thead th {
   font-size: 0.7rem;
   padding-top: 0;
+}
+dialog.welcome {
+  max-width: min(560px, calc(100vw - 32px));
+  border: 0;
+  border-radius: var(--radius);
+  padding: 24px;
+  background: var(--surface);
+  color: var(--text);
+}
+dialog.welcome::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+dialog.welcome h2 {
+  margin-top: 0;
+}
+.guide ol,
+dialog.welcome ol {
+  padding-left: 20px;
+}
+
+.menu-toggle {
+  display: none;
+}
+/* Phones (checked at 390 px in light and dark, 2026-10-28). */
+@media (max-width: 640px) {
+  header.top .bar {
+    padding: 10px 16px;
+  }
+  .menu-toggle {
+    display: inline-flex;
+    order: 2;
+  }
+  header.top nav {
+    display: none;
+    order: 4;
+    width: 100%;
+  }
+  header.top nav.open {
+    display: flex;
+  }
+  header.top .user {
+    order: 3;
+    gap: 8px;
+  }
+  header.top .user button {
+    padding: 6px 10px;
+  }
+  main {
+    padding: 20px 16px 40px;
+  }
+  h1 {
+    font-size: 2rem;
+  }
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+  }
+  /* Wide tables scroll inside themselves instead of pushing the page sideways. */
+  main table {
+    display: block;
+    overflow-x: auto;
+  }
+  .row > label {
+    max-width: 100%;
+  }
+}
+@media screen and (prefers-color-scheme: dark) {
+  /* Brand navy block in both themes (the light --ink would turn it into a white slab). */
+  .landing .trust {
+    background: #00457f;
+    color: #ffffff;
+  }
+  .landing .trust p,
+  .landing .trust .muted {
+    color: #d6e4f2;
+  }
 }

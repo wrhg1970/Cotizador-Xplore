@@ -8,6 +8,11 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL: 'http://localhost:3000',
+    // The first-visit tour would cover every screen; welcome.spec.ts clears this to test it.
+    storageState: {
+      cookies: [],
+      origins: [{ origin: 'http://localhost:3000', localStorage: [{ name: 'ee-welcome-seen', value: '1' }] }],
+    },
     // Optional: reuse a system Chromium instead of `playwright install`.
     launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined },
   },

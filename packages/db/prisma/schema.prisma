@@ -79,34 +79,35 @@ model RolePolicy {
 }
 
 model User {
-  id             String              @id @default(uuid()) @db.Uuid
-  agencyId       String              @map("agency_id") @db.Uuid
+  id                String              @id @default(uuid()) @db.Uuid
+  agencyId          String              @map("agency_id") @db.Uuid
   /// Unique across agencies: a Google account belongs to one agency.
-  email          String              @unique
-  googleSub      String?             @unique @map("google_sub")
-  name           String
-  status         UserStatus          @default(INVITED)
-  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
-  officeRoles    UserOfficeRole[]
-  sessions       Session[]
-  requested      TravelRequest[]     @relation("requester")
-  assigned       TravelRequest[]     @relation("assignee")
-  comments       RequestComment[]
-  scenarios      QuoteScenario[]
-  versions       QuoteVersion[]
-  templates      QuoteTemplate[]
-  fxRates        QuoteFxRate[]
-  officialRates  OfficialRate[]
-  settings       AppSetting[]
-  schoolContacts SchoolContact[]
-  reviews        QuoteReview[]
-  deliveries     ProposalDelivery[]
-  rolePolicies   RolePolicy[]
-  attachments    RequestAttachment[]
-  memberships    RequestMember[]
-  proposalShares ProposalShare[]
-  agency         Agency              @relation(fields: [agencyId], references: [id], onDelete: Restrict)
+  email             String              @unique
+  googleSub         String?             @unique @map("google_sub")
+  name              String
+  status            UserStatus          @default(INVITED)
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  officeRoles       UserOfficeRole[]
+  sessions          Session[]
+  requested         TravelRequest[]     @relation("requester")
+  assigned          TravelRequest[]     @relation("assignee")
+  comments          RequestComment[]
+  scenarios         QuoteScenario[]
+  versions          QuoteVersion[]
+  templates         QuoteTemplate[]
+  fxRates           QuoteFxRate[]
+  officialRates     OfficialRate[]
+  settings          AppSetting[]
+  schoolContacts    SchoolContact[]
+  reviews           QuoteReview[]
+  deliveries        ProposalDelivery[]
+  rolePolicies      RolePolicy[]
+  attachments       RequestAttachment[]
+  memberships       RequestMember[]
+  proposalShares    ProposalShare[]
+  pushSubscriptions PushSubscription[]
+  agency            Agency              @relation(fields: [agencyId], references: [id], onDelete: Restrict)
 
   @@index([agencyId])
   @@map("users")
@@ -178,6 +179,20 @@ model Session {
 
   @@index([userId])
   @@map("sessions")
+}
+
+/// Web Push endpoint of one browser/device; removed when the push service says it is gone.
+model PushSubscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 /// Request lifecycle (analysis doc): quote-version states live on QuoteVersion later.

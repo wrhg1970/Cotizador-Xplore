@@ -6,6 +6,7 @@ import { Logo } from '../Logo';
 import { brandName, useBrand } from '../lib/useBrand';
 
 const ERRORS: Record<string, string> = {
+  SESSION_EXPIRED: 'Tu sesión se cerró por inactividad. Vuelve a entrar con Google.',
   NOT_INVITED: 'Tu cuenta no ha sido invitada. Pide acceso al administrador de tu oficina.',
   DISABLED: 'Tu cuenta está desactivada.',
   DOMAIN_NOT_ALLOWED: 'Usa la cuenta de Google de tu agencia.',

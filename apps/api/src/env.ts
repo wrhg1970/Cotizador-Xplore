@@ -26,6 +26,8 @@ const Env = z.object({
         .filter(Boolean),
     ),
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET debe tener al menos 32 caracteres'),
+  /** Minutes without any request before a session is closed (inactivity lock). */
+  SESSION_IDLE_MINUTES: z.coerce.number().int().min(5).max(720).default(120),
   // Sheet importer (Gemini on Vertex AI, credentials from the runtime service account); off when unset.
   VERTEX_PROJECT: z
     .string()
@@ -59,6 +61,11 @@ const Env = z.object({
     .transform((v) => v || undefined),
   // Banxico SIE token (free, banxico.org.mx); automatic official rates are off when unset.
   BANXICO_TOKEN: z
+    .string()
+    .optional()
+    .transform((v) => v || undefined),
+  // P-256 private key (PEM) for Web Push (VAPID); the public key is derived from it. Push is off when unset.
+  VAPID_PRIVATE_KEY: z
     .string()
     .optional()
     .transform((v) => v || undefined),

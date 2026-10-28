@@ -10,7 +10,9 @@ test('the app is installable: manifest opens on Mi trabajo, icons and service wo
     expect((await request.get(icon.src)).headers()['content-type']).toBe('image/png');
   const sw = await request.get('/sw.js');
   expect(sw.ok()).toBe(true);
-  expect(await sw.text()).not.toContain("addEventListener('fetch'");
+  const code = await sw.text();
+  expect(code).not.toContain("addEventListener('fetch'");
+  expect(code).toContain("addEventListener('push'");
 });
 
 test('notices only items that are new since the last check', () => {

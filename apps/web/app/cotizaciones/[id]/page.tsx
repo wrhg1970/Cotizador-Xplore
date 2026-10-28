@@ -345,6 +345,8 @@ export default function QuoteEditorPage() {
                 channel: f.get('channel'),
                 sentOn: f.get('sentOn'),
                 notes: String(f.get('notes') ?? '').trim() || undefined,
+                emailClient: f.get('emailClient') === 'on',
+                message: String(f.get('message') ?? '').trim() || undefined,
               });
             }}
           >
@@ -369,6 +371,14 @@ export default function QuoteEditorPage() {
             <label>
               Notas
               <input name="notes" maxLength={2000} />
+            </label>
+            <label style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <input name="emailClient" type="checkbox" />
+              Mandar el correo al colegio desde el cotizador (con liga a la propuesta por 30 días)
+            </label>
+            <label>
+              Mensaje para el colegio (opcional)
+              <textarea name="message" maxLength={2000} rows={2} />
             </label>
             <button>Registrar envío al cliente</button>
           </form>
