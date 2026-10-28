@@ -529,6 +529,9 @@ export const SendQuote = z.strictObject({
   channel: DeliveryChannel,
   sentOn: IsoDate,
   notes: OptionalText(2000),
+  /** Email the school a branded message with a 30-day proposal link, from the cotizador account. */
+  emailClient: z.boolean().optional(),
+  message: OptionalText(2000),
 });
 
 /** Sheet importer input: an uploaded .xlsx/.csv (base64, 3 MB max) or a public Google Sheets link. */

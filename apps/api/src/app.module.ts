@@ -27,6 +27,7 @@ import { RequestTeamController } from './requests/team.controller.js';
 import { ProposalShareController } from './quotes/share.controller.js';
 import { IntegrationsController, ReportsController } from './reports/reports.controller.js';
 import { HistoryController } from './history/history.controller.js';
+import { PaymentRemindersController } from './notify/payment-reminders.js';
 import { HttpWeTravel, type WeTravel, WETRAVEL } from './integrations/wetravel.js';
 import { BANXICO, type Banxico, HttpBanxico } from './rates/banxico.js';
 import { CronController } from './cron/cron.controller.js';
@@ -102,6 +103,7 @@ export class AppModule {
         ReportsController,
         IntegrationsController,
         HistoryController,
+        PaymentRemindersController,
         CronController,
         SettingsController,
         SchoolsController,

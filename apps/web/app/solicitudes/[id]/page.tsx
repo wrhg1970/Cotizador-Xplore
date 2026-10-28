@@ -37,6 +37,7 @@ export default function RequestDetailPage() {
   const [quoters, setQuoters] = useState<Quoter[]>([]);
   const [proposals, setProposals] = useState<ProposalRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const reload = useCallback(async () => {
@@ -99,6 +100,23 @@ export default function RequestDetailPage() {
     }
   }
 
+  async function paymentReminder() {
+    if (!r) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const sent = await api<{ number: number; dueDate: string }>(`/requests/${r.id}/payment-reminder`, {
+        method: 'POST',
+      });
+      setNotice(`Recordatorio del pago ${sent.number} (vence ${fmtDate(sent.dueDate)}) enviado al colegio`);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function comment(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -143,6 +161,7 @@ export default function RequestDetailPage() {
           {error}
         </p>
       )}
+      {notice && <p role="status">{notice}</p>}
 
       <div className="row" style={{ marginBottom: 16 }}>
         {canEdit && (
@@ -296,6 +315,22 @@ export default function RequestDetailPage() {
                   'Sin crear'
                 )}
               </dd>
+              {(admin || me?.id === r.assignee?.id || me?.id === r.requester.id) && (
+                <>
+                  <dt>Recordatorio de pago</dt>
+                  <dd>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() => void paymentReminder()}
+                    >
+                      Enviar recordatorio de pago al colegio
+                    </button>{' '}
+                    <small className="muted">También sale solo, días antes de cada pago.</small>
+                  </dd>
+                </>
+              )}
               {r.wetravelUrl && (
                 <>
                   <dt>Pagado en WeTravel</dt>

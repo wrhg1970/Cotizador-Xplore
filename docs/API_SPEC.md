@@ -146,6 +146,11 @@ Evento/operación sugerida: `proposal.accepted` con `requestId`, `scenarioId`, `
 - `POST /history/preview` `{fileName, fileBase64}`: lee un Excel de cotización EE (pestañas "Consolidado" y "Opción N") por sus etiquetas, sin IA; devuelve grupo, cliente, destino, fechas, staff, opciones (moneda, TC a MXN, participantes, % comisión, precio final) y la oficina que coincide por nombre. No guarda nada.
 - `POST /history` (`ImportHistory`): crea la solicitud cerrada (WON/LOST/SENT) con una versión enviada por opción. 409 `HISTORY_DUPLICATE` si ya existe (misma oficina, grupo, cliente y fecha de salida). Audita `request.history_imported`.
 
+## Correos al colegio (2026-10-28)
+- `POST /quotes/{id}/send` acepta `emailClient: true` y `message`: con canal EMAIL y `recipients` como lista de correos, crea una liga para el colegio de 30 días y manda el correo con plantilla de marca dentro de la misma transacción (502 si falla el SMTP y no se registra nada). Audita `quote.emailed` (solo conteo).
+- `POST /requests/{id}/payment-reminder`: solicitud ganada; manda al colegio el siguiente pago del plan. Vendedor, cotizador asignado o coordinador. Audita `request.payment_reminder_sent`.
+- `POST /cron/daily` además manda un recordatorio por pago que vence dentro de "Recordatorio de pagos" (días, en Administración), una sola vez por pago, a los correos del último envío por correo de la propuesta ganadora.
+
 ## Seguridad de endpoints
 - AuthN obligatoria; AuthZ por endpoint y recurso.
 - Validación de entrada/salida.

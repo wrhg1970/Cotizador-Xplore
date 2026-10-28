@@ -8,6 +8,8 @@ export interface Mail {
   to: string;
   subject: string;
   text: string;
+  /** Branded version for clients; `text` stays as the plain-text part. */
+  html?: string;
 }
 
 /** Seam for tests; null in the container means notices are off (no SMTP configured). */
