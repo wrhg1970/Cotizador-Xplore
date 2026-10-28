@@ -2,17 +2,21 @@ import type { EditableRole, RoleName, RolePolicyInput } from '@ee/contracts';
 import type { AuthUser, OfficeRole } from './auth.types.js';
 
 /** Same values the role_policies migration seeds: the fixed rules from before Sprint C. */
+const base = { allOffices: false, canView: true, approvalLimitMxn: null };
+const internal = { viewInternalCosts: true, exportInternalXlsx: true };
 export const DEFAULT_POLICIES: Record<EditableRole, RolePolicyInput> = {
-  ADVISOR: { allOffices: false, viewInternalCosts: false, exportInternalXlsx: false, approvalLimitMxn: null },
-  QUOTER: { allOffices: false, viewInternalCosts: true, exportInternalXlsx: true, approvalLimitMxn: null },
-  APPROVER: { allOffices: false, viewInternalCosts: true, exportInternalXlsx: true, approvalLimitMxn: null },
-  OFFICE_ADMIN: {
-    allOffices: false,
-    viewInternalCosts: true,
-    exportInternalXlsx: true,
-    approvalLimitMxn: null,
+  ADVISOR: {
+    ...base,
+    canCreate: true,
+    canEdit: true,
+    canDelete: false,
+    viewInternalCosts: false,
+    exportInternalXlsx: false,
   },
-  AUDITOR: { allOffices: false, viewInternalCosts: true, exportInternalXlsx: true, approvalLimitMxn: null },
+  QUOTER: { ...base, ...internal, canCreate: false, canEdit: true, canDelete: false },
+  APPROVER: { ...base, ...internal, canCreate: false, canEdit: false, canDelete: false },
+  OFFICE_ADMIN: { ...base, ...internal, canCreate: true, canEdit: true, canDelete: true },
+  AUDITOR: { ...base, ...internal, canCreate: false, canEdit: false, canDelete: false },
 };
 
 /** SYSTEM_ADMIN in any office is global (PRD F-01); every other role is scoped to its office. */
@@ -39,12 +43,21 @@ export const officesWithRole = (user: AuthUser, roles: readonly RoleName[]): str
   return [...new Set(held.map((r) => r.officeId))];
 };
 
-/** Office ids the user may read, or 'ALL'. Repositories must filter by this (IDOR/BOLA). */
+/** Office ids the user may read ("Ver"), or 'ALL'. Repositories must filter by this (IDOR/BOLA). */
 export const officeScope = (user: AuthUser): string[] | 'ALL' =>
   officesWithRole(
     user,
-    user.roles.map((r) => r.role),
+    grants(user)
+      .filter((r) => policy(user, r.role).canView)
+      .map((r) => r.role),
   );
+
+export type CrudAction = 'canCreate' | 'canEdit' | 'canDelete';
+
+/** "Crear" / "Editar" / "Borrar" from the role matrix; workflow rules (who quotes, who approves) still apply on top. */
+export const canDo = (user: AuthUser, officeId: string, action: CrudAction): boolean =>
+  isSystemAdmin(user) ||
+  grantsIn(user, officeId).some((r) => policy(user, r.role).canView && policy(user, r.role)[action]);
 
 /** Internal costs, margins and commissions (PRD §PDF); configurable per role. */
 export const canSeeInternalCosts = (user: AuthUser, officeId: string): boolean =>
@@ -66,11 +79,19 @@ export const canGrantRole = (user: AuthUser, officeId: string, role: RoleName): 
 /** role_policies row → contract shape; amounts travel as strings to keep decimals exact. */
 export const toPolicy = (p: {
   allOffices: boolean;
+  canView: boolean;
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
   viewInternalCosts: boolean;
   exportInternalXlsx: boolean;
   approvalLimitMxn: { toFixed(dp: number): string } | null;
 }): RolePolicyInput => ({
   allOffices: p.allOffices,
+  canView: p.canView,
+  canCreate: p.canCreate,
+  canEdit: p.canEdit,
+  canDelete: p.canDelete,
   viewInternalCosts: p.viewInternalCosts,
   exportInternalXlsx: p.exportInternalXlsx,
   approvalLimitMxn: p.approvalLimitMxn?.toFixed(2) ?? null,

@@ -32,7 +32,7 @@
 - Costes/márgenes internos no aparecen en PDF comercial.
 - Exportaciones de información financiera quedan auditadas.
 - Acceso de integración es mínimo y por sistema.
-- Permisos por rol configurables (Sprint C) solo por el administrador del sistema y auditados (`role_policy.updated`). El tope de autorización se compara con el total del grupo en MXN; si la cotización no está en MXN y no tiene tipo de cambio a pesos, la autorización con tope se bloquea.
+- Permisos por rol configurables (Sprint C) solo por el administrador del sistema y auditados (`role_policy.updated`). Ver/Crear/Editar/Borrar se evalúan en el servidor por oficina (`canDo`, `officeScope`) además de las reglas fijas del flujo; las oficinas por usuario solo las cambia el administrador del sistema (`user.offices_updated`). El tope de autorización se compara con el total del grupo en MXN; si la cotización no está en MXN y no tiene tipo de cambio a pesos, la autorización con tope se bloquea.
 - Avisos por correo: solo folio, grupo y liga al cotizador; nunca precios, costos, márgenes ni comentarios de autorización. Se envían después de confirmar la acción y un fallo de SMTP no la revierte. Los logs registran solo el tipo de aviso y el código de error, sin direcciones. La contraseña de la cuenta va en Secret Manager.
 - Importador con IA: la hoja se procesa en memoria y no se guarda; solo se envía su texto a Vertex AI dentro del proyecto de Google Cloud de EE, con la cuenta de servicio (sin claves). La respuesta de la IA se valida como una edición manual y nunca se guarda sin revisión del cotizador. La bitácora solo registra conteos. Las ligas de Google Sheets se reconstruyen desde el ID (sin SSRF a otros hosts).
 

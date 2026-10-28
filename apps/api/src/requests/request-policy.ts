@@ -1,6 +1,6 @@
 import type { RequestStatus } from '@ee/contracts';
 import type { AuthUser } from '../auth/auth.types.js';
-import { canSeeInternalCosts, hasOfficeRole, officeScope } from '../auth/authz.js';
+import { canDo, canSeeInternalCosts, hasOfficeRole, officeScope } from '../auth/authz.js';
 
 export interface RequestRef {
   officeId: string;
@@ -22,13 +22,13 @@ const isMember = (u: AuthUser, r: RequestRef) => {
 export const canView = (u: AuthUser, r: RequestRef): boolean =>
   isMember(u, r) && (r.status !== 'DRAFT' || r.requesterId === u.id || isOfficeAdmin(u, r));
 
-export const canCreateIn = (u: AuthUser, officeId: string): boolean =>
-  hasOfficeRole(u, officeId, ['ADVISOR', 'OFFICE_ADMIN']);
+export const canCreateIn = (u: AuthUser, officeId: string): boolean => canDo(u, officeId, 'canCreate');
 
 /** Edits after submission are allowed but audited with a diff (US-027). */
 export const canEdit = (u: AuthUser, r: RequestRef): boolean =>
   EDITABLE.includes(r.status) &&
   isMember(u, r) &&
+  canDo(u, r.officeId, 'canEdit') &&
   (r.requesterId === u.id || r.assigneeId === u.id || isOfficeAdmin(u, r));
 
 export const canSubmit = (u: AuthUser, r: RequestRef): boolean =>
@@ -37,8 +37,9 @@ export const canSubmit = (u: AuthUser, r: RequestRef): boolean =>
 export const canAssign = (u: AuthUser, r: RequestRef): boolean =>
   (r.status === 'SUBMITTED' || r.status === 'QUOTING') && isOfficeAdmin(u, r);
 
+/** "Borrar" = cancel with a reason; requests are never hard-deleted (audit trail). */
 export const canCancel = (u: AuthUser, r: RequestRef): boolean =>
-  !CLOSED.includes(r.status) && isOfficeAdmin(u, r);
+  !CLOSED.includes(r.status) && isMember(u, r) && canDo(u, r.officeId, 'canDelete');
 
 /** The client's answer is recorded by whoever sends proposals: the assignee or the office admin. */
 export const canRecordOutcome = (u: AuthUser, r: RequestRef): boolean =>
@@ -50,4 +51,7 @@ export const canViewQuotes = (u: AuthUser, r: RequestRef): boolean =>
 
 /** Scenarios are built while the request is being quoted, by its assignee or the office admin. */
 export const canWorkQuotes = (u: AuthUser, r: RequestRef): boolean =>
-  r.status === 'QUOTING' && isMember(u, r) && (r.assigneeId === u.id || isOfficeAdmin(u, r));
+  r.status === 'QUOTING' &&
+  isMember(u, r) &&
+  canDo(u, r.officeId, 'canEdit') &&
+  (r.assigneeId === u.id || isOfficeAdmin(u, r));

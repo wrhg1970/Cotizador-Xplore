@@ -18,6 +18,10 @@ export interface Me {
 
 export interface RolePolicy {
   allOffices: boolean;
+  canView: boolean;
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
   viewInternalCosts: boolean;
   exportInternalXlsx: boolean;
   approvalLimitMxn: string | null;
@@ -93,6 +97,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'role_policy.updated': 'Cambió permisos de un rol',
   'office.created': 'Creó una oficina',
   'user.role_granted': 'Dio un rol',
+  'user.offices_updated': 'Cambió las oficinas de un usuario',
   'user.role_revoked': 'Quitó un rol',
   'user.disabled': 'Desactivó un usuario',
   'auth.login': 'Inició sesión',

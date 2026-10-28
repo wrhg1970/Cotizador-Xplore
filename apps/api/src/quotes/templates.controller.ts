@@ -18,7 +18,7 @@ import { Prisma, type PrismaClient } from '@ee/db';
 import type { z } from 'zod';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
-import { canSeeInternalCosts, hasOfficeRole } from '../auth/authz.js';
+import { canDo, canSeeInternalCosts, hasOfficeRole } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { canViewQuotes } from '../requests/request-policy.js';
@@ -114,7 +114,7 @@ export class QuoteTemplatesController {
       const t = await tx.quoteTemplate.findUnique({ where: { id } });
       if (!t || !t.active || !canSeeInternalCosts(user, t.officeId))
         throw new NotFoundException('Plantilla no encontrada');
-      if (t.createdById !== user.id && !hasOfficeRole(user, t.officeId, ['OFFICE_ADMIN']))
+      if (t.createdById !== user.id && !canDo(user, t.officeId, 'canDelete'))
         throw new ForbiddenException('Solo quien la creó o el coordinador');
       await tx.quoteTemplate.update({ where: { id }, data: { active: false } });
       await audit(tx, {

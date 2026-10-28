@@ -12,11 +12,12 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { CreateOffice, InviteUser, type Me, OfficeRoleInput } from '@ee/contracts';
+import { CreateOffice, InviteUser, type Me, OfficeRoleInput, UserOffices } from '@ee/contracts';
 import type { PrismaClient } from '@ee/db';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
@@ -77,16 +78,66 @@ export class UsersController {
   @Get('users')
   async users(@CurrentUser() user: AuthUser, @Query('officeId', uuid) officeId: string) {
     if (!hasOfficeRole(user, officeId, ['OFFICE_ADMIN'])) throw new NotFoundException();
-    return this.prisma.user.findMany({
+    const rows = await this.prisma.user.findMany({
       where: { officeRoles: { some: { officeId } } },
       select: {
         id: true,
         email: true,
         name: true,
         status: true,
-        officeRoles: { where: { officeId }, select: { id: true, role: true } },
+        officeRoles: { select: { id: true, role: true, officeId: true } },
       },
       orderBy: { name: 'asc' },
+    });
+    // Other offices of a user are only shown to system admins, the only ones who can change them.
+    const sysAdmin = isSystemAdmin(user);
+    return rows.map(({ officeRoles, ...u }) => ({
+      ...u,
+      officeRoles: officeRoles.filter((r) => r.officeId === officeId).map(({ id, role }) => ({ id, role })),
+      ...(sysAdmin && { officeIds: [...new Set(officeRoles.map((r) => r.officeId))] }),
+    }));
+  }
+
+  /** V2 "oficinas con acceso": the user's privileges (except system admin) apply in exactly these offices. */
+  @Put('users/:id/offices')
+  async setOffices(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(UserOffices)) body: UserOffices,
+  ) {
+    if (!isSystemAdmin(user)) throw new ForbiddenException('Solo un administrador del sistema');
+    const officeIds = [...new Set(body.officeIds)];
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.userOfficeRole.findMany({
+        where: { userId: id, role: { not: 'SYSTEM_ADMIN' } },
+      });
+      if (!(await tx.user.findUnique({ where: { id } }))) throw new NotFoundException();
+      const roles = [...new Set(current.map((g) => g.role))];
+      if (!roles.length)
+        throw new BadRequestException({
+          code: 'NO_ROLES',
+          message: 'Asígnale primero un privilegio en alguna oficina',
+        });
+      const active = await tx.office.count({ where: { id: { in: officeIds }, active: true } });
+      if (active !== officeIds.length) throw new NotFoundException('Oficina no encontrada');
+      await tx.userOfficeRole.deleteMany({
+        where: { userId: id, role: { not: 'SYSTEM_ADMIN' }, officeId: { notIn: officeIds } },
+      });
+      await tx.userOfficeRole.createMany({
+        data: officeIds.flatMap((officeId) => roles.map((role) => ({ userId: id, officeId, role }))),
+        skipDuplicates: true,
+      });
+      const before = [...new Set(current.map((g) => g.officeId))];
+      await audit(tx, {
+        actorUserId: user.id,
+        action: 'user.offices_updated',
+        entityType: 'User',
+        entityId: id,
+        correlationId: req.correlationId,
+        diff: { roles, before, after: officeIds },
+      });
+      return { officeIds, roles };
     });
   }
 

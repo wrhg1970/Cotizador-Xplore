@@ -42,7 +42,7 @@ const GROUPS: [string, string][] = [
   ['office.', 'Oficinas'],
   ['auth.', 'Inicios de sesión'],
 ];
-const FILTERS = ['officeId', 'action', 'actorEmail', 'entityId', 'from', 'to'] as const;
+const FILTERS = ['officeId', 'action', 'actorEmail', 'entityId', 'requestId', 'from', 'to'] as const;
 
 const recordLink = (e: Entry) =>
   e.entityType === 'TravelRequest'
@@ -136,6 +136,7 @@ function AuditLog() {
           Hasta
           <input name="to" type="date" defaultValue={params.get('to') ?? ''} />
         </label>
+        {params.get('requestId') && <input type="hidden" name="requestId" value={params.get('requestId')!} />}
         <button type="submit">Buscar</button>
       </form>
 

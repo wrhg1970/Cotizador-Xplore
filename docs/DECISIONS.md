@@ -79,3 +79,10 @@
 ## Oficinas de EE (2026-10-28)
 - Will pidió dar de alta todas las oficinas de estudiantesembajadores.com/oficinas. Se cargan con la migración `20261028030000_ee_offices` (23 oficinas, códigos cortos por ciudad). «Nuevo León» ya existe como `CORP` (Corporativo Nuevo León) y no se duplica. La página dice 25 oficinas, pero solo lista 24.
 - La migración salta códigos o nombres que ya existan y registra cada alta en la bitácora (`office.created`, sin actor).
+
+## Permisos Ver / Crear / Editar / Borrar y oficinas por usuario (2026-10-28)
+- Will pidió el criterio de la V2 y eligió agregarlo a los roles actuales (no rehacer roles). En «Administración», cada rol tiene Ver, Crear, Editar y Borrar, además de lo que ya existía.
+- Ver: sin él, las oficinas de ese rol desaparecen para la persona (404). Crear: abrir solicitudes. Editar: modificar solicitudes y cotizaciones en las que participa (solicitante, cotizador asignado o coordinador). Borrar: cancelar solicitudes y retirar plantillas de otros; nada se elimina físicamente.
+- Los pasos del flujo siguen fijos: asignar es del coordinador, autorizar del autorizador y nadie autoriza lo que preparó.
+- Valores iniciales = reglas anteriores (asesor y coordinador crean; asesor, cotizador y coordinador editan; solo el coordinador borra), así que nada cambia hasta que el administrador lo decida.
+- Oficinas por usuario (V2 «oficinas con acceso»): el administrador del sistema marca las oficinas en Usuarios y los privilegios de la persona aplican en todas las marcadas. Si alguien tenía privilegios distintos por oficina, al marcar oficinas se unifican.

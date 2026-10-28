@@ -100,6 +100,31 @@ describe('audit log browser', () => {
     expect((await logs(c.adminA, `?entityId=${requestA}&from=${today}&to=${today}`)).total).toBe(1);
   });
 
+  it('per request: the request and its quote versions together', async () => {
+    const author = await prisma.user.findUniqueOrThrow({ where: { email: emails.advisorA } });
+    const scenario = await prisma.quoteScenario.create({
+      data: { requestId: requestA, name: 'Opción 1', createdById: author.id },
+    });
+    const v = await prisma.quoteVersion.create({
+      data: {
+        scenarioId: scenario.id,
+        number: 1,
+        saleCurrency: 'MXN',
+        participants: 10,
+        chaperones: 0,
+        staff: 0,
+        createdById: author.id,
+      },
+    });
+    await prisma.auditLog.create({
+      data: { action: 'quote.created', entityType: 'QuoteVersion', entityId: v.id, correlationId: 'test' },
+    });
+    const page = await logs(c.adminA, `?requestId=${requestA}`);
+    expect(page.items.map((i) => i.entityId).sort()).toEqual([requestA, v.id].sort());
+    expect((await logs(c.adminA, `?requestId=${requestB}`)).total).toBe(0); // other office
+    await ctx.http().get('/api/v1/audit-logs?requestId=nope').set('Cookie', c.adminA).expect(400);
+  });
+
   it('refuses other roles, other offices and bad filters', async () => {
     await logs(c.advisorA, '', 403);
     await logs(c.adminA, `?officeId=${officeB}`, 403);
