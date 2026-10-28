@@ -362,6 +362,8 @@ const proposalContent = {
   freePlaceBenefit: FreePlaceBenefit.nullable().optional(),
   itinerary: z.array(ItineraryDay).max(120).nullable().optional(),
   exclusions: z.array(ShortText(300)).max(50).optional(),
+  /** Image attachment (JPG/PNG) of the same request shown as the proposal's cover. */
+  coverAttachmentId: z.uuid().nullable().optional(),
 };
 
 /** Draft edit. `lines` and `fxRates`, when present, replace the whole set (order = position). */

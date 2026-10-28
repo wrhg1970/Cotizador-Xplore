@@ -455,21 +455,81 @@ article.proposal h2 {
   border-top: 1px solid var(--border);
   padding-top: 24px;
 }
+/* Itinerary: numbered day badges on a brand-colored line. */
+article.proposal ol.timeline {
+  list-style: none;
+  padding: 0;
+}
 article.proposal ol.timeline li {
   border: 0;
-  border-left: 2px solid var(--border);
-  padding: 0 0 16px 20px;
+  border-left: 3px solid var(--ink);
+  margin-left: 18px;
+  padding: 4px 0 20px 32px;
   position: relative;
 }
-article.proposal ol.timeline li::before {
-  content: '';
+article.proposal ol.timeline li:last-child {
+  border-left-color: transparent;
+}
+article.proposal ol.timeline .day {
   position: absolute;
-  left: -8px;
-  top: 4px;
-  width: 14px;
-  height: 14px;
+  left: -20px;
+  top: 0;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: var(--brand-yellow);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  background: #ec6206;
+  color: #ffffff;
+}
+/* Cover: destination photo with the brand navy band over it. */
+article.proposal .hero {
+  position: relative;
+  margin: calc(-1 * clamp(24px, 5vw, 48px)) calc(-1 * clamp(24px, 5vw, 48px)) 24px;
+  border-radius: 28px 28px 0 0;
+  overflow: hidden;
+  background: #00457f;
+  color: #ffffff;
+}
+/* The navy band always takes the logo made for dark backgrounds. */
+article.proposal .hero .logo-light {
+  display: none;
+}
+article.proposal .hero .logo-dark {
+  display: inline;
+}
+article.proposal .hero > img {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: cover;
+}
+article.proposal .hero-text {
+  padding: 24px clamp(24px, 5vw, 48px) 28px;
+}
+article.proposal .hero .kicker {
+  color: #ffa723;
+  margin-top: 12px;
+}
+article.proposal .hero h1 {
+  color: #ffffff;
+  margin: 0;
+}
+article.proposal .pay {
+  background: #ec6206;
+  color: #ffffff;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.print-only {
+  display: none;
 }
 @media print {
   body {
@@ -478,6 +538,15 @@ article.proposal ol.timeline li::before {
   article.proposal {
     padding: 0;
     border-radius: 0;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  article.proposal .hero {
+    margin: 0 0 24px;
+    border-radius: 0;
+  }
+  .print-only {
+    display: inline;
   }
 }
 input[type='checkbox'],

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { clientProposal, full } from '../src/quotes/quotes.controller.js';
 import { loginAs, makeApp, makeOffice, makeUser, prisma } from './helpers.js';
 
 let ctx: Awaited<ReturnType<typeof makeApp>>;
@@ -178,5 +179,65 @@ describe('school share link', () => {
       where: { id: requestId },
       data: { status: 'QUOTING', lostReason: null },
     });
+  });
+});
+
+describe('proposal cover photo and payment link', () => {
+  const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+  const upload = async (fileName: string, bytes: Buffer, req = requestId) =>
+    (
+      await api()
+        .post(`/api/v1/requests/${req}/attachments`)
+        .set('Cookie', c.quoter)
+        .send({ fileName, fileBase64: bytes.toString('base64') })
+        .expect(201)
+    ).body.id as string;
+
+  it('only an image of the same request can be the cover; it is served to the session and the link', async () => {
+    const pdf = await upload('cotizacion.pdf', Buffer.from('%PDF-1.4 x'));
+    const photo = await upload('roma.png', PNG);
+    const v = await draftVersion();
+    const patch = (coverAttachmentId: string | null, rowVersion: number) =>
+      api().patch(`/api/v1/quotes/${v.id}`).set('Cookie', c.quoter).send({ coverAttachmentId, rowVersion });
+    await patch(pdf, v.rowVersion).expect(400);
+    const saved = (await patch(photo, v.rowVersion).expect(200)).body;
+    expect(saved.coverAttachmentId).toBe(photo);
+
+    const s = (await act(c.quoter, v.id, 'submit', { rowVersion: saved.rowVersion }).expect(201)).body;
+    await act(c.approver, v.id, 'approve', { rowVersion: s.rowVersion }).expect(201);
+    const p = (await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', c.advisor).expect(200)).body;
+    expect(p).toMatchObject({ hasCover: true, paymentUrl: null });
+    const img = await api().get(`/api/v1/quotes/${v.id}/proposal/cover`).set('Cookie', c.advisor).expect(200);
+    expect(img.headers['content-type']).toMatch(/^image\/png/);
+    await api().get(`/api/v1/quotes/${v.id}/proposal/cover`).set('Cookie', c.adminB).expect(404);
+    await api().get(`/api/v1/quotes/${v.id}/proposal/cover`).expect(401);
+
+    const link = (await share(c.quoter, v.id, { days: 3 }).expect(201)).body;
+    await api().get(`/api/v1/public/proposals/${link.token}/cover`).expect(200);
+    await api()
+      .get(`/api/v1/public/proposals/${'x'.repeat(43)}/cover`)
+      .expect(404);
+
+    // A photo in use can't be deleted out from under an approved proposal.
+    await api()
+      .delete(`/api/v1/requests/${requestId}/attachments/${photo}`)
+      .set('Cookie', c.quoter)
+      .expect(409);
+  });
+
+  it('the payment link shows only on the winning proposal', async () => {
+    const id = await approvedVersion();
+    const other = await approvedVersion();
+    const r = await prisma.travelRequest.findUniqueOrThrow({ where: { id: requestId } });
+    const won = {
+      ...r,
+      status: 'WON' as const,
+      wonVersionId: id,
+      wetravelUrl: 'https://pay.example/checkout',
+    };
+    const version = (vid: string) =>
+      prisma.quoteVersion.findUniqueOrThrow({ where: { id: vid }, include: full });
+    expect(clientProposal(await version(id), won).paymentUrl).toBe('https://pay.example/checkout');
+    expect(clientProposal(await version(other), won).paymentUrl).toBeNull();
   });
 });

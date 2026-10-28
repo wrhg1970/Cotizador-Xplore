@@ -280,6 +280,9 @@ model QuoteVersion {
   itinerary            Json?
   /// "No incluye" lines for the proposal.
   exclusions           String[]           @default([])
+  /// Destination photo on the proposal: an image attachment of the same request.
+  coverAttachmentId    String?            @map("cover_attachment_id") @db.Uuid
+  coverAttachment      RequestAttachment? @relation(fields: [coverAttachmentId], references: [id], onDelete: Restrict)
   /// Optimistic concurrency token for edits.
   rowVersion           Int                @default(1) @map("row_version")
   createdById          String             @map("created_by_id") @db.Uuid
@@ -449,17 +452,18 @@ model QuoteTemplate {
 /// File attached to a request (school letter, supplier quote). Bytes live in Postgres.
 /// shortcut: bytea storage capped at 3 MB × 20 files per request, fine for the pilot; move to Cloud Storage if volume grows.
 model RequestAttachment {
-  id           String        @id @default(uuid()) @db.Uuid
-  requestId    String        @map("request_id") @db.Uuid
-  fileName     String        @map("file_name")
+  id           String         @id @default(uuid()) @db.Uuid
+  requestId    String         @map("request_id") @db.Uuid
+  fileName     String         @map("file_name")
   /// Sniffed from the bytes against an allowlist, never taken from the client.
-  mimeType     String        @map("mime_type")
+  mimeType     String         @map("mime_type")
   size         Int
   content      Bytes
-  uploadedById String        @map("uploaded_by_id") @db.Uuid
-  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  request      TravelRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
-  uploadedBy   User          @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  uploadedById String         @map("uploaded_by_id") @db.Uuid
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  request      TravelRequest  @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  uploadedBy   User           @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  coverOf      QuoteVersion[]
 
   @@index([requestId, createdAt])
   @@map("request_attachments")

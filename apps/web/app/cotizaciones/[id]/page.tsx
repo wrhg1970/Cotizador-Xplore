@@ -194,6 +194,7 @@ export default function QuoteEditorPage() {
           freePlaceBenefit: draft.freePlaceBenefit,
           itinerary: draft.itinerary?.map((d) => ({ ...d, details: d.details?.trim() || undefined })) ?? null,
           exclusions: draft.exclusions.map((x) => x.trim()).filter(Boolean),
+          coverAttachmentId: draft.coverAttachmentId,
           // Server-only fields would fail strict validation.
           lines: draft.lines.map(({ id: _id, lineTotal: _t, ...l }) => ({
             ...l,

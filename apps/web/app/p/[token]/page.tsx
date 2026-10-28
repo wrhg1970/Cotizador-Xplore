@@ -29,6 +29,7 @@ export default function PublicProposalPage() {
   return (
     <ProposalView
       p={p}
+      coverSrc={`/api/v1/public/proposals/${encodeURIComponent(token)}/cover`}
       actions={<span className="muted">Liga vigente hasta {fmtDateTime(p.expiresAt)}</span>}
     />
   );

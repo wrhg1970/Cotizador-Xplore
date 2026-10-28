@@ -11,9 +11,10 @@ import {
   ParseUUIDPipe,
   Post,
   Req,
+  Res,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { CreateProposalShare } from '@ee/contracts';
 import type { PrismaClient, TravelRequest } from '@ee/db';
 import type { z } from 'zod';
@@ -130,11 +131,8 @@ export class ProposalShareController {
     return { ok: true };
   }
 
-  /** The school's view. Every failure is the same 404, so a guessed token learns nothing. */
-  @Public()
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  @Get('public/proposals/:token')
-  async open(@Param('token') token: string) {
+  /** A live share or the same 404 for every failure, so a guessed token learns nothing. */
+  private async share(token: string) {
     const gone = new NotFoundException('Esta liga no existe o ya no está vigente');
     if (!TOKEN.test(token)) throw gone;
     const s = await this.prisma.proposalShare.findUnique({
@@ -146,6 +144,42 @@ export class ProposalShareController {
       where: { id: s.version.scenario.requestId },
     });
     if (!OPEN.includes(r.status)) throw gone;
+    return { s, r };
+  }
+
+  /** Destination photo for the print view. */
+  @Get('quotes/:id/proposal/cover')
+  async cover(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string, @Res() res: Response) {
+    const { v } = await this.version(id, user);
+    await this.sendCover(v.coverAttachmentId, res);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('public/proposals/:token/cover')
+  async publicCover(@Param('token') token: string, @Res() res: Response) {
+    const { s } = await this.share(token);
+    await this.sendCover(s.version.coverAttachmentId, res);
+  }
+
+  private async sendCover(attachmentId: string | null, res: Response) {
+    const a =
+      attachmentId && (await this.prisma.requestAttachment.findUnique({ where: { id: attachmentId } }));
+    // Only sniffed JPG/PNG are ever chosen as cover; anything else is never rendered inline.
+    if (!a || !a.mimeType.startsWith('image/')) throw new NotFoundException('Sin portada');
+    res
+      .set('X-Content-Type-Options', 'nosniff')
+      .set('Cache-Control', 'private, max-age=300')
+      .type(a.mimeType)
+      .send(Buffer.from(a.content));
+  }
+
+  /** The school's view. */
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('public/proposals/:token')
+  async open(@Param('token') token: string) {
+    const { s, r } = await this.share(token);
     await this.prisma.proposalShare.update({
       where: { id: s.id },
       data: { viewCount: { increment: 1 }, lastViewAt: new Date() },
