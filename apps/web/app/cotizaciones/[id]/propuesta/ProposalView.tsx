@@ -32,6 +32,8 @@ export interface Proposal {
   assumptions: string | null;
   includes: string[];
   paymentSchedule: PaymentDto[] | null;
+  /** Price per student by group size, when whoever quotes chose to show it. */
+  volumePrices?: { participants: number; pricePerParticipant: string }[] | null;
   freePlaces: { count: number; benefit: keyof typeof FREE_PLACE_LABEL } | null;
   itinerary: ItineraryDayDto[];
   exclusions: string[];
@@ -129,6 +131,31 @@ export function ProposalView({
         <>
           <h2>Plan de pagos por estudiante</h2>
           <PaymentSchedule q={{ paymentSchedule: p.paymentSchedule, saleCurrency: p.saleCurrency }} />
+        </>
+      )}
+      {p.volumePrices && (
+        <>
+          <h2>Precio por estudiante según el tamaño del grupo</h2>
+          <table aria-label="Precio por tamaño del grupo">
+            <thead>
+              <tr>
+                <th>Estudiantes inscritos</th>
+                <th className="num">Precio por estudiante ({p.saleCurrency})</th>
+              </tr>
+            </thead>
+            <tbody>
+              {p.volumePrices.map((v, i, all) => (
+                <tr key={v.participants}>
+                  <td>
+                    {i === all.length - 1
+                      ? `${v.participants} o más`
+                      : `${v.participants} a ${all[i + 1]!.participants - 1}`}
+                  </td>
+                  <td className="num">{v.pricePerParticipant}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </>
       )}
       {p.itinerary.length > 0 && (

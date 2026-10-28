@@ -1,4 +1,13 @@
-import { calculateQuote, D, dec, marginRateForPrice, QuoteEngineError, roundMoney } from '@ee/quote-engine';
+import Link from 'next/link';
+import {
+  calculateQuote,
+  D,
+  dec,
+  marginRateForPrice,
+  QuoteEngineError,
+  type QuoteInput,
+  roundMoney,
+} from '@ee/quote-engine';
 import type { QuoteDto } from '../../lib/types';
 
 const money = (x: InstanceType<typeof D>) => roundMoney(x, 2).toFixed(2);
@@ -10,10 +19,13 @@ export type Preview =
       price: string;
       group: string;
       margin: string;
+      marginEach: string;
       pct: string;
       mxn: string | null;
       lineTotals: string[];
       byCategory: Record<string, string>;
+      /** Engine input with the effective margin, for what-if tables (volume, sensitivity). */
+      input: QuoteInput;
     }
   | { ok: false; reason: string };
 
@@ -23,7 +35,7 @@ export type Preview =
  */
 export function preview(d: QuoteDto, marginPct: string, targetPrice: string, byPrice: boolean): Preview {
   try {
-    const input = {
+    const input: QuoteInput = {
       saleCurrency: d.saleCurrency,
       participants: d.participants,
       chaperones: d.chaperones,
@@ -46,8 +58,8 @@ export function preview(d: QuoteDto, marginPct: string, targetPrice: string, byP
     if (!d.participants) return { ok: false, reason: 'Captura el número de estudiantes' };
     let r = calculateQuote(input);
     if (byPrice && /^[1-9]\d*$/.test(targetPrice.trim())) {
-      const rate = marginRateForPrice(r.costPerParticipant, new D(targetPrice.trim()));
-      r = calculateQuote({ ...input, targetMarginRate: rate });
+      input.targetMarginRate = marginRateForPrice(r.costPerParticipant, new D(targetPrice.trim()));
+      r = calculateQuote(input);
     }
     return {
       ok: true,
@@ -55,12 +67,14 @@ export function preview(d: QuoteDto, marginPct: string, targetPrice: string, byP
       price: money(r.pricePerParticipant),
       group: money(r.groupPrice),
       margin: money(r.groupMargin),
+      marginEach: money(r.marginPerParticipant),
       pct: r.pricePerParticipant.isZero()
         ? '0'
         : String(Number(r.marginPerParticipant.div(r.pricePerParticipant).mul(100).toFixed(2))),
       mxn: r.pricePerParticipantMxn && money(r.pricePerParticipantMxn),
       lineTotals: r.lineTotals.map(money),
       byCategory: Object.fromEntries(Object.entries(r.byCategory).map(([k, v]) => [k, money(v)])),
+      input,
     };
   } catch (e) {
     if (!(e instanceof QuoteEngineError)) throw e;
@@ -76,10 +90,15 @@ export function preview(d: QuoteDto, marginPct: string, targetPrice: string, byP
   }
 }
 
-/** Always-visible footer of the editor: live totals, unsaved state and the save button. */
+/**
+ * Active scenario bar, pinned to the top: live figures from the same engine, the request's other
+ * options and, for whoever edits, the unsaved state and the save button.
+ */
 export function TotalsBar({
   p,
   currency,
+  label,
+  options,
   dirty,
   saving,
   error,
@@ -87,18 +106,30 @@ export function TotalsBar({
 }: {
   p: Preview;
   currency: string;
+  label: string;
+  options: { id: string; name: string; active: boolean }[];
   dirty: boolean;
   saving: boolean;
   error: string | null;
-  onSave: () => void;
+  onSave?: () => void;
 }) {
   return (
     <div className="totals-bar" role="region" aria-label="Totales del viaje">
+      <div className="active">
+        <small>Escenario activo</small>
+        <strong>{label}</strong>
+      </div>
       {p.ok ? (
         <dl>
           <div>
             <dt>Costo por estudiante</dt>
             <dd>{p.cost}</dd>
+          </div>
+          <div>
+            <dt>% Comisión (utilidad)</dt>
+            <dd className="hl">
+              {p.pct}% ({p.marginEach})
+            </dd>
           </div>
           <div className="main">
             <dt>Precio por estudiante</dt>
@@ -110,14 +141,10 @@ export function TotalsBar({
             <dt>Total del grupo</dt>
             <dd>{p.group}</dd>
           </div>
-          <div>
-            <dt>Comisión del grupo ({p.pct}%)</dt>
-            <dd>{p.margin}</dd>
-          </div>
           {p.mxn && (
             <div>
               <dt>Aprox. por estudiante</dt>
-              <dd>{p.mxn} MXN</dd>
+              <dd className="ok">{p.mxn} MXN</dd>
             </div>
           )}
         </dl>
@@ -125,16 +152,29 @@ export function TotalsBar({
         <p className="reason">{p.reason}</p>
       )}
       <div className="save">
-        {error ? (
-          <span className="error" role="alert">
-            {error}
-          </span>
-        ) : (
-          <span className="muted">{dirty ? 'Cambios sin guardar' : 'Guardado'}</span>
+        {options.length > 1 && (
+          <nav aria-label="Opciones de la solicitud" className="options">
+            {options.map((o) => (
+              <Link key={o.id} href={`/cotizaciones/${o.id}`} aria-current={o.active ? 'page' : undefined}>
+                {o.name}
+              </Link>
+            ))}
+          </nav>
         )}
-        <button disabled={saving} onClick={onSave}>
-          {saving ? 'Guardando…' : 'Guardar y calcular'}
-        </button>
+        {onSave && (
+          <>
+            {error ? (
+              <span className="error" role="alert">
+                {error}
+              </span>
+            ) : (
+              <span className="muted">{dirty ? 'Cambios sin guardar' : 'Guardado'}</span>
+            )}
+            <button disabled={saving} onClick={onSave}>
+              {saving ? 'Guardando…' : 'Guardar y calcular'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

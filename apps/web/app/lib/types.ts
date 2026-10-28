@@ -207,6 +207,7 @@ export interface QuoteDto {
   itinerary: ItineraryDayDto[] | null;
   exclusions: string[];
   coverAttachmentId: string | null;
+  showVolumePrices: boolean;
   /** Per student, computed from the rounded price; null without a plan or totals. */
   paymentSchedule: PaymentDto[] | null;
   freePlaces: number | null;

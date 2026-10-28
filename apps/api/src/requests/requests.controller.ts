@@ -45,6 +45,7 @@ import {
   canRecordOutcome,
   canSubmit,
   canView,
+  canViewQuotes,
 } from './request-policy.js';
 
 type Tx = Prisma.TransactionClient;
@@ -457,10 +458,22 @@ export class RequestsController {
   /** US-022: audited events + comments, oldest first. */
   @Get(':id/timeline')
   async timeline(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
-    await this.load(this.prisma, id, user);
+    const r = await this.load(this.prisma, id, user);
+    // Quote events (price, approval, sending) only for those who may see the quotes themselves.
+    const versions = canViewQuotes(user, r)
+      ? await this.prisma.quoteVersion.findMany({
+          where: { scenario: { requestId: id } },
+          select: { id: true },
+        })
+      : [];
     const [events, comments] = await Promise.all([
       this.prisma.auditLog.findMany({
-        where: { entityType: 'TravelRequest', entityId: id },
+        where: {
+          OR: [
+            { entityType: 'TravelRequest', entityId: id },
+            { entityType: 'QuoteVersion', entityId: { in: versions.map((v) => v.id) } },
+          ],
+        },
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.requestComment.findMany({
@@ -477,6 +490,7 @@ export class RequestsController {
     );
     return {
       events: events.map((e) => ({
+        id: e.id,
         action: e.action,
         actor: e.actorUserId ? (actors.get(e.actorUserId) ?? null) : null,
         at: e.createdAt.toISOString(),
