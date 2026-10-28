@@ -212,6 +212,8 @@ export interface QuoteDto {
     | 'groupFixedPerParticipant',
     string
   > | null;
+  /** Price per student at 15/20/25/30/35 students; null like `totals`. */
+  volumePrices: { participants: number; pricePerParticipant: string }[] | null;
   warnings: { code: string; message: string }[];
   reviews: { decision: 'APPROVED' | 'RETURNED'; reviewer: string; comment: string | null; at: string }[];
   deliveries: {
@@ -335,5 +337,27 @@ export const ROLE_LABEL: Record<RoleName, string> = {
   APPROVER: 'Autorizar viaje',
   OFFICE_ADMIN: 'Coordinador de oficina',
   SYSTEM_ADMIN: 'Administrador del sistema',
-  AUDITOR: 'Auditor (solo lectura)',
+  AUDITOR: 'Auditor / Finanzas (solo lectura)',
 };
+
+export interface SupplierRateDto {
+  id: string;
+  description: string;
+  category: LineCategory;
+  unitCost: string;
+  currency: CurrencyCode;
+  validUntil: string | null;
+  notes: string | null;
+  active: boolean;
+}
+export interface SupplierDto {
+  id: string;
+  name: string;
+  kind: string | null;
+  country: string | null;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
+  active: boolean;
+  rates: SupplierRateDto[];
+}

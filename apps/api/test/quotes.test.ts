@@ -171,6 +171,11 @@ describe('scenarios (US-029, US-030, US-031)', () => {
       groupFixedTotal: '0.00',
       groupFixedPerParticipant: '0.00',
     });
+    // Volume table: same costs and 18% margin; the 1850 of chaperones spreads over 20 → 4112.50 / 0.82, rounded up.
+    expect(res.body.volumePrices.map((p: { participants: number }) => p.participants)).toEqual([
+      15, 20, 25, 30, 35,
+    ]);
+    expect(res.body.volumePrices[1]).toEqual({ participants: 20, pricePerParticipant: '5016.00' });
     // Stale rowVersion
     const stale = await api()
       .patch(`/api/v1/quotes/${v.id}`)

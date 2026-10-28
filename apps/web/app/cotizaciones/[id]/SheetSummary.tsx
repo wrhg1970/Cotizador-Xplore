@@ -125,6 +125,29 @@ export function SheetSummary({ q }: { q: QuoteDto }) {
             )}
           </tbody>
         </table>
+        {q.volumePrices && (
+          <table aria-label="Precio por volumen">
+            <tbody>
+              <tr>
+                <th colSpan={2}>Precio por estudiante según tamaño del grupo</th>
+              </tr>
+              {q.volumePrices.map((p) => (
+                <tr key={p.participants}>
+                  <td>{p.participants} estudiantes</td>
+                  <td className="num">
+                    {p.pricePerParticipant} {q.saleCurrency}
+                  </td>
+                </tr>
+              ))}
+              <tr>
+                <td colSpan={2} className="muted">
+                  Mismos costos, chaperones y comisión; solo cambia entre cuántos se reparten los gastos de
+                  chaperones y del grupo.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        )}
       </div>
     </section>
   );

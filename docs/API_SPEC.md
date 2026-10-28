@@ -12,6 +12,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 
 ## Endpoints propuestos
 ### Identidad / catálogos
+- `GET /health` (vivo) y `GET /health/ready` (vivo y con base de datos; 503 si no responde), públicos, cuerpo `{ "status": "ok" }`.
 - `GET /me`
 - `GET /offices`
 - `GET /catalogs/countries`
@@ -32,6 +33,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `DELETE /offices/{id}` — borra solo una oficina vacía (sin solicitudes, privilegios ni plantillas); si tiene historial responde 409 y hay que desactivarla. Auditado como `office.deleted`
 - `PUT /users/{id}/offices` — `{officeIds}`: oficinas donde aplican los privilegios del usuario (todos salvo administrador del sistema); solo administrador del sistema, auditado como `user.offices_updated`. `GET /users` incluye `officeIds` solo para el administrador del sistema
 - `GET /audit-logs?officeId&action&actorEmail&entityId&from&to&page&limit` — bitácora de solo lectura; coordinador de oficina y auditor ven sus oficinas, administrador del sistema todo (incluye inicios de sesión y cambios globales). `action` filtra por prefijo (`quote.`), fechas `YYYY-MM-DD` inclusivas, `limit` ≤ 100
+- `GET /audit-logs/export.csv` — mismos filtros y alcance que la lista, sin paginar (máximo 10 000 filas), CSV UTF-8 con celdas tipo fórmula neutralizadas; la descarga queda auditada como `audit_log.exported`.
 
 ### Solicitudes
 - `POST /requests`
@@ -90,6 +92,15 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `POST /official-rates/banxico` (administrador del sistema): publica los tipos de Banxico del día.
 - `POST /cron/daily` (sin sesión; header `X-Cron-Secret`): Banxico y correo diario de pendientes atrasados (uno por persona, una vez al día). 404 si no hay `CRON_SECRET`.
 - `GET|PUT /settings/alerts`: umbrales en días (sin cotizar, autorización pendiente, enviada sin respuesta, anticipación de pagos); escribir solo administrador del sistema, auditado. `GET /dashboard` incluye `alerts` del usuario.
+
+### Propuesta y colegio (2026-10-28)
+- `GET /quotes/{id}/proposal/cover`, `GET /public/proposals/{token}/cover`: foto del destino (imagen adjunta elegida en la cotización).
+- `POST /public/proposals/{token}/accept` (sin sesión, 5/min): `{signerName, signerRole, accepted: true}`. Solo versión enviada con solicitud en "Enviada"; registra nombre, cargo, fecha, IP y navegador (append-only), marca la solicitud ganada y avisa al equipo. 409 si ya tiene respuesta.
+- `GET /requests/{id}/wetravel/payments`: lo pagado por el grupo en WeTravel (en vivo).
+- `GET /quotes/{id}/compare`: cambios contra la versión anterior del mismo escenario.
+- `GET /schools`, `GET /schools/detail?officeId&key`, `POST /schools/contacts`, `DELETE /schools/contacts/{id}`: ficha por colegio (agrupa por nombre del cliente normalizado, por oficina).
+- `GET /suppliers` (roles que ven costos internos), `POST /suppliers`, `PATCH /suppliers/{id}`, `POST /suppliers/{id}/rates`, `PATCH /supplier-rates/{id}` (solo administrador del sistema, auditado): catálogo de proveedores/DMC y tarifas; el editor copia la tarifa al concepto (`costSource` = proveedor).
+- `GET /settings/goals/{año}` y `PUT /settings/goals/{año}` (solo administrador del sistema, auditado): meta anual de venta en MXN por oficina, `{ "<officeId>": "5500000" }`. `GET /dashboard/executive` agrega `goals: { year, offices: [{ id, code, name, goalMxn, wonMxn, progress, withoutRate }] }` del año de `to`, solo oficinas del alcance con meta; `wonMxn` suma ganadas por fecha de cierre con su precio en MXN, y `withoutRate` cuenta las ganadas en otra moneda sin tipo de cambio a MXN (no se infiere).
 
 ## Contratos de referencia
 ### Crear solicitud

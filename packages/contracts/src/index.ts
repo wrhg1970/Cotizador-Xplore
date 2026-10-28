@@ -216,6 +216,20 @@ export const SetRequestTeam = z
   );
 
 /** School link (V2 portal): days until it stops working. */
+/** A person at a school, for the "ficha por colegio"; the school is the request's client name. */
+export const CreateSchoolContact = z.strictObject({
+  officeId: z.uuid(),
+  schoolName: ShortText(200),
+  name: ShortText(150),
+  role: OptionalText(150),
+  email: z.email().max(200).optional(),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^[+\d][\d\s()-]{6,24}$/, 'Teléfono no válido')
+    .optional(),
+});
+
 /** The school's acceptance on the shared link: who signs and with what position. */
 export const AcceptProposal = z.strictObject({
   signerName: ShortText(150),
@@ -335,6 +349,31 @@ export const DEFAULT_ALERT_SETTINGS: AlertSettings = {
   paymentReminderDays: 5,
 };
 
+const Rate01 = DecimalString.refine((r) => Number(r) >= 0 && Number(r) < 1, 'Entre 0 y 100%');
+/**
+ * Authorization rules (Administración): auto-approve inside the limits, and require two different
+ * approvers below a margin. Everything else follows the normal single approval.
+ */
+export const ApprovalRules = z.strictObject({
+  autoApprove: z.boolean(),
+  /** Effective margin over price (group margin ÷ group price), e.g. "0.18". */
+  autoMinMarginRate: Rate01,
+  /** Group total in MXN; versions in other currencies need their MXN rate to qualify. */
+  autoMaxGroupMxn: DecimalString,
+  /** Below this margin two different approvers are needed; null turns it off. */
+  twoLevelBelowMarginRate: Rate01.nullable(),
+});
+export type ApprovalRules = z.infer<typeof ApprovalRules>;
+/** Annual sales goal per office (V2 "Meta anual"), in MXN; key = office id. Offices without one have no goal. */
+export const OfficeGoals = z.record(z.uuid(), NonNegative);
+export type OfficeGoals = z.infer<typeof OfficeGoals>;
+export const DEFAULT_APPROVAL_RULES: ApprovalRules = {
+  autoApprove: false,
+  autoMinMarginRate: '0.18',
+  autoMaxGroupMxn: '500000',
+  twoLevelBelowMarginRate: null,
+};
+
 /** Registration + installments, per student; the schedule itself is computed by the engine. */
 export const PaymentPlanInput = z
   .strictObject({
@@ -440,6 +479,38 @@ export const UpdateConceptTemplate = z
   })
   .partial();
 export type UpdateConceptTemplate = z.infer<typeof UpdateConceptTemplate>;
+
+/** Supplier / DMC catalog (internal): rates pre-fill quote lines, the quote keeps its own copy. */
+export const SupplierInput = z.strictObject({
+  name: ShortText(200),
+  kind: OptionalText(100),
+  country: OptionalText(100),
+  email: z.email().max(320).optional(),
+  phone: OptionalText(50),
+  notes: OptionalText(2000),
+});
+export type SupplierInput = z.infer<typeof SupplierInput>;
+export const UpdateSupplier = SupplierInput.extend({ active: z.boolean() })
+  .partial()
+  .refine((b) => Object.keys(b).length > 0, 'Nada que actualizar');
+export type UpdateSupplier = z.infer<typeof UpdateSupplier>;
+
+export const SupplierRateInput = z.strictObject({
+  description: ShortText(300),
+  category: LineCategory,
+  unitCost: DecimalString.refine((a) => !a.startsWith('-'), 'No puede ser negativo'),
+  currency: CurrencyCode,
+  validUntil: IsoDate.optional(),
+  notes: OptionalText(1000),
+});
+export type SupplierRateInput = z.infer<typeof SupplierRateInput>;
+export const UpdateSupplierRate = SupplierRateInput.extend({
+  active: z.boolean(),
+  validUntil: IsoDate.nullable(),
+})
+  .partial()
+  .refine((b) => Object.keys(b).length > 0, 'Nada que actualizar');
+export type UpdateSupplierRate = z.infer<typeof UpdateSupplierRate>;
 
 /** Approval actions carry the rowVersion the reviewer looked at (US-071, US-142). */
 export const ReviewQuote = z.strictObject({

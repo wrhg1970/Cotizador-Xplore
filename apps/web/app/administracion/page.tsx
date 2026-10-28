@@ -2,7 +2,7 @@
 
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
-import { type AlertSettings, CurrencyCode } from '@ee/contracts';
+import { type AlertSettings, type ApprovalRules, CurrencyCode } from '@ee/contracts';
 import { fmtDate, type OfficialRateDto, ROLE_LABEL, type RolePolicy } from '../lib/types';
 import { useMe } from '../lib/useMe';
 
@@ -41,6 +41,9 @@ export default function AdminPage() {
   const [offices, setOffices] = useState<Office[]>([]);
   const [rates, setRates] = useState<OfficialRateDto[]>([]);
   const [alerts, setAlerts] = useState<AlertSettings | null>(null);
+  const [rules, setRules] = useState<ApprovalRules | null>(null);
+  const [goalYear, setGoalYear] = useState(() => new Date().getFullYear());
+  const [goals, setGoals] = useState<Record<string, string> | null>(null);
   const [integrations, setIntegrations] = useState<{ key: string; name: string; configured: boolean }[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,10 +56,18 @@ export default function AdminPage() {
     api<OfficialRateDto[]>('/official-rates').then(setRates, (e) => setError(errorText(e)));
     api<typeof integrations>('/integrations').then(setIntegrations, (e) => setError(errorText(e)));
     api<AlertSettings>('/settings/alerts').then(setAlerts, (e) => setError(errorText(e)));
+    api<ApprovalRules>('/settings/approval-rules').then(setRules, (e) => setError(errorText(e)));
   }, []);
   useEffect(() => {
     if (isSysAdmin) reload();
   }, [isSysAdmin, reload]);
+  useEffect(() => {
+    setGoals(null);
+    if (isSysAdmin)
+      api<Record<string, string>>(`/settings/goals/${goalYear}`).then(setGoals, (e) =>
+        setError(errorText(e)),
+      );
+  }, [isSysAdmin, goalYear]);
 
   async function run(done: string, call: () => Promise<unknown>) {
     setError(null);
@@ -120,6 +131,39 @@ export default function AdminPage() {
     const f = new FormData(e.currentTarget);
     const body = Object.fromEntries(ALERT_FIELDS.map(([k]) => [k, Number(f.get(k))]));
     await run('Alertas guardadas', () => api('/settings/alerts', { method: 'PUT', body }));
+  }
+
+  async function saveRules(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const rate = (k: string) => String(Number(f.get(k)) / 100);
+    const two = String(f.get('twoLevel') ?? '').trim();
+    const body: ApprovalRules = {
+      autoApprove: f.get('autoApprove') === 'on',
+      autoMinMarginRate: rate('autoMin'),
+      autoMaxGroupMxn: String(f.get('autoMax')).replace(/[,\s$]/g, ''),
+      twoLevelBelowMarginRate: two ? rate('twoLevel') : null,
+    };
+    await run('Reglas de autorización guardadas', () =>
+      api('/settings/approval-rules', { method: 'PUT', body }),
+    );
+  }
+
+  async function saveGoals(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    // Empty = no goal for that office.
+    const body = Object.fromEntries(
+      offices
+        .map((o) => [o.id, String(f.get(o.id) ?? '').replace(/[,\s$]/g, '')])
+        .filter(([, v]) => v !== ''),
+    );
+    if (
+      await run(`Metas ${goalYear} guardadas`, () =>
+        api(`/settings/goals/${goalYear}`, { method: 'PUT', body }),
+      )
+    )
+      setGoals(body);
   }
 
   async function pullBanxico() {
@@ -395,6 +439,106 @@ export default function AdminPage() {
           </form>
         </section>
       )}
+
+      {rules && (
+        <section aria-labelledby="reglas">
+          <h2 id="reglas">Reglas de autorización</h2>
+          <p className="muted">
+            Las cotizaciones dentro de los límites se autorizan solas al mandarlas a autorizar (queda
+            registrado como "Regla automática"). Las demás van al comité como siempre; con margen bajo, piden
+            dos firmas distintas. El margen es comisión del grupo entre precio del grupo.
+          </p>
+          <form onSubmit={saveRules} className="row">
+            <label className="inline">
+              <input type="checkbox" name="autoApprove" defaultChecked={rules.autoApprove} /> Autorizar
+              automáticamente
+            </label>
+            <label>
+              Margen mínimo (%)
+              <input
+                name="autoMin"
+                type="number"
+                min={0}
+                max={99}
+                step="0.01"
+                required
+                defaultValue={Number(rules.autoMinMarginRate) * 100}
+              />
+            </label>
+            <label>
+              Total del grupo hasta (MXN)
+              <input name="autoMax" inputMode="decimal" required defaultValue={rules.autoMaxGroupMxn} />
+            </label>
+            <label>
+              Dos firmas con margen menor a (%)
+              <input
+                name="twoLevel"
+                type="number"
+                min={0}
+                max={99}
+                step="0.01"
+                placeholder="Sin segunda firma"
+                defaultValue={
+                  rules.twoLevelBelowMarginRate === null ? '' : Number(rules.twoLevelBelowMarginRate) * 100
+                }
+              />
+            </label>
+            <button>Guardar reglas</button>
+          </form>
+        </section>
+      )}
+
+      <section aria-labelledby="metas">
+        <h2 id="metas">Meta anual por oficina</h2>
+        <p className="muted">
+          Venta ganada en pesos por año (por fecha de cierre). Se ve en el Dashboard ejecutivo; cada oficina
+          ve la suya. Vacío = sin meta.
+        </p>
+        <label>
+          Año
+          <input
+            type="number"
+            min={2020}
+            max={2100}
+            value={goalYear}
+            onChange={(e) => setGoalYear(Number(e.target.value) || new Date().getFullYear())}
+          />
+        </label>
+        {goals && (
+          <form key={goalYear} onSubmit={saveGoals}>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Oficina</th>
+                    <th>Meta {goalYear} (MXN)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {offices
+                    .filter((o) => o.active || goals[o.id])
+                    .map((o) => (
+                      <tr key={o.id}>
+                        <th scope="row">
+                          {o.code} · {o.name}
+                        </th>
+                        <td>
+                          <input
+                            name={o.id}
+                            inputMode="decimal"
+                            aria-label={`Meta ${goalYear} de ${o.code}`}
+                            defaultValue={goals[o.id] ?? ''}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+            <button>Guardar metas</button>
+          </form>
+        )}
+      </section>
 
       <section aria-labelledby="integraciones">
         <h2 id="integraciones">Integraciones</h2>

@@ -71,14 +71,18 @@ test('system admin changes a role policy and creates an office', async ({ browse
   await page.getByLabel('Nombre', { exact: true }).fill('Oficina Monterrey');
   await page.getByRole('button', { name: 'Agregar oficina' }).click();
   await expect(page.getByRole('status')).toHaveText(`Oficina ${code} creada`);
-  const row = page.getByRole('row', { name: new RegExp(code) });
+  const row = page
+    .getByRole('region', { name: 'Oficinas', exact: true })
+    .getByRole('row', { name: new RegExp(code) });
   await expect(row).toContainText('Oficina Monterrey');
 
   // Edit, deactivate and, since it is empty, delete.
   await row.getByRole('button', { name: `Editar ${code}` }).click();
-  const edit = page.locator('form').filter({ has: page.getByRole('button', { name: 'Guardar' }) });
+  const edit = page
+    .locator('form')
+    .filter({ has: page.getByRole('button', { name: 'Guardar', exact: true }) });
   await edit.getByLabel('Nombre').fill('Monterrey Centro');
-  await edit.getByRole('button', { name: 'Guardar' }).click();
+  await edit.getByRole('button', { name: 'Guardar', exact: true }).click();
   await expect(page.getByRole('status')).toHaveText(`Oficina ${code} guardada`);
   await expect(row).toContainText('Monterrey Centro');
   await row.getByRole('button', { name: `Desactivar ${code}` }).click();

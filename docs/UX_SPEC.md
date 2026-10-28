@@ -42,3 +42,9 @@
 ## Documentos
 PDF cliente: logo/nombre EE, grupo, destino, fechas, participantes, inclusiones/exclusiones, precio, moneda, vigencia, condiciones y contacto. Sin desglose de coste interno por defecto.
 XLSX interno: resumen, líneas, unidades, cantidades, moneda original, tasa FX, coste convertido, comisiones, precio, margen y supuestos. Proteger con permisos de descarga; la protección de hoja no sustituye autorización.
+
+## App instalable (PWA) y avisos en el dispositivo (2026-10-28)
+- "Mi trabajo" se puede instalar desde el navegador (Chrome/Edge: icono de instalar; iPhone: Compartir → Agregar a inicio). Abre en `/inicio`.
+- El botón "Activar avisos" pide permiso de notificaciones. Con permiso, cada 5 minutos, mientras la app o una pestaña esté abierta, se avisa de tareas y atrasos nuevos; tocar el aviso abre la solicitud o cotización.
+- Con la app cerrada no llegan avisos al dispositivo (eso requiere Web Push); los correos siguen cubriendo ese caso.
+- El service worker no guarda páginas ni datos en el dispositivo.

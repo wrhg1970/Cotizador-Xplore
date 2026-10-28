@@ -8,6 +8,8 @@ export interface AuditEntry {
   entityType: string;
   entityId: string;
   correlationId: string;
+  /** Only for entities the DB trigger can't map to an office (it fills TravelRequest, QuoteVersion…). */
+  officeId?: string;
   /** Redacted: never tokens, secrets or full personal payloads. */
   diff?: Prisma.InputJsonValue;
 }

@@ -60,6 +60,9 @@ import { approvalLimitMxn, canExportInternalXlsx, hasOfficeRole } from '../auth/
 import { canView, canViewQuotes, canWorkQuotes, type RequestRef } from '../requests/request-policy.js';
 import { ZodPipe } from '../zod.pipe.js';
 import { quoteWorkbook } from './quote-xlsx.js';
+import { compareVersions } from './compare.js';
+import { approvalRules } from '../settings/settings.js';
+import { type ApprovalRules } from '@ee/contracts';
 import { paymentLinkBody, type WeTravel, WETRAVEL, WeTravelError } from '../integrations/wetravel.js';
 
 type Tx = Prisma.TransactionClient;
@@ -67,7 +70,7 @@ export type FullVersion = QuoteVersion & {
   lines: QuoteLine[];
   fxRates: QuoteFxRate[];
   scenario: { name: string; requestId: string };
-  reviews: (QuoteReview & { reviewer: { name: string } })[];
+  reviews: (QuoteReview & { reviewer: { name: string } | null })[];
   deliveries: (ProposalDelivery & { sentBy: { name: string } })[];
 };
 
@@ -174,6 +177,40 @@ export function clientProposal(v: FullVersion, r: TravelRequest) {
   };
 }
 
+/** Effective margin over price and group total in MXN (null when a non-MXN version has no MXN rate). */
+function marginAndMxn(v: FullVersion) {
+  const r = engine(v);
+  const margin = r.groupPrice.gt(0) ? r.groupMargin.div(r.groupPrice) : new D(0);
+  const rate = v.saleCurrency === 'MXN' ? new D(1) : v.mxnRate && new D(v.mxnRate.toString());
+  return { margin, groupMxn: rate ? r.groupPrice.mul(rate) : null };
+}
+
+const pct = (x: Dec) => `${x.mul(100).toDecimalPlaces(2).toString()}%`;
+
+/** The rule text when the version qualifies for auto-authorization, else null. */
+export function autoApproval(rules: ApprovalRules, v: FullVersion): string | null {
+  if (!rules.autoApprove) return null;
+  const { margin, groupMxn } = marginAndMxn(v);
+  const min = new D(rules.autoMinMarginRate);
+  const max = new D(rules.autoMaxGroupMxn);
+  if (!groupMxn || margin.lt(min) || groupMxn.gt(max)) return null;
+  return `Autorizada por regla: margen ${pct(margin)} ≥ ${pct(min)} y total ${money(groupMxn)} MXN ≤ ${money(max)} MXN`;
+}
+
+export function needsTwoLevels(rules: ApprovalRules, v: FullVersion): boolean {
+  if (rules.twoLevelBelowMarginRate === null) return false;
+  return marginAndMxn(v).margin.lt(new D(rules.twoLevelBelowMarginRate));
+}
+
+/** Approvals given since the version last went back to the quoter, for the same calculation. */
+function approvalsThisRound(v: FullVersion) {
+  const lastReturn = v.reviews.findLastIndex((x) => x.decision === 'RETURNED');
+  const hash = snapshotHash(v);
+  return v.reviews
+    .slice(lastReturn + 1)
+    .filter((x) => x.decision === 'APPROVED' && x.calculationHash === hash);
+}
+
 /** Live figures for the editor; frozen with a hash when the version goes to approval. */
 function calculate(v: FullVersion) {
   const r = engine(v);
@@ -190,6 +227,19 @@ function calculate(v: FullVersion) {
     /** Per line, in sale currency and already multiplied by headcount where it applies. */
     lineTotals: r.lineTotals.map(money),
   };
+}
+
+export const VOLUME_SIZES = [15, 20, 25, 30, 35] as const;
+
+/**
+ * V2 volume table: price per student if the group had N students, same costs, chaperones and margin.
+ * Derived from the version's inputs, so it stays out of the approval hash like `sheet`.
+ */
+export function volumePrices(v: FullVersion) {
+  return VOLUME_SIZES.map((participants) => ({
+    participants,
+    pricePerParticipant: money(engine({ ...v, participants }).pricePerParticipant),
+  }));
 }
 
 /**
@@ -224,6 +274,7 @@ function snapshotHash(v: FullVersion) {
     reviews: _rw,
     warnings: _w,
     sheet: _sh,
+    volumePrices: _vp,
     paymentSchedule: _ps,
     freePlaces: _fp,
     lines,
@@ -297,6 +348,7 @@ export function toDto(v: FullVersion) {
       source: f.source,
     })),
     totals: missingFx.length ? null : calculate(v),
+    volumePrices: missingFx.length ? null : volumePrices(v),
     sheet: missingFx.length ? null : sheet(v),
     warnings: [
       ...missingFx.map((c) => ({
@@ -314,7 +366,7 @@ export function toDto(v: FullVersion) {
     })),
     reviews: v.reviews.map((r) => ({
       decision: r.decision,
-      reviewer: r.reviewer.name,
+      reviewer: r.reviewer?.name ?? 'Regla automática',
       comment: r.comment,
       at: r.createdAt.toISOString(),
     })),
@@ -581,6 +633,24 @@ export class QuotesController {
     return clientProposal(v, r);
   }
 
+  /** Changes against the previous version of the same scenario (null when this is v1). */
+  @Get('quotes/:id/compare')
+  async compare(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
+    const v = await this.prisma.quoteVersion.findUnique({ where: { id }, include: full });
+    if (!v) throw new NotFoundException('Cotización no encontrada');
+    await this.request(this.prisma, v.scenario.requestId, user);
+    const prev = await this.prisma.quoteVersion.findFirst({
+      where: { scenarioId: v.scenarioId, number: { lt: v.number } },
+      orderBy: { number: 'desc' },
+      include: full,
+    });
+    if (!prev) return { previous: null, fields: [], lines: [] };
+    return {
+      previous: { id: prev.id, number: prev.number, status: prev.status },
+      ...compareVersions(toDto(prev), toDto(v)),
+    };
+  }
+
   @Get('quotes/:id')
   async get(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
     const v = await this.prisma.quoteVersion.findUnique({
@@ -756,6 +826,8 @@ export class QuotesController {
     @Param('id', uuid) id: string,
     @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
   ) {
+    const rules = await approvalRules(this.prisma);
+    let auto: string | null = null;
     const dto = await this.review(user, req, id, body.rowVersion, 'quote.submitted_for_approval', (v, r) => {
       this.assertWork(user, r);
       if (!(EDITABLE as readonly string[]).includes(v.status))
@@ -773,9 +845,13 @@ export class QuotesController {
           code: 'INCOMPLETE_QUOTE',
           message: `Falta completar: ${missing.join(', ')}`,
         });
-      return { status: 'IN_REVIEW' };
+      auto = autoApproval(rules, v);
+      // A rule approval is a formal policy exception (CLAUDE.md): recorded as its own review, audited.
+      return auto
+        ? { status: 'APPROVED', decision: 'APPROVED', comment: auto, reviewer: null }
+        : { status: 'IN_REVIEW' };
     });
-    void this.notifier.notify({ kind: 'REVIEW_REQUESTED', versionId: id }, user.id);
+    void this.notifier.notify({ kind: auto ? 'APPROVED' : 'REVIEW_REQUESTED', versionId: id }, user.id);
     return dto;
   }
 
@@ -787,12 +863,20 @@ export class QuotesController {
     @Param('id', uuid) id: string,
     @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
   ) {
+    const rules = await approvalRules(this.prisma);
+    let final = true;
     const dto = await this.review(user, req, id, body.rowVersion, 'quote.approved', (v, r) => {
       this.assertReviewer(user, v, r);
       this.assertWithinLimit(user, v);
-      return { status: 'APPROVED', decision: 'APPROVED', comment: body.comment };
+      const earlier = approvalsThisRound(v);
+      if (earlier.some((x) => x.reviewerId === user.id))
+        throw new ForbiddenException('Ya autorizaste esta versión; falta la firma de otra persona');
+      final = !needsTwoLevels(rules, v) || earlier.length >= 1;
+      return final
+        ? { status: 'APPROVED', decision: 'APPROVED', comment: body.comment }
+        : { status: 'IN_REVIEW', decision: 'APPROVED', comment: body.comment ?? 'Primera firma de dos' };
     });
-    void this.notifier.notify({ kind: 'APPROVED', versionId: id }, user.id);
+    if (final) void this.notifier.notify({ kind: 'APPROVED', versionId: id }, user.id);
     return dto;
   }
 
@@ -966,6 +1050,8 @@ export class QuotesController {
       status: 'IN_REVIEW' | 'APPROVED' | 'RETURNED' | 'SENT';
       decision?: 'APPROVED' | 'RETURNED';
       comment?: string;
+      /** null = approved by an Administración rule, not by the acting user. */
+      reviewer?: null;
       after?: () => Promise<unknown>;
     },
   ) {
@@ -984,7 +1070,7 @@ export class QuotesController {
         await tx.quoteReview.create({
           data: {
             versionId: id,
-            reviewerId: user.id,
+            reviewerId: next.reviewer === null ? null : user.id,
             decision: next.decision,
             comment: next.comment,
             calculationHash: snapshotHash(v),
@@ -1000,6 +1086,7 @@ export class QuotesController {
         diff: {
           status: { from: v.status, to: next.status },
           ...(next.comment ? { comment: next.comment } : {}),
+          ...(next.reviewer === null ? { approvedBy: 'rule' } : {}),
         },
       });
       return toDto(await tx.quoteVersion.findUniqueOrThrow({ where: { id }, include: full }));

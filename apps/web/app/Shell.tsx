@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { api, isPublicPath } from './lib/api';
 import { Logo } from './Logo';
 import { useMe } from './lib/useMe';
+import { WorkNotifier } from './WorkNotifier';
 
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -47,6 +48,9 @@ export function Shell({ children }: { children: ReactNode }) {
               <Link href="/enviadas" aria-current={current('/enviadas')}>
                 Enviadas
               </Link>
+              <Link href="/colegios" aria-current={current('/colegios')}>
+                Colegios
+              </Link>
               {me?.roles.some((r) => ['OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'].includes(r.role)) && (
                 <Link href="/tablero" aria-current={current('/tablero')}>
                   Dashboard ejecutivo
@@ -64,6 +68,13 @@ export function Shell({ children }: { children: ReactNode }) {
                   Plantillas
                 </Link>
               )}
+              {me?.roles.some((r) =>
+                ['QUOTER', 'APPROVER', 'OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'].includes(r.role),
+              ) && (
+                <Link href="/proveedores" aria-current={current('/proveedores')}>
+                  Proveedores
+                </Link>
+              )}
               {me?.roles.some((r) => r.role === 'SYSTEM_ADMIN') && (
                 <Link href="/rubros" aria-current={current('/rubros')}>
                   Rubros
@@ -76,6 +87,7 @@ export function Shell({ children }: { children: ReactNode }) {
               )}
             </nav>
             <div className="user">
+              {me && <WorkNotifier />}
               <button className="secondary" onClick={logout}>
                 Cerrar sesión
               </button>

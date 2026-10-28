@@ -132,6 +132,44 @@ describe('executive dashboard', () => {
     expect(b.totals.won).toBe(1);
   });
 
+  it('annual goals: system admins set them; each office sees its MXN won against its goal', async () => {
+    const year = new Date().getUTCFullYear();
+    const goals = { [officeA]: '500000', [officeB]: '1000000' };
+    await ctx.http().put(`/api/v1/settings/goals/${year}`).set('Cookie', c.adminA).send(goals).expect(403);
+    await ctx
+      .http()
+      .put(`/api/v1/settings/goals/${year}`)
+      .set('Cookie', c.sysadmin)
+      .send({ x: '1' })
+      .expect(400);
+    await ctx.http().put(`/api/v1/settings/goals/1999`).set('Cookie', c.sysadmin).send(goals).expect(400);
+    await ctx.http().put(`/api/v1/settings/goals/${year}`).set('Cookie', c.sysadmin).send(goals).expect(200);
+    expect((await ctx.http().get(`/api/v1/settings/goals/${year}`).set('Cookie', c.sysadmin)).body).toEqual(
+      goals,
+    );
+    await ctx.http().get(`/api/v1/settings/goals/${year}`).set('Cookie', c.adminA).expect(403);
+    // Office B's trip gets an MXN rate: 10 × 2 000 EUR × 20 = 400 000 MXN. Office A's have none.
+    const b = await prisma.travelRequest.findFirstOrThrow({ where: { officeId: officeB, status: 'WON' } });
+    await prisma.quoteVersion.update({ where: { id: b.wonVersionId! }, data: { mxnRate: 20 } });
+
+    const forA = (await executive(c.adminA)).body.goals;
+    expect(forA.offices).toEqual([
+      expect.objectContaining({
+        id: officeA,
+        goalMxn: '500000.00',
+        wonMxn: '0.00',
+        progress: 0,
+        withoutRate: 2,
+      }),
+    ]);
+    const all = (await executive(c.sysadmin)).body.goals;
+    expect(all.offices.find((o: { id: string }) => o.id === officeB)).toMatchObject({
+      wonMxn: '400000.00',
+      progress: 40,
+      withoutRate: 0,
+    });
+  });
+
   it('the period filters by creation date', async () => {
     const past = (await executive(c.adminA, '?from=2020-01-01&to=2020-12-31')).body as Executive;
     expect(past.totals).toMatchObject({ requests: 0, conversion: null, wonAmount: {} });

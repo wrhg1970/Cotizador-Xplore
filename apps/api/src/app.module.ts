@@ -10,6 +10,7 @@ import { HealthController } from './health.controller.js';
 import { PrismaShutdown, prismaProvider } from './prisma.service.js';
 import { CatalogsController } from './catalogs.controller.js';
 import { ConceptTemplatesController } from './concepts/concept-templates.controller.js';
+import { SuppliersController } from './suppliers/suppliers.controller.js';
 import { OfficeQuotersController, RequestsController } from './requests/requests.controller.js';
 import { QuotesController } from './quotes/quotes.controller.js';
 import { QuoteTemplatesController } from './quotes/templates.controller.js';
@@ -28,7 +29,8 @@ import { IntegrationsController, ReportsController } from './reports/reports.con
 import { HttpWeTravel, type WeTravel, WETRAVEL } from './integrations/wetravel.js';
 import { BANXICO, type Banxico, HttpBanxico } from './rates/banxico.js';
 import { CronController } from './cron/cron.controller.js';
-import { AlertSettingsController } from './alerts/alerts.controller.js';
+import { SchoolsController } from './schools/schools.controller.js';
+import { SettingsController } from './alerts/alerts.controller.js';
 
 @Module({})
 export class AppModule {
@@ -84,6 +86,7 @@ export class AppModule {
         OfficeQuotersController,
         CatalogsController,
         ConceptTemplatesController,
+        SuppliersController,
         QuotesController,
         QuoteTemplatesController,
         DashboardController,
@@ -98,7 +101,8 @@ export class AppModule {
         ReportsController,
         IntegrationsController,
         CronController,
-        AlertSettingsController,
+        SettingsController,
+        SchoolsController,
       ],
       providers: [
         { provide: ENV, useValue: env },
