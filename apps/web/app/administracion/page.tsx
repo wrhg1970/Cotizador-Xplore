@@ -11,6 +11,10 @@ interface Office {
   id: string;
   code: string;
   name: string;
+  active: boolean;
+  requests: number;
+  userRoles: number;
+  templates: number;
 }
 
 const FLAG = {
@@ -30,13 +34,14 @@ export default function AdminPage() {
   const [offices, setOffices] = useState<Office[]>([]);
   const [rates, setRates] = useState<OfficialRateDto[]>([]);
   const [integrations, setIntegrations] = useState<{ key: string; name: string; configured: boolean }[]>([]);
+  const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const isSysAdmin = !!me?.roles.some((r) => r.role === 'SYSTEM_ADMIN');
 
   const reload = useCallback(() => {
     api<Row[]>('/role-policies').then(setRows, (e) => setError(errorText(e)));
-    api<Office[]>('/offices').then(setOffices, (e) => setError(errorText(e)));
+    api<Office[]>('/offices/all').then(setOffices, (e) => setError(errorText(e)));
     api<OfficialRateDto[]>('/official-rates').then(setRates, (e) => setError(errorText(e)));
     api<typeof integrations>('/integrations').then(setIntegrations, (e) => setError(errorText(e)));
   }, []);
@@ -76,6 +81,14 @@ export default function AdminPage() {
     const body = { code: String(f.get('code')).trim().toUpperCase(), name: String(f.get('name')).trim() };
     if (await run(`Oficina ${body.code} creada`, () => api('/offices', { method: 'POST', body })))
       form.reset();
+  }
+
+  async function saveOffice(e: FormEvent<HTMLFormElement>, o: Office) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const body = { code: String(f.get('code')).trim().toUpperCase(), name: String(f.get('name')).trim() };
+    if (await run(`Oficina ${body.code} guardada`, () => api(`/offices/${o.id}`, { method: 'PATCH', body })))
+      setEditing(null);
   }
 
   async function publishRate(e: FormEvent<HTMLFormElement>) {
@@ -237,13 +250,96 @@ export default function AdminPage() {
 
       <section aria-labelledby="oficinas">
         <h2 id="oficinas">Oficinas</h2>
-        <ul>
-          {offices.map((o) => (
-            <li key={o.id}>
-              <strong>{o.code}</strong> · {o.name}
-            </li>
-          ))}
-        </ul>
+        <p className="muted">
+          Una oficina con solicitudes, usuarios o plantillas no se borra: se desactiva y conserva su
+          historial. Desactivada, ya no aparece para nuevas solicitudes ni para dar privilegios.
+        </p>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Estado</th>
+                <th className="num">Solicitudes</th>
+                <th className="num">Privilegios</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {offices.map((o) =>
+                editing === o.id ? (
+                  <tr key={o.id}>
+                    <td colSpan={6}>
+                      <form className="row" onSubmit={(e) => void saveOffice(e, o)}>
+                        <label>
+                          Código
+                          <input
+                            name="code"
+                            required
+                            pattern="[A-Za-z0-9\-]{2,20}"
+                            maxLength={20}
+                            defaultValue={o.code}
+                          />
+                        </label>
+                        <label>
+                          Nombre
+                          <input name="name" required maxLength={120} defaultValue={o.name} />
+                        </label>
+                        <button>Guardar</button>
+                        <button type="button" className="secondary" onClick={() => setEditing(null)}>
+                          Cancelar
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={o.id}>
+                    <th scope="row">{o.code}</th>
+                    <td>{o.name}</td>
+                    <td>{o.active ? 'Activa' : <span className="muted">Desactivada</span>}</td>
+                    <td className="num">{o.requests}</td>
+                    <td className="num">{o.userRoles}</td>
+                    <td className="row">
+                      <button
+                        className="secondary"
+                        aria-label={`Editar ${o.code}`}
+                        onClick={() => setEditing(o.id)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        className="secondary"
+                        aria-label={`${o.active ? 'Desactivar' : 'Activar'} ${o.code}`}
+                        onClick={() =>
+                          void run(`Oficina ${o.code} ${o.active ? 'desactivada' : 'activada'}`, () =>
+                            api(`/offices/${o.id}`, { method: 'PATCH', body: { active: !o.active } }),
+                          )
+                        }
+                      >
+                        {o.active ? 'Desactivar' : 'Activar'}
+                      </button>
+                      {o.requests + o.userRoles + o.templates === 0 && (
+                        <button
+                          className="danger"
+                          aria-label={`Borrar ${o.code}`}
+                          onClick={() => {
+                            if (window.confirm(`¿Borrar la oficina ${o.code}? No se puede deshacer.`))
+                              void run(`Oficina ${o.code} borrada`, () =>
+                                api(`/offices/${o.id}`, { method: 'DELETE' }),
+                              );
+                          }}
+                        >
+                          Borrar
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ),
+              )}
+            </tbody>
+          </table>
+        </div>
         <form onSubmit={createOffice} className="row">
           <label>
             Código

@@ -128,6 +128,8 @@ export const ACTION_LABEL: Record<string, string> = {
   'concept_template.updated': 'Editó un rubro del catálogo',
   'role_policy.updated': 'Cambió permisos de un rol',
   'office.created': 'Creó una oficina',
+  'office.updated': 'Modificó una oficina',
+  'office.deleted': 'Borró una oficina',
   'user.role_granted': 'Dio un rol',
   'user.offices_updated': 'Cambió las oficinas de un usuario',
   'user.role_revoked': 'Quitó un rol',

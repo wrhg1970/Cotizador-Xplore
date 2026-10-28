@@ -27,6 +27,9 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `GET /official-rates` — tipos de cambio oficiales vigentes (el más reciente por par), para cualquier usuario con sesión. `POST /official-rates` `{fromCurrency, toCurrency, rate, rateDate, source}` publica uno nuevo; solo administrador del sistema, auditado como `official_rate.published`. No se editan ni borran.
 - `GET /role-policies`, `PUT /role-policies/{role}` — permisos por rol (`canView`, `canCreate`, `canEdit`, `canDelete`, `allOffices`, `viewInternalCosts`, `exportInternalXlsx`, `approvalLimitMxn`); solo administrador del sistema, con auditoría. `SYSTEM_ADMIN` no es editable. `GET /me` incluye `policies`
 - `POST /offices` — alta de oficina (administrador del sistema)
+- `GET /offices/all` — todas las oficinas, activas o no, con cuántas solicitudes, privilegios y plantillas tienen (administrador del sistema). `GET /offices` sigue devolviendo solo las activas
+- `PATCH /offices/{id}` — `{code?, name?, active?}`: renombrar, cambiar código o desactivar/activar; 409 si el código ya existe. Auditado como `office.updated` con antes y después
+- `DELETE /offices/{id}` — borra solo una oficina vacía (sin solicitudes, privilegios ni plantillas); si tiene historial responde 409 y hay que desactivarla. Auditado como `office.deleted`
 - `PUT /users/{id}/offices` — `{officeIds}`: oficinas donde aplican los privilegios del usuario (todos salvo administrador del sistema); solo administrador del sistema, auditado como `user.offices_updated`. `GET /users` incluye `officeIds` solo para el administrador del sistema
 - `GET /audit-logs?officeId&action&actorEmail&entityId&from&to&page&limit` — bitácora de solo lectura; coordinador de oficina y auditor ven sus oficinas, administrador del sistema todo (incluye inicios de sesión y cambios globales). `action` filtra por prefijo (`quote.`), fechas `YYYY-MM-DD` inclusivas, `limit` ≤ 100
 

@@ -144,3 +144,64 @@ describe('user administration (US-002, US-003)', () => {
     expect(offices.body).toEqual([]);
   });
 });
+
+describe('office maintenance', () => {
+  const http = () => ctx.http();
+  const newOffice = async () =>
+    (
+      await http()
+        .post('/api/v1/offices')
+        .set('Cookie', sysAdmin)
+        .send({ code: `E-${uniq()}`.toUpperCase(), name: 'Por editar' })
+        .expect(201)
+    ).body as { id: string; code: string };
+
+  it('system admin renames, recodes and deactivates; audited; others get 403', async () => {
+    const o = await newOffice();
+    await http().patch(`/api/v1/offices/${o.id}`).set('Cookie', officeAdminA).send({ name: 'X' }).expect(403);
+    await http().patch(`/api/v1/offices/${o.id}`).set('Cookie', sysAdmin).send({}).expect(400);
+    const code = `R-${uniq()}`.toUpperCase();
+    const res = await http()
+      .patch(`/api/v1/offices/${o.id}`)
+      .set('Cookie', sysAdmin)
+      .send({ code, name: 'Renombrada', active: false })
+      .expect(200);
+    expect(res.body).toEqual({ id: o.id, code, name: 'Renombrada', active: false });
+    const log = await prisma.auditLog.findFirstOrThrow({
+      where: { action: 'office.updated', entityId: o.id },
+    });
+    expect(log.diff).toMatchObject({ before: { code: o.code, active: true }, after: { active: false } });
+    // Inactive offices drop out of pickers but stay in administration.
+    const pick = (await http().get('/api/v1/offices').set('Cookie', sysAdmin).expect(200)).body;
+    expect(pick.some((x: { id: string }) => x.id === o.id)).toBe(false);
+    const all = (await http().get('/api/v1/offices/all').set('Cookie', sysAdmin).expect(200)).body;
+    expect(all.find((x: { id: string }) => x.id === o.id)).toMatchObject({ active: false, requests: 0 });
+    await http().get('/api/v1/offices/all').set('Cookie', officeAdminA).expect(403);
+  });
+
+  it('refuses a duplicate code and an unknown office', async () => {
+    const o = await newOffice();
+    const other = await newOffice();
+    await http()
+      .patch(`/api/v1/offices/${o.id}`)
+      .set('Cookie', sysAdmin)
+      .send({ code: other.code })
+      .expect(409);
+    await http()
+      .patch(`/api/v1/offices/${crypto.randomUUID()}`)
+      .set('Cookie', sysAdmin)
+      .send({ name: 'X' })
+      .expect(404);
+  });
+
+  it('deletes only an empty office; one with users must be deactivated instead', async () => {
+    const empty = await newOffice();
+    await http().delete(`/api/v1/offices/${empty.id}`).set('Cookie', officeAdminA).expect(403);
+    await http().delete(`/api/v1/offices/${empty.id}`).set('Cookie', sysAdmin).expect(204);
+    expect(await prisma.office.findUnique({ where: { id: empty.id } })).toBeNull();
+    expect(await prisma.auditLog.count({ where: { action: 'office.deleted', entityId: empty.id } })).toBe(1);
+    const res = await http().delete(`/api/v1/offices/${officeA.id}`).set('Cookie', sysAdmin).expect(409);
+    expect(res.body.message).toContain('desactívala');
+    expect(await prisma.office.findUnique({ where: { id: officeA.id } })).not.toBeNull();
+  });
+});
