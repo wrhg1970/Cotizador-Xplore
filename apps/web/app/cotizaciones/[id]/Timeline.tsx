@@ -38,6 +38,24 @@ const TRANSITION: Record<string, [string, string]> = {
   'request.lost': ['Enviada', 'Perdida'],
   'request.cancelled': ['Abierta', 'Cancelada'],
 };
+const FIELD: Record<string, string> = {
+  targetMarginRate: '% comisión',
+  targetPricePerParticipant: 'precio final',
+  mxnRate: 'tipo de cambio a MXN',
+  saleCurrency: 'moneda de venta',
+  participants: 'estudiantes',
+  chaperones: 'chaperones de la escuela',
+  staff: 'chaperones EE',
+  validUntil: 'vigencia',
+  assumptions: 'supuestos',
+  paymentPlan: 'plan de pagos',
+  studentsPerFreePlace: 'lugares liberados',
+  freePlaceBenefit: 'destino del lugar liberado',
+  showVolumePrices: 'precio por volumen en la propuesta',
+  itinerary: 'itinerario',
+  exclusions: 'no incluye',
+  coverAttachmentId: 'portada',
+};
 const kindOf = (action: string): Kind =>
   PRICE.includes(action) ? 'price' : TRANSITION[action] || action === 'request.created' ? 'state' : 'notes';
 
@@ -46,7 +64,8 @@ function describe(detail: unknown): string {
   if (!detail || typeof detail !== 'object') return '';
   const d = detail as Record<string, unknown>;
   const parts: string[] = [];
-  if (Array.isArray(d.fields) && d.fields.length) parts.push(`Campos: ${d.fields.join(', ')}`);
+  if (Array.isArray(d.fields) && d.fields.length)
+    parts.push(`Cambió: ${d.fields.map((f) => FIELD[String(f)] ?? String(f)).join(', ')}`);
   if (typeof d.lines === 'number') parts.push(`${d.lines} conceptos`);
   if (Array.isArray(d.fxRates))
     parts.push(
@@ -75,15 +94,18 @@ export function Timeline({ data, folio }: { data: TimelineData | null; folio: st
   if (!data) return <p className="muted">Cargando…</p>;
 
   const all = [
-    ...data.events.map((e) => ({
-      id: e.id,
-      at: e.at,
-      kind: kindOf(e.action),
-      title: ACTION_LABEL[e.action] ?? e.action,
-      detail: describe(e.detail),
-      transition: TRANSITION[e.action],
-      actor: e.actor?.name ?? 'Proceso automático',
-    })),
+    // The comment itself is listed below with its text; its audit twin would only repeat it.
+    ...data.events
+      .filter((e) => e.action !== 'request.commented')
+      .map((e) => ({
+        id: e.id,
+        at: e.at,
+        kind: kindOf(e.action),
+        title: ACTION_LABEL[e.action] ?? e.action,
+        detail: describe(e.detail),
+        transition: TRANSITION[e.action],
+        actor: e.actor?.name ?? 'Proceso automático',
+      })),
     ...data.comments.map((c) => ({
       id: c.id,
       at: c.createdAt,

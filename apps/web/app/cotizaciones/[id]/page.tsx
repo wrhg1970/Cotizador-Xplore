@@ -321,6 +321,10 @@ export default function QuoteEditorPage() {
   }
 
   const optionCount = Math.max(scenarios.length, 1);
+  // Same count the timeline shows: a comment's audit event is not listed twice.
+  const eventCount = timeline
+    ? timeline.events.filter((e) => e.action !== 'request.commented').length + timeline.comments.length
+    : null;
   const goodPct = live.ok && Number(live.pct) >= OPTIMAL_PCT;
 
   return (
@@ -330,7 +334,7 @@ export default function QuoteEditorPage() {
         req={req}
         role={role}
         optionCount={optionCount}
-        eventCount={timeline ? timeline.events.length + timeline.comments.length : null}
+        eventCount={eventCount}
         onStage={(i) => {
           if (i === 0) router.push(`/solicitudes/${q.requestId}`);
           else if (i === 1) setTab(editable ? 'conceptos' : 'hoja');
@@ -342,7 +346,7 @@ export default function QuoteEditorPage() {
               Propuesta PDF
             </Link>
             <button type="button" className="secondary" onClick={() => setTab('bitacora')}>
-              Línea de tiempo{timeline ? ` (${timeline.events.length + timeline.comments.length})` : ''}
+              Línea de tiempo{eventCount !== null ? ` (${eventCount})` : ''}
             </button>
             {scenarios.length > 1 && (
               <Link className="button secondary" href={`/solicitudes/${q.requestId}#escenarios`}>
