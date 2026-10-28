@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CurrencyCode, LineCategory } from '@ee/contracts';
 import { api, errorText } from '../../lib/api';
 import { PaymentSchedule, ProposalContent } from './ProposalContent';
+import { ShareLinks } from './ShareLinks';
 import { SheetImport } from './SheetImport';
 import { SheetSummary } from './SheetSummary';
 import {
@@ -347,6 +348,16 @@ export default function QuoteEditorPage() {
             ))}
           </ul>
         )}
+        <ShareLinks
+          quoteId={q.id}
+          canShare={
+            works &&
+            !!req &&
+            ['APPROVED', 'SENT'].includes(q.status) &&
+            ['QUOTING', 'SENT', 'WON'].includes(req.status)
+          }
+          canRevoke={works}
+        />
         {q.reviews.length > 0 && (
           <ol className="timeline">
             {q.reviews.map((r, i) => (

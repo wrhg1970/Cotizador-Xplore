@@ -112,3 +112,9 @@
 - Adjuntos en Postgres (bytea) y no en Cloud Storage: no requiere infraestructura nueva para el piloto. Límite 3 MB × 20 por solicitud; si crece el volumen, mover a un bucket.
 - El tipo se decide por los bytes (lista permitida) y la descarga es siempre `attachment` con `nosniff`, para que un archivo subido nunca se ejecute en el dominio. No hay antivirus: los archivos se reciben de usuarios internos con sesión de Workspace.
 - Equipo: ejecutivo comercial y apoyo, solo personas de la misma oficina. No da permisos extra (la visibilidad sigue siendo por oficina y rol); sirve para saber quién lleva la solicitud y para «Mi trabajo».
+
+## Liga para el colegio (2026-10-28)
+- V2 «portal de la propuesta»: el colegio abre la propuesta sin cuenta desde una liga. Solo versiones autorizadas o enviadas de solicitudes abiertas (o ganadas); muestra exactamente lo mismo que «Ver propuesta para compartir», sin costos.
+- La crea quien envía propuestas (cotizador asignado o coordinador), con vigencia de 1 a 90 días; se puede revocar. Se ve cuántas veces se abrió.
+- El token se muestra una sola vez y solo se guarda su hash: ni la base ni la bitácora permiten reconstruir la liga. Si se pierde, se crea otra.
+- Fuera de alcance por ahora: que el colegio acepte o rechace desde la liga (la respuesta se sigue registrando en «Ganada/Perdida»).

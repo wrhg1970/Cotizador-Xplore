@@ -36,6 +36,7 @@ import {
   type QuoteLine,
   type QuoteReview,
   type QuoteVersion,
+  type TravelRequest,
 } from '@ee/db';
 import {
   calculateQuote,
@@ -62,7 +63,7 @@ import { quoteWorkbook } from './quote-xlsx.js';
 import { paymentLinkBody, type WeTravel, WETRAVEL, WeTravelError } from '../integrations/wetravel.js';
 
 type Tx = Prisma.TransactionClient;
-type FullVersion = QuoteVersion & {
+export type FullVersion = QuoteVersion & {
   lines: QuoteLine[];
   fxRates: QuoteFxRate[];
   scenario: { name: string; requestId: string };
@@ -71,7 +72,7 @@ type FullVersion = QuoteVersion & {
 };
 
 const uuid = new ParseUUIDPipe({ version: '4' });
-const full = {
+export const full = {
   lines: { orderBy: { position: 'asc' } },
   fxRates: { orderBy: { fromCurrency: 'asc' } },
   scenario: { select: { name: true, requestId: true } },
@@ -131,6 +132,44 @@ export const engine = (v: QuoteVersion & { lines: QuoteLine[]; fxRates: QuoteFxR
     fxRates: Object.fromEntries(v.fxRates.map((f) => [f.fromCurrency, new D(f.rate.toString())])),
     mxnRate: v.mxnRate && v.saleCurrency !== 'MXN' ? new D(v.mxnRate.toString()) : null,
   });
+
+/** Client-safe proposal (PRD §PDF): price, group, validity and included concepts; never costs or margin. */
+export function clientProposal(v: FullVersion, r: TravelRequest) {
+  const dto = toDto(v);
+  const { totals, validUntil, assumptions } = dto;
+  return {
+    id: v.id,
+    number: v.number,
+    scenarioName: v.scenario.name,
+    authorized: v.status === 'APPROVED' || v.status === 'SENT',
+    request: {
+      id: r.id,
+      folio: r.folio,
+      groupName: r.groupName,
+      city: r.city,
+      countryCode: r.countryCode,
+      departureDate: day(r.departureDate),
+      returnDate: day(r.returnDate),
+    },
+    participants: v.participants,
+    chaperones: v.chaperones,
+    saleCurrency: v.saleCurrency,
+    pricePerParticipant: totals?.pricePerParticipant ?? null,
+    pricePerParticipantMxn: totals?.pricePerParticipantMxn ?? null,
+    validUntil,
+    assumptions,
+    paymentSchedule: dto.paymentSchedule,
+    freePlaces: dto.freePlaces && { count: dto.freePlaces, benefit: dto.freePlaceBenefit },
+    itinerary: dto.itinerary ?? [],
+    exclusions: dto.exclusions,
+    includes: v.lines
+      // Base concepts start at zero; an unpriced one is not something the trip includes.
+      .filter(
+        (l) => !l.internalOnly && l.category === 'PER_PARTICIPANT' && l.unitCost.gt(0) && l.quantity.gt(0),
+      )
+      .map((l) => l.description),
+  };
+}
 
 /** Live figures for the editor; frozen with a hash when the version goes to approval. */
 function calculate(v: FullVersion) {
@@ -528,40 +567,7 @@ export class QuotesController {
     const r = v && (await this.prisma.travelRequest.findUnique({ where: { id: v.scenario.requestId } }));
     if (!v || !r || !canView(user, r) || r.status === 'DRAFT')
       throw new NotFoundException('Cotización no encontrada');
-    const dto = toDto(v);
-    const { totals, validUntil, assumptions } = dto;
-    return {
-      id: v.id,
-      number: v.number,
-      scenarioName: v.scenario.name,
-      authorized: v.status === 'APPROVED' || v.status === 'SENT',
-      request: {
-        id: r.id,
-        folio: r.folio,
-        groupName: r.groupName,
-        city: r.city,
-        countryCode: r.countryCode,
-        departureDate: day(r.departureDate),
-        returnDate: day(r.returnDate),
-      },
-      participants: v.participants,
-      chaperones: v.chaperones,
-      saleCurrency: v.saleCurrency,
-      pricePerParticipant: totals?.pricePerParticipant ?? null,
-      pricePerParticipantMxn: totals?.pricePerParticipantMxn ?? null,
-      validUntil,
-      assumptions,
-      paymentSchedule: dto.paymentSchedule,
-      freePlaces: dto.freePlaces && { count: dto.freePlaces, benefit: dto.freePlaceBenefit },
-      itinerary: dto.itinerary ?? [],
-      exclusions: dto.exclusions,
-      includes: v.lines
-        // Base concepts start at zero; an unpriced one is not something the trip includes.
-        .filter(
-          (l) => !l.internalOnly && l.category === 'PER_PARTICIPANT' && l.unitCost.gt(0) && l.quantity.gt(0),
-        )
-        .map((l) => l.description),
-    };
+    return clientProposal(v, r);
   }
 
   @Get('quotes/:id')
