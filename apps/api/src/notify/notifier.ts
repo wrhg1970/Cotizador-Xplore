@@ -40,7 +40,7 @@ export class SmtpMailer implements Mailer {
 
 export type Notice =
   | { kind: 'ASSIGNED'; requestId: string }
-  | { kind: 'REVIEW_REQUESTED' | 'RETURNED' | 'APPROVED'; versionId: string };
+  | { kind: 'REVIEW_REQUESTED' | 'RETURNED' | 'APPROVED' | 'ACCEPTED'; versionId: string };
 
 const COPY: Record<Notice['kind'], { subject: string; line: string }> = {
   ASSIGNED: { subject: 'Te asignaron la solicitud', line: 'Te asignaron una solicitud para cotizar.' },
@@ -55,6 +55,10 @@ const COPY: Record<Notice['kind'], { subject: string; line: string }> = {
   APPROVED: {
     subject: 'Cotización autorizada',
     line: 'La cotización fue autorizada y ya puede enviarse al cliente.',
+  },
+  ACCEPTED: {
+    subject: 'El colegio aceptó la propuesta',
+    line: 'El colegio aceptó la propuesta en línea; la solicitud quedó como ganada.',
   },
 };
 
@@ -134,7 +138,9 @@ export class Notifier {
               select: { userId: true },
             })
           ).map((x) => x.userId)
-        : quoters;
+        : notice.kind === 'ACCEPTED'
+          ? [...quoters, r.requesterId]
+          : quoters;
     return {
       folio: r.folio,
       groupName: r.groupName,

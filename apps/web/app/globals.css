@@ -798,3 +798,8 @@ input[type='radio'] {
   color: inherit;
   opacity: 0.85;
 }
+/* School's acceptance form under the shared proposal. */
+.proposal-accept {
+  max-width: 880px;
+  margin: 24px auto 0;
+}

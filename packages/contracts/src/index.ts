@@ -211,6 +211,13 @@ export const SetRequestTeam = z
   );
 
 /** School link (V2 portal): days until it stops working. */
+/** The school's acceptance on the shared link: who signs and with what position. */
+export const AcceptProposal = z.strictObject({
+  signerName: ShortText(150),
+  signerRole: ShortText(150),
+  accepted: z.literal(true),
+});
+
 export const CreateProposalShare = z.strictObject({ days: z.number().int().min(1).max(90).default(30) });
 
 export const VersionOnly = z.strictObject({ version: z.number().int().min(1) });

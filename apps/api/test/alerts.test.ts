@@ -122,7 +122,8 @@ describe('overdue alerts', () => {
     expect(by('PAYMENT_DUE')).toMatchObject([
       { requestId: won.id, detail: 'El pago 1 de los alumnos vence el 2030-05-23' },
     ]);
-    expect(JSON.stringify(alerts)).not.toMatch(/900|990|1000/);
+    // No prices in what also goes by email.
+    expect(alerts.map((a) => a.detail).join(' ')).not.toMatch(/900|990|1000/);
 
     const off = await computeAlerts(
       prisma,

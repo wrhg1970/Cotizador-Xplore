@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import {
   Body,
   Controller,
+  ConflictException,
   Delete,
   ForbiddenException,
   Get,
@@ -15,7 +16,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
-import { CreateProposalShare } from '@ee/contracts';
+import { AcceptProposal, CreateProposalShare } from '@ee/contracts';
 import type { PrismaClient, TravelRequest } from '@ee/db';
 import type { z } from 'zod';
 import { audit } from '../audit.js';
@@ -25,6 +26,7 @@ import { CurrentUser, Public } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { canView } from '../requests/request-policy.js';
 import { ZodPipe } from '../zod.pipe.js';
+import { Notifier } from '../notify/notifier.js';
 import { clientProposal, full } from './quotes.controller.js';
 
 const uuid = new ParseUUIDPipe({ version: '4' });
@@ -40,7 +42,10 @@ const OPEN = ['QUOTING', 'SENT', 'WON'];
  */
 @Controller()
 export class ProposalShareController {
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    private readonly notifier: Notifier,
+  ) {}
 
   private async version(id: string, user: AuthUser) {
     const v = await this.prisma.quoteVersion.findUnique({ where: { id }, include: full });
@@ -62,11 +67,18 @@ export class ProposalShareController {
     const rows = await this.prisma.proposalShare.findMany({
       where: { versionId: id },
       omit: { tokenHash: true },
-      include: { createdBy: { select: { name: true } } },
+      include: {
+        createdBy: { select: { name: true } },
+        acceptances: { select: { signerName: true, signerRole: true, acceptedAt: true, ip: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map((s) => ({
+    return rows.map(({ acceptances, ...s }) => ({
       ...s,
+      acceptance: acceptances[0] && {
+        ...acceptances[0],
+        acceptedAt: acceptances[0].acceptedAt.toISOString(),
+      },
       expiresAt: s.expiresAt.toISOString(),
       revokedAt: s.revokedAt?.toISOString() ?? null,
       lastViewAt: s.lastViewAt?.toISOString() ?? null,
@@ -137,7 +149,7 @@ export class ProposalShareController {
     if (!TOKEN.test(token)) throw gone;
     const s = await this.prisma.proposalShare.findUnique({
       where: { tokenHash: hash(token) },
-      include: { version: { include: full } },
+      include: { version: { include: { ...full, acceptance: true } } },
     });
     if (!s || s.revokedAt || s.expiresAt <= new Date() || !SHAREABLE.includes(s.version.status)) throw gone;
     const r = await this.prisma.travelRequest.findUniqueOrThrow({
@@ -186,6 +198,72 @@ export class ProposalShareController {
     });
     const { request, id: _id, ...proposal } = clientProposal(s.version, r);
     const { id: _rid, ...publicRequest } = request;
-    return { ...proposal, request: publicRequest, expiresAt: s.expiresAt.toISOString() };
+    const a = s.version.acceptance;
+    return {
+      ...proposal,
+      request: publicRequest,
+      expiresAt: s.expiresAt.toISOString(),
+      canAccept: s.version.status === 'SENT' && r.status === 'SENT',
+      acceptance: a && {
+        signerName: a.signerName,
+        signerRole: a.signerRole,
+        acceptedAt: a.acceptedAt.toISOString(),
+      },
+    };
+  }
+
+  /**
+   * The school accepts online (V2 "firma del colegio"): records who, position, when and from where,
+   * and marks the request won with this version, under the same rule as the manual outcome:
+   * only a version actually sent, only while the request awaits an answer, one winner.
+   */
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('public/proposals/:token/accept')
+  async accept(
+    @Param('token') token: string,
+    @Req() req: Request,
+    @Body(new ZodPipe(AcceptProposal)) body: z.infer<typeof AcceptProposal>,
+  ) {
+    const { s, r } = await this.share(token);
+    if (s.version.status !== 'SENT' || r.status !== 'SENT')
+      throw new ConflictException({
+        code: 'NOT_ACCEPTABLE',
+        message: 'Esta propuesta ya no puede aceptarse en línea; contacta a tu ejecutivo',
+      });
+    const ip = (req.header('x-forwarded-for')?.split(',')[0] ?? req.ip ?? '').trim().slice(0, 64) || null;
+    const accepted = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.travelRequest.updateMany({
+        where: { id: r.id, status: 'SENT', wonVersionId: null },
+        data: { status: 'WON', wonVersionId: s.versionId, closedAt: new Date(), version: { increment: 1 } },
+      });
+      if (!count)
+        throw new ConflictException({ code: 'ALREADY_CLOSED', message: 'La solicitud ya tiene respuesta' });
+      const a = await tx.proposalAcceptance.create({
+        data: {
+          shareId: s.id,
+          versionId: s.versionId,
+          signerName: body.signerName,
+          signerRole: body.signerRole,
+          ip,
+          userAgent: req.header('user-agent')?.slice(0, 300) ?? null,
+        },
+      });
+      // Who signed stays in proposal_acceptances; the log keeps only the reference.
+      await audit(tx, {
+        actorUserId: null,
+        action: 'request.won',
+        entityType: 'TravelRequest',
+        entityId: r.id,
+        correlationId: req.correlationId,
+        diff: {
+          status: { from: 'SENT', to: 'WON' },
+          detail: { versionId: s.versionId, via: 'school_link', acceptanceId: a.id },
+        },
+      });
+      return a;
+    });
+    void this.notifier.notify({ kind: 'ACCEPTED', versionId: s.versionId }, '');
+    return { acceptedAt: accepted.acceptedAt.toISOString() };
   }
 }

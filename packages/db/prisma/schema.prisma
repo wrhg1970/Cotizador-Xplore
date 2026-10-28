@@ -257,45 +257,46 @@ model QuoteScenario {
 
 /// A version is the unit that gets calculated, approved and sent; group sizes live here so siblings never interfere (US-031).
 model QuoteVersion {
-  id                   String             @id @default(uuid()) @db.Uuid
-  scenarioId           String             @map("scenario_id") @db.Uuid
+  id                   String              @id @default(uuid()) @db.Uuid
+  scenarioId           String              @map("scenario_id") @db.Uuid
   number               Int
-  status               QuoteVersionStatus @default(DRAFT)
-  saleCurrency         String             @map("sale_currency") @db.Char(3)
+  status               QuoteVersionStatus  @default(DRAFT)
+  saleCurrency         String              @map("sale_currency") @db.Char(3)
   /// Margin over sale price (Finance's "% Comisión"): price = cost / (1 - rate).
-  targetMarginRate     Decimal            @default(0) @map("target_margin_rate") @db.Decimal(7, 6)
+  targetMarginRate     Decimal             @default(0) @map("target_margin_rate") @db.Decimal(7, 6)
   /// MXN per 1 sale currency, only for the approximate peso figures shown to the client.
-  mxnRate              Decimal?           @map("mxn_rate") @db.Decimal(20, 10)
+  mxnRate              Decimal?            @map("mxn_rate") @db.Decimal(20, 10)
   participants         Int
   chaperones           Int
   staff                Int
-  validUntil           DateTime?          @map("valid_until") @db.Date
+  validUntil           DateTime?           @map("valid_until") @db.Date
   assumptions          String?
   /// Registration + installments config (contracts PaymentPlanInput); the schedule is computed, not stored.
-  paymentPlan          Json?              @map("payment_plan")
+  paymentPlan          Json?               @map("payment_plan")
   /// "1 lugar liberado por cada N estudiantes"; informative only, never changes the price (confirmed 2026-10-27).
-  studentsPerFreePlace Int?               @map("students_per_free_place")
-  freePlaceBenefit     FreePlaceBenefit?  @map("free_place_benefit")
+  studentsPerFreePlace Int?                @map("students_per_free_place")
+  freePlaceBenefit     FreePlaceBenefit?   @map("free_place_benefit")
   /// Day-by-day plan shown in the proposal (contracts ItineraryDay[]).
   itinerary            Json?
   /// "No incluye" lines for the proposal.
-  exclusions           String[]           @default([])
+  exclusions           String[]            @default([])
   /// Destination photo on the proposal: an image attachment of the same request.
-  coverAttachmentId    String?            @map("cover_attachment_id") @db.Uuid
-  coverAttachment      RequestAttachment? @relation(fields: [coverAttachmentId], references: [id], onDelete: Restrict)
+  coverAttachmentId    String?             @map("cover_attachment_id") @db.Uuid
+  coverAttachment      RequestAttachment?  @relation(fields: [coverAttachmentId], references: [id], onDelete: Restrict)
   /// Optimistic concurrency token for edits.
-  rowVersion           Int                @default(1) @map("row_version")
-  createdById          String             @map("created_by_id") @db.Uuid
-  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
-  scenario             QuoteScenario      @relation(fields: [scenarioId], references: [id], onDelete: Restrict)
-  createdBy            User               @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  rowVersion           Int                 @default(1) @map("row_version")
+  createdById          String              @map("created_by_id") @db.Uuid
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  scenario             QuoteScenario       @relation(fields: [scenarioId], references: [id], onDelete: Restrict)
+  createdBy            User                @relation(fields: [createdById], references: [id], onDelete: Restrict)
   lines                QuoteLine[]
   fxRates              QuoteFxRate[]
   reviews              QuoteReview[]
   deliveries           ProposalDelivery[]
-  wonFor               TravelRequest?     @relation("wonVersion")
+  wonFor               TravelRequest?      @relation("wonVersion")
   shares               ProposalShare[]
+  acceptance           ProposalAcceptance?
 
   @@unique([scenarioId, number])
   @@map("quote_versions")
@@ -490,20 +491,38 @@ model RequestMember {
 
 /// Link the school opens without an account (V2 "portal de la propuesta"): only the token's SHA-256 is stored.
 model ProposalShare {
-  id          String       @id @default(uuid()) @db.Uuid
-  versionId   String       @map("version_id") @db.Uuid
-  tokenHash   String       @unique @map("token_hash")
-  expiresAt   DateTime     @map("expires_at") @db.Timestamptz(3)
-  revokedAt   DateTime?    @map("revoked_at") @db.Timestamptz(3)
-  viewCount   Int          @default(0) @map("view_count")
-  lastViewAt  DateTime?    @map("last_view_at") @db.Timestamptz(3)
-  createdById String       @map("created_by_id") @db.Uuid
-  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  version     QuoteVersion @relation(fields: [versionId], references: [id], onDelete: Restrict)
-  createdBy   User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  id          String               @id @default(uuid()) @db.Uuid
+  versionId   String               @map("version_id") @db.Uuid
+  tokenHash   String               @unique @map("token_hash")
+  expiresAt   DateTime             @map("expires_at") @db.Timestamptz(3)
+  revokedAt   DateTime?            @map("revoked_at") @db.Timestamptz(3)
+  viewCount   Int                  @default(0) @map("view_count")
+  lastViewAt  DateTime?            @map("last_view_at") @db.Timestamptz(3)
+  createdById String               @map("created_by_id") @db.Uuid
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  version     QuoteVersion         @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  createdBy   User                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  acceptances ProposalAcceptance[]
 
   @@index([versionId])
   @@map("proposal_shares")
+}
+
+/// The school's online "acepto" through the shared link (append-only evidence); marks the request won.
+model ProposalAcceptance {
+  id         String        @id @default(uuid()) @db.Uuid
+  shareId    String        @map("share_id") @db.Uuid
+  versionId  String        @unique @map("version_id") @db.Uuid
+  signerName String        @map("signer_name")
+  signerRole String        @map("signer_role")
+  /// As reported by the proxy chain (first X-Forwarded-For hop); evidence, not authentication.
+  ip         String?
+  userAgent  String?       @map("user_agent")
+  acceptedAt DateTime      @default(now()) @map("accepted_at") @db.Timestamptz(3)
+  share      ProposalShare @relation(fields: [shareId], references: [id], onDelete: Restrict)
+  version    QuoteVersion  @relation(fields: [versionId], references: [id], onDelete: Restrict)
+
+  @@map("proposal_acceptances")
 }
 
 /// Small admin-editable settings (contracts AlertSettings, …) keyed by name; the value is validated in the API.
