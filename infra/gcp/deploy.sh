@@ -68,6 +68,12 @@ exists gcloud sql instances describe "$DB_INSTANCE" ||
   gcloud sql instances create "$DB_INSTANCE" --database-version=POSTGRES_16 \
     --edition=enterprise --tier=db-g1-small --region="$REGION" \
     --backup-start-time=08:00 --enable-point-in-time-recovery
+# Daily backups kept 30 days + 7 days of point-in-time recovery; deletion protection. Patched once, no restart.
+if [[ "$(gcloud sql instances describe "$DB_INSTANCE" \
+  --format='value(settings.backupConfiguration.backupRetentionSettings.retainedBackups,settings.deletionProtectionEnabled)')" != $'30\tTrue' ]]; then
+  gcloud sql instances patch "$DB_INSTANCE" --quiet --backup-start-time=08:00 --enable-point-in-time-recovery \
+    --retained-backups-count=30 --retained-transaction-log-days=7 --deletion-protection
+fi
 exists gcloud sql databases describe "$DB_NAME" --instance="$DB_INSTANCE" ||
   gcloud sql databases create "$DB_NAME" --instance="$DB_INSTANCE"
 

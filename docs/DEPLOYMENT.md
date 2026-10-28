@@ -80,6 +80,9 @@ PROJECT_ID=<id-del-proyecto> ALLOWED_GOOGLE_DOMAINS=estudiantesembajadores.com \
 - Las variables `SEED_*` son opcionales; solo hacen falta la primera vez.
 - Al final imprime la URL y la URI de redirección que hay que registrar en el cliente OAuth. El dominio propio se mapea a producción (ver abajo).
 
+## Respaldos
+`deploy.sh` deja la instancia de Cloud SQL con respaldo diario (08:00 UTC) guardado 30 días, recuperación a un punto en el tiempo de 7 días y protección contra borrado. Staging y producción comparten instancia, así que el mismo respaldo cubre ambas bases. Para restaurar: Cloud SQL → instancia `cotizador-db` → Respaldos → Restaurar (o "Clonar a un punto en el tiempo" para recuperar sin tocar la instancia viva). Los respaldos se borran si se elimina la instancia; la protección contra borrado lo evita.
+
 ## Producción separada de staging
 
 `deploy.sh` acepta `ENV=staging|prod` (por defecto `staging`). Los dos entornos viven en el mismo proyecto y la misma instancia de Cloud SQL, pero con datos y sesiones separados:

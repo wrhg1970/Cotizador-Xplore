@@ -32,6 +32,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `DELETE /offices/{id}` — borra solo una oficina vacía (sin solicitudes, privilegios ni plantillas); si tiene historial responde 409 y hay que desactivarla. Auditado como `office.deleted`
 - `PUT /users/{id}/offices` — `{officeIds}`: oficinas donde aplican los privilegios del usuario (todos salvo administrador del sistema); solo administrador del sistema, auditado como `user.offices_updated`. `GET /users` incluye `officeIds` solo para el administrador del sistema
 - `GET /audit-logs?officeId&action&actorEmail&entityId&from&to&page&limit` — bitácora de solo lectura; coordinador de oficina y auditor ven sus oficinas, administrador del sistema todo (incluye inicios de sesión y cambios globales). `action` filtra por prefijo (`quote.`), fechas `YYYY-MM-DD` inclusivas, `limit` ≤ 100
+- `GET /audit-logs/export.csv` — mismos filtros y alcance que la lista, sin paginar (máximo 10 000 filas), CSV UTF-8 con celdas tipo fórmula neutralizadas; la descarga queda auditada como `audit_log.exported`.
 
 ### Solicitudes
 - `POST /requests`

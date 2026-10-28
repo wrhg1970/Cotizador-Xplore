@@ -31,7 +31,7 @@ La información de solicitudes, versiones, costos y decisiones puede dispersarse
 - **Aprobador:** revisa, aprueba o devuelve cotizaciones. No puede aprobar su propia cotización por defecto.
 - **Administrador de oficina:** asigna usuarios, consulta solicitudes de su oficina y gestiona parámetros permitidos.
 - **Administrador del sistema:** gestiona oficinas, roles, catálogos, reglas globales e integraciones.
-- **Auditor/Consulta:** lectura de reportes e historial según alcance autorizado.
+- **Auditor/Consulta (también Finanzas):** lectura de reportes, costos, Excel interno, bitácora y su CSV, sin crear ni editar. Para Finanzas con todas las oficinas, activar "Todas las oficinas" en la matriz de roles para Auditor.
 - **Servicio de integración:** identidad técnica limitada a las operaciones necesarias.
 
 ## 6. Campos de solicitud

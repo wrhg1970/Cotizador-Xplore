@@ -335,7 +335,7 @@ export const ROLE_LABEL: Record<RoleName, string> = {
   APPROVER: 'Autorizar viaje',
   OFFICE_ADMIN: 'Coordinador de oficina',
   SYSTEM_ADMIN: 'Administrador del sistema',
-  AUDITOR: 'Auditor (solo lectura)',
+  AUDITOR: 'Auditor / Finanzas (solo lectura)',
 };
 
 export interface SupplierRateDto {

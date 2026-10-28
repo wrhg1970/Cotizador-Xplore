@@ -93,6 +93,17 @@ function AuditLog() {
         auditores ven su oficina; el administrador del sistema ve todo, incluidos inicios de sesión y
         permisos.
       </p>
+      <p>
+        {/* Same filters as the screen, without paging; a plain link so the browser downloads the file. */}
+        <a
+          className="button secondary"
+          href={`/api/v1/audit-logs/export.csv?${new URLSearchParams(
+            [...params.entries()].filter(([k]) => k !== 'page'),
+          ).toString()}`}
+        >
+          Descargar CSV
+        </a>
+      </p>
       <form className="row card" role="search" onSubmit={search} style={{ marginBottom: 16 }}>
         <label>
           Oficina

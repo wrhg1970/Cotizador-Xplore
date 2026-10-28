@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { csvCell } from '../src/audit-log/audit-log.controller.js';
 import { loginAs, makeApp, makeOffice, makeUser, prisma } from './helpers.js';
 
 let ctx: Awaited<ReturnType<typeof makeApp>>;
@@ -137,5 +138,37 @@ describe('audit log browser', () => {
     await expect(
       prisma.auditLog.updateMany({ where: { entityId: requestA }, data: { action: 'x' } }),
     ).rejects.toThrow(/append-only/);
+  });
+
+  it('exports CSV with the same scope and filters, and audits the export', async () => {
+    const res = await ctx
+      .http()
+      .get(`/api/v1/audit-logs/export.csv?officeId=${officeA}`)
+      .set('Cookie', c.auditorA)
+      .expect(200);
+    expect(res.headers['content-type']).toMatch(/text\/csv/);
+    expect(res.text.startsWith('\uFEFFFecha (UTC),Oficina')).toBe(true);
+    expect(res.text).toContain(requestA);
+    expect(res.text).not.toContain(requestB);
+    await ctx
+      .http()
+      .get(`/api/v1/audit-logs/export.csv?officeId=${officeB}`)
+      .set('Cookie', c.auditorA)
+      .expect(403);
+    await ctx.http().get('/api/v1/audit-logs/export.csv').set('Cookie', c.advisorA).expect(403);
+    const logged = await prisma.auditLog.findFirst({
+      where: { action: 'audit_log.exported', entityId: officeA },
+    });
+    expect(logged).not.toBeNull();
+  });
+});
+
+describe('csvCell', () => {
+  it('quotes separators and neutralizes formulas', () => {
+    expect(csvCell('a,b')).toBe('"a,b"');
+    expect(csvCell('say "hi"')).toBe('"say ""hi"""');
+    expect(csvCell('=HYPERLINK("x")')).toBe(`"'=HYPERLINK(""x"")"`);
+    expect(csvCell('-5')).toBe("'-5");
+    expect(csvCell('plain')).toBe('plain');
   });
 });
