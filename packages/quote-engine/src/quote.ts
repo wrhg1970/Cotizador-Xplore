@@ -1,5 +1,6 @@
 import { D, type Dec, QuoteEngineError, safeDivide } from './money.js';
 import { lineTotal, priceFromTargetMargin } from './pricing.js';
+import { freePlaces } from './schedule.js';
 
 /**
  * Pilot pricing model, taken from Finance's sheet (ITALIA SPRING BREAK 2027, one tab per option):
@@ -24,6 +25,20 @@ export interface QuoteInput {
 
 const headcount = (q: QuoteInput, c: Category) =>
   c === 'PER_CHAPERONE' ? q.chaperones : c === 'PER_STAFF' ? q.staff : 1;
+
+/**
+ * The same quote at another group size (V2 volume ladder). With "1 lugar liberado por cada N", the group
+ * travels with one chaperone per free place earned; the extra ones are school chaperones, never fewer
+ * than the quote already has.
+ */
+export function atGroupSize<T extends Pick<QuoteInput, 'participants' | 'chaperones' | 'staff'>>(
+  q: T,
+  participants: number,
+  studentsPerFreePlace?: number | null,
+): T {
+  const earned = studentsPerFreePlace ? freePlaces(participants, studentsPerFreePlace) : 0;
+  return { ...q, participants, chaperones: Math.max(q.chaperones, earned - q.staff) };
+}
 
 export function calculateQuote(q: QuoteInput) {
   const lineTotals = q.lines.map((l) => {
