@@ -134,6 +134,8 @@ const needs = (n: number) => (n === 1 ? '1 requiere tu acción' : `${n} requiere
 
 // Pipeline order of the EE process; closed states go last.
 const STATUSES: RequestStatus[] = ['DRAFT', 'SUBMITTED', 'QUOTING', 'SENT', 'WON', 'LOST', 'CANCELLED'];
+/** Offices only show up while they have work in progress (not just closed requests). */
+const ACTIVE: RequestStatus[] = ['DRAFT', 'SUBMITTED', 'QUOTING', 'SENT'];
 
 /** Won ÷ (won + lost): only proposals the client already answered count. */
 const conversion = (s: Partial<Record<RequestStatus, number>>) => {
@@ -238,6 +240,7 @@ export function WorkPage({ initialView }: { initialView: View }) {
     OWNER: (r) => r.role !== 'SUPPORT',
     SUPPORT: (r) => r.role === 'SUPPORT',
   };
+  const activeOffices = (data?.offices ?? []).filter((o) => ACTIVE.some((s) => o.byStatus[s]));
   const q = query.trim().toLowerCase();
   const shown = (data?.requests ?? [])
     .filter(PASSES[filter])
@@ -413,7 +416,14 @@ export function WorkPage({ initialView }: { initialView: View }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.offices.map((o) => (
+                  {activeOffices.length === 0 && (
+                    <tr>
+                      <td colSpan={STATUSES.length + 2} className="muted">
+                        Ninguna oficina tiene cotizaciones activas.
+                      </td>
+                    </tr>
+                  )}
+                  {activeOffices.map((o) => (
                     <tr key={o.id}>
                       <th scope="row">
                         {o.code} · {o.name}
