@@ -2085,3 +2085,52 @@ ol.decision-log li {
 .stage-bar span.on {
   background: var(--accent);
 }
+
+/* Request detail ("ficha"): denser, smaller type (Will, 2026-10-29), data in two columns. */
+.ficha {
+  font-size: 0.875rem;
+}
+.ficha h1 {
+  font-size: 1.6rem;
+}
+.ficha h2 {
+  font-size: 1rem;
+  margin: 16px 0 8px;
+}
+.ficha .card {
+  padding: 14px 18px;
+}
+.ficha .card > h2:first-child,
+.ficha .card > section > h2:first-child {
+  margin-top: 0;
+}
+.ficha label {
+  font-size: 0.8rem;
+}
+.ficha input,
+.ficha select,
+.ficha textarea {
+  min-height: 34px;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+.ficha button,
+.ficha .button {
+  font-size: 0.85rem;
+  min-height: 34px;
+  padding: 6px 14px;
+}
+.ficha dl.facts {
+  gap: 4px 16px;
+}
+@media (min-width: 760px) {
+  .ficha dl.facts {
+    grid-template-columns: max-content 1fr max-content 1fr;
+  }
+}
+.ficha .tabs {
+  margin: 12px 0;
+}
+.ficha [role='tabpanel'] > section > h2:first-child {
+  margin-top: 0;
+}

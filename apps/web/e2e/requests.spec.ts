@@ -72,6 +72,7 @@ test('advisor creates and submits; admin assigns; quoter sees it in Mis tareas',
     .selectOption({ label: 'Quique Cotizador' });
   await adm.getByRole('button', { name: 'Asignar' }).click();
   await expect(adm.locator('.badge')).toHaveText('En cotización');
+  await adm.getByRole('tab', { name: 'Bitácora' }).click();
   await expect(adm.getByText('Asignó cotizador · Carlos Coordinador')).toBeVisible();
 
   // Quoter inbox

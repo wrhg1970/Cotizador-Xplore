@@ -31,7 +31,7 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await page.getByLabel('Nombre del escenario').fill('Opción 1');
   await page.getByLabel('Moneda de venta').selectOption('EUR');
   await page.getByRole('button', { name: 'Nuevo escenario' }).click();
-  await expect(page).toHaveURL(/\/cotizaciones\//); // the first scenario opens its sheet
+  await expect(page).toHaveURL(/\/cotizaciones\//); // a new scenario opens its sheet
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Opción 1 · v1');
 
   // The scenario starts with the EE sheet's base concepts; fill Finance's "Opción 1" costs.
@@ -127,6 +127,9 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await page.getByRole('link', { name: /Italia Spring Break 2027/ }).click();
   page.once('dialog', (d) => d.accept('Opción 2'));
   await page.getByRole('button', { name: 'Duplicar' }).click();
+  // Every new scenario opens its sheet right away.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Opción 2 · v1');
+  await page.goBack();
   await expect(page.getByRole('link', { name: 'Opción 2' })).toBeVisible();
   await expect(page.getByRole('cell', { name: '5200.00 EUR' })).toHaveCount(2);
 
@@ -134,6 +137,8 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await page.getByLabel('Nombre del escenario').fill('Opción 3');
   await page.getByLabel('Empezar desde').selectOption({ label: 'Plantilla: Italia base' });
   await page.getByRole('button', { name: 'Nuevo escenario' }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Opción 3 · v1');
+  await page.goBack();
   await expect(page.getByRole('link', { name: 'Opción 3' })).toBeVisible();
   await expect(page.getByRole('cell', { name: '5200.00 EUR' })).toHaveCount(3);
 

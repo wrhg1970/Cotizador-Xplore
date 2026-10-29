@@ -27,6 +27,7 @@ test('requester builds the team and attaches a file', async ({ browser }) => {
   await ctx.addCookies([advisor.cookie]);
   const page = await ctx.newPage();
   await page.goto(`/solicitudes/${req.id}`);
+  await page.getByRole('tab', { name: 'Equipo' }).click();
   const team = page.getByRole('region', { name: 'Equipo' });
   await team
     .getByRole('combobox', { name: 'Ejecutivo comercial' })
@@ -35,6 +36,7 @@ test('requester builds the team and attaches a file', async ({ browser }) => {
   await expect(team.getByRole('checkbox', { name: quoter.user.name })).toBeChecked();
   await expect.poll(() => prisma.requestMember.count({ where: { requestId: req.id } })).toBe(2);
 
+  await page.getByRole('tab', { name: 'Documentos' }).click();
   const files = page.getByRole('region', { name: 'Archivos' });
   await files.getByLabel(/Agregar archivo/).setInputFiles({
     name: 'carta.pdf',

@@ -36,6 +36,7 @@ test('the office admin reads the audit log of their office, filtered by record',
   await ctx.addCookies([admin.cookie]);
   const page = await ctx.newPage();
   await page.goto(`/solicitudes/${req.id}`);
+  await page.getByRole('tab', { name: 'Bitácora' }).click();
   await page.getByRole('link', { name: /Bitácora detallada/ }).click();
   const row = page.getByRole('row').filter({ hasText: 'Envió a cotización' });
   await expect(row).toContainText('Ana');

@@ -134,7 +134,7 @@ test('a hand-typed rate is saved for the missing currency and survives a reload'
   await page.getByLabel('Nombre del escenario').fill('Opción 1');
   await page.getByLabel('Moneda de venta').selectOption('EUR');
   await page.getByRole('button', { name: 'Nuevo escenario' }).click();
-  await expect(page).toHaveURL(/\/cotizaciones\//); // the first scenario opens its sheet
+  await expect(page).toHaveURL(/\/cotizaciones\//); // a new scenario opens its sheet
   await page.getByLabel('Moneda 1', { exact: true }).selectOption('USD');
   await page.getByLabel('Costo 1', { exact: true }).fill('1000');
   const bar = page.getByRole('region', { name: 'Totales del viaje' });
