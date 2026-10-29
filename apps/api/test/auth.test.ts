@@ -67,6 +67,16 @@ describe('Google login (US-001)', () => {
     expect(noCookie.headers.location).toBe(`${WEB}/login?error=LOGIN_EXPIRED`);
   });
 
+  it('moves a login opened on another host to the callback host before setting the cookie', async () => {
+    const res = await ctx
+      .http()
+      .get('/api/v1/auth/google/login')
+      .set('X-Forwarded-Host', 'cotizador-web-prod-1.us-central1.run.app')
+      .expect(302);
+    expect(res.headers.location).toBe('http://127.0.0.1:4000/api/v1/auth/google/login');
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
   it('rejects a tampered (unsigned) login cookie', async () => {
     const checks = JSON.stringify({ state: 'a', nonce: 'b', codeVerifier: 'c' });
     const res = await ctx

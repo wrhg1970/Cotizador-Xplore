@@ -20,6 +20,8 @@ export const testEnv = (overrides: Record<string, string> = {}) =>
   loadEnv({
     NODE_ENV: 'test',
     WEB_ORIGIN: WEB,
+    // supertest calls arrive on 127.0.0.1; login only starts on the callback's host.
+    API_PUBLIC_URL: 'http://127.0.0.1:4000',
     DATABASE_URL,
     ALLOWED_GOOGLE_DOMAINS: DOMAIN,
     SESSION_SECRET: 'test-only-session-secret-0123456789abcdef',
