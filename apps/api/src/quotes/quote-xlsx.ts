@@ -126,6 +126,7 @@ export async function quoteWorkbook(q: QuoteDto, req: { folio: string; groupName
     `Total en ${q.saleCurrency}`,
     'Solo interno',
     'Fuente del costo',
+    'Nota',
   ]).font = { bold: true };
   q.lines.forEach((l, i) =>
     detail.addRow([
@@ -137,6 +138,7 @@ export async function quoteWorkbook(q: QuoteDto, req: { folio: string; groupName
       num(q.totals?.lineTotals[i]),
       l.internalOnly ? 'Sí' : 'No',
       l.costSource ?? '',
+      l.note ?? '',
     ]),
   );
 

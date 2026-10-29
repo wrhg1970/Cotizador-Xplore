@@ -324,6 +324,7 @@ export const QuoteLineInput = z.strictObject({
   currency: CurrencyCode,
   internalOnly: z.boolean().default(false),
   costSource: OptionalText(300),
+  note: OptionalText(300),
 });
 export type QuoteLineInput = z.infer<typeof QuoteLineInput>;
 

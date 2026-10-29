@@ -159,6 +159,7 @@ export interface QuoteLineDto {
   lineTotal?: string;
   internalOnly: boolean;
   costSource?: string | null;
+  note?: string | null;
 }
 
 export interface FxRateDto {

@@ -392,6 +392,8 @@ model QuoteLine {
   /// Never shown on the client PDF (US-035).
   internalOnly Boolean      @default(false) @map("internal_only")
   costSource   String?      @map("cost_source")
+  /// Internal per-line note (V2 "Nota / Detalle"); never on the client PDF.
+  note         String?
   version      QuoteVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
 
   @@index([versionId, position])

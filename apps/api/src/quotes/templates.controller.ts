@@ -100,6 +100,7 @@ export class QuoteTemplatesController {
             currency: l.currency,
             internalOnly: l.internalOnly,
             ...(l.costSource ? { costSource: l.costSource } : {}),
+            ...(l.note ? { note: l.note } : {}),
           })),
           studentsPerFreePlace: v.studentsPerFreePlace,
           freePlaceBenefit: v.freePlaceBenefit,
