@@ -51,6 +51,7 @@ test('the quoter records which sent proposal the client accepted', async ({ brow
   await page.getByRole('button', { name: 'Ganada' }).click();
   await expect(page.locator('.badge')).toHaveText('Ganada');
   await expect(page.getByText('Opción 1 · v1')).toBeVisible();
+  await page.getByRole('tab', { name: 'Bitácora' }).click();
   await expect(page.getByText('Registró la solicitud como ganada')).toBeVisible();
   await ctx.close();
 });

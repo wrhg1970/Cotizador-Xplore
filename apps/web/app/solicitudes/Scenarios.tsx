@@ -45,11 +45,11 @@ export function Scenarios({
       );
   }, [canWork, officeId]);
 
-  async function run(path: string, body: object) {
+  async function duplicate(id: string, name: string) {
     setError(null);
     try {
-      await api(path, { method: 'POST', body });
-      await reload();
+      const s = await api<ScenarioDto>(`/scenarios/${id}/duplicate`, { method: 'POST', body: { name } });
+      router.push(`/cotizaciones/${s.latest.id}`);
     } catch (e) {
       setError(errorText(e));
     }
@@ -69,10 +69,8 @@ export function Scenarios({
           ...(f.get('templateId') ? { templateId: f.get('templateId') } : {}),
         },
       });
-      // The first scenario opens its EE sheet so quoting starts right away (Will, 2026-10-29).
-      if (!items?.length) return router.push(`/cotizaciones/${s.latest.id}`);
-      form.reset();
-      await reload();
+      // Every new scenario opens its EE sheet so quoting starts right away (Will, 2026-10-29).
+      router.push(`/cotizaciones/${s.latest.id}`);
     } catch (err) {
       setError(errorText(err));
     }
@@ -87,7 +85,7 @@ export function Scenarios({
         </p>
       )}
       {items?.length === 0 && <p className="muted">Aún no hay escenarios.</p>}
-      {!!items?.length && <Comparison items={items} canWork={canWork} run={run} />}
+      {!!items?.length && <Comparison items={items} canWork={canWork} duplicate={duplicate} />}
       {canWork && (
         <form onSubmit={(e) => void create(e)} className="row" style={{ marginTop: 8 }}>
           <label>
@@ -145,11 +143,11 @@ function conceptTotal(v: QuoteDto, category: string, description: string) {
 function Comparison({
   items,
   canWork,
-  run,
+  duplicate,
 }: {
   items: ScenarioDto[];
   canWork: boolean;
-  run: (path: string, body: object) => Promise<void>;
+  duplicate: (id: string, name: string) => Promise<void>;
 }) {
   const row = (label: string, cell: (v: QuoteDto) => ReactNode, strong = false) => (
     <tr className={strong ? 'total strong' : undefined}>
@@ -257,7 +255,7 @@ function Comparison({
                     className="secondary"
                     onClick={() => {
                       const name = window.prompt('Nombre del nuevo escenario:', `${s.name} (copia)`)?.trim();
-                      if (name) void run(`/scenarios/${s.id}/duplicate`, { name });
+                      if (name) void duplicate(s.id, name);
                     }}
                   >
                     Duplicar

@@ -24,6 +24,19 @@ interface Timeline {
   events: { action: string; actor: { id: string; name: string } | null; at: string }[];
   comments: { id: string; body: string; author: { id: string; name: string }; createdAt: string }[];
 }
+type Tab = 'escenarios' | 'equipo' | 'documentos' | 'bitacora';
+/** Old in-page anchors (#escenarios, #archivos…) keep working by opening the tab that holds them. */
+const HASH_TAB: Record<string, Tab> = {
+  escenarios: 'escenarios',
+  propuestas: 'escenarios',
+  equipo: 'equipo',
+  archivos: 'documentos',
+  documentos: 'documentos',
+  comentarios: 'bitacora',
+  historial: 'bitacora',
+  bitacora: 'bitacora',
+};
+
 interface Quoter {
   id: string;
   name: string;
@@ -39,6 +52,17 @@ export default function RequestDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<Tab | null>(null);
+
+  useEffect(() => {
+    const fromHash = () => {
+      const t = HASH_TAB[window.location.hash.slice(1)];
+      if (t) setTab(t);
+    };
+    fromHash();
+    window.addEventListener('hashchange', fromHash);
+    return () => window.removeEventListener('hashchange', fromHash);
+  }, []);
 
   const reload = useCallback(async () => {
     try {
@@ -143,9 +167,24 @@ export default function RequestDetailPage() {
   const canRecordOutcome = r.status === 'SENT' && (admin || me?.id === r.assignee?.id);
   const sent = proposals.filter((p) => p.sent);
   const winner = proposals.find((p) => p.versionId === r.wonVersionId);
+  const quotes = canSeeQuotes(me, r.office.id);
+  const tabs: [Tab, string][] = [
+    ...(r.status !== 'DRAFT' ? [['escenarios', quotes ? 'Escenarios' : 'Propuestas'] as [Tab, string]] : []),
+    ['equipo', 'Equipo'],
+    ['documentos', 'Documentos'],
+    ['bitacora', 'Bitácora'],
+  ];
+  const current = tabs.some(([t]) => t === tab) ? tab! : tabs[0]![0];
+  // Panels stay mounted (hidden) so forms keep what was typed when switching tabs.
+  const panel = (t: Tab) => ({
+    id: `panel-${t}`,
+    role: 'tabpanel',
+    'aria-labelledby': `tab-${t}`,
+    hidden: current !== t,
+  });
 
   return (
-    <>
+    <div className="ficha">
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <h1 style={{ margin: 0 }}>
           {r.folio} · {r.groupName}
@@ -389,7 +428,48 @@ export default function RequestDetailPage() {
         )}
       </section>
 
-      <div className="sheet" style={{ marginTop: 16 }}>
+      <div role="tablist" aria-label="Secciones de la solicitud" className="tabs">
+        {tabs.map(([t, label], i) => (
+          <button
+            key={t}
+            id={`tab-${t}`}
+            role="tab"
+            aria-selected={current === t}
+            aria-controls={`panel-${t}`}
+            tabIndex={current === t ? 0 : -1}
+            onClick={() => setTab(t)}
+            onKeyDown={(e) => {
+              const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+              if (!step) return;
+              const next = tabs[(i + step + tabs.length) % tabs.length]![0];
+              setTab(next);
+              document.getElementById(`tab-${next}`)?.focus();
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {r.status !== 'DRAFT' && (
+        <div {...panel('escenarios')}>
+          {quotes ? (
+            <Scenarios
+              requestId={r.id}
+              officeId={r.office.id}
+              canWork={
+                r.status === 'QUOTING' &&
+                can(me, r.office.id, 'canEdit') &&
+                (admin || me?.id === r.assignee?.id)
+              }
+            />
+          ) : (
+            <Proposals requestId={r.id} />
+          )}
+        </div>
+      )}
+
+      <div {...panel('equipo')}>
         <div className="card">
           <RequestTeam
             requestId={r.id}
@@ -398,6 +478,8 @@ export default function RequestDetailPage() {
             }
           />
         </div>
+      </div>
+      <div {...panel('documentos')}>
         <div className="card">
           <RequestFiles
             requestId={r.id}
@@ -408,53 +490,44 @@ export default function RequestDetailPage() {
         </div>
       </div>
 
-      {r.status !== 'DRAFT' && !canSeeQuotes(me, r.office.id) && <Proposals requestId={r.id} />}
-      {r.status !== 'DRAFT' && canSeeQuotes(me, r.office.id) && (
-        <Scenarios
-          requestId={r.id}
-          officeId={r.office.id}
-          canWork={
-            r.status === 'QUOTING' && can(me, r.office.id, 'canEdit') && (admin || me?.id === r.assignee?.id)
-          }
-        />
-      )}
+      <div {...panel('bitacora')}>
+        <section aria-labelledby="comentarios">
+          <h2 id="comentarios">Comentarios</h2>
+          {tl?.comments.length === 0 && <p className="muted">Sin comentarios.</p>}
+          <ol className="timeline">
+            {tl?.comments.map((c) => (
+              <li key={c.id}>
+                <strong>{c.author.name}</strong> <span className="muted">{fmtDateTime(c.createdAt)}</span>
+                <p style={{ margin: '4px 0 0', whiteSpace: 'pre-wrap' }}>{c.body}</p>
+              </li>
+            ))}
+          </ol>
+          <form onSubmit={comment} className="row" style={{ marginTop: 8 }}>
+            <label style={{ flex: 1 }}>
+              Nuevo comentario
+              <textarea name="body" maxLength={2000} required />
+            </label>
+            <button>Comentar</button>
+          </form>
+        </section>
 
-      <section aria-labelledby="comentarios">
-        <h2 id="comentarios">Comentarios</h2>
-        {tl?.comments.length === 0 && <p className="muted">Sin comentarios.</p>}
-        <ol className="timeline">
-          {tl?.comments.map((c) => (
-            <li key={c.id}>
-              <strong>{c.author.name}</strong> <span className="muted">{fmtDateTime(c.createdAt)}</span>
-              <p style={{ margin: '4px 0 0', whiteSpace: 'pre-wrap' }}>{c.body}</p>
-            </li>
-          ))}
-        </ol>
-        <form onSubmit={comment} className="row" style={{ marginTop: 8 }}>
-          <label style={{ flex: 1 }}>
-            Nuevo comentario
-            <textarea name="body" maxLength={2000} required />
-          </label>
-          <button>Comentar</button>
-        </form>
-      </section>
-
-      <section aria-labelledby="historial">
-        <div className="row" style={{ justifyContent: 'space-between' }}>
-          <h2 id="historial">Historial</h2>
-          {me?.roles.some((x) => ['OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'].includes(x.role)) && (
-            <Link href={`/bitacora?requestId=${r.id}`}>Bitácora detallada (incluye cotizaciones)</Link>
-          )}
-        </div>
-        <ol className="timeline">
-          {tl?.events.map((e, i) => (
-            <li key={i}>
-              {ACTION_LABEL[e.action] ?? e.action} · {e.actor?.name ?? 'Sistema'}{' '}
-              <span className="muted">{fmtDateTime(e.at)}</span>
-            </li>
-          ))}
-        </ol>
-      </section>
-    </>
+        <section aria-labelledby="historial">
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <h2 id="historial">Historial</h2>
+            {me?.roles.some((x) => ['OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'].includes(x.role)) && (
+              <Link href={`/bitacora?requestId=${r.id}`}>Bitácora detallada (incluye cotizaciones)</Link>
+            )}
+          </div>
+          <ol className="timeline">
+            {tl?.events.map((e, i) => (
+              <li key={i}>
+                {ACTION_LABEL[e.action] ?? e.action} · {e.actor?.name ?? 'Sistema'}{' '}
+                <span className="muted">{fmtDateTime(e.at)}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      </div>
+    </div>
   );
 }
