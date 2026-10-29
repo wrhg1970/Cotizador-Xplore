@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { D, dec } from './money.js';
 import { marginRateForPrice } from './pricing.js';
-import { calculateQuote, type QuoteInput } from './quote.js';
+import { atGroupSize, calculateQuote, type QuoteInput } from './quote.js';
 
 /** One tab of Finance's "ITALIA SPRING BREAK 2027" sheet, expressed as quote lines. */
 function option(o: {
@@ -151,5 +151,19 @@ describe('calculateQuote reproduces Finance sheet', () => {
     expect(() => marginRateForPrice(cost, dec('4000'))).toThrow(/fuera de rango/); // below cost
     expect(() => marginRateForPrice(dec('0'), dec('100'))).toThrow(/fuera de rango/); // rate would be 1
     expect(() => marginRateForPrice(cost, dec('0'))).toThrow(/mayor que cero/);
+  });
+});
+
+describe('atGroupSize', () => {
+  const q = { participants: 20, chaperones: 1, staff: 1 };
+
+  it('adds a chaperone per free place earned, as V2 does', () => {
+    expect([15, 20, 25, 30, 35].map((n) => atGroupSize(q, n, 10).chaperones)).toEqual([1, 1, 1, 2, 2]);
+    expect(atGroupSize(q, 35, 10)).toEqual({ participants: 35, chaperones: 2, staff: 1 }); // 3 in all
+  });
+
+  it('keeps the quoted chaperones without a free-place rule or below it', () => {
+    expect(atGroupSize(q, 35, null).chaperones).toBe(1);
+    expect(atGroupSize({ ...q, chaperones: 4 }, 35, 10).chaperones).toBe(4);
   });
 });

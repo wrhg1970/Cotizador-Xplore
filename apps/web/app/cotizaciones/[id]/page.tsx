@@ -651,9 +651,11 @@ export default function QuoteEditorPage() {
               input={live.input}
               d={draft}
               editable={editable}
-              onFix={(n) => {
-                set({ participants: n });
-                setNotice(`Aforo fijado en ${n} estudiantes; guarda para conservarlo.`);
+              onFix={(n, chaperones) => {
+                set({ participants: n, chaperones });
+                setNotice(
+                  `Aforo fijado en ${n} estudiantes y ${chaperones} chaperones de la escuela; guarda para conservarlo.`,
+                );
               }}
               onShow={(show) => set({ showVolumePrices: show })}
               fileName={fileName}

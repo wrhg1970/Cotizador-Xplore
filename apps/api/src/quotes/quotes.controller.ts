@@ -42,6 +42,7 @@ import {
   type TravelRequest,
 } from '@ee/db';
 import {
+  atGroupSize,
   calculateQuote,
   calculationHash,
   D,
@@ -261,13 +262,16 @@ function calculate(v: FullVersion) {
 export const VOLUME_SIZES = [15, 20, 25, 30, 35] as const;
 
 /**
- * V2 volume table: price per student if the group had N students, same costs, chaperones and margin.
+ * V2 volume table: price per student if the group had N students, same costs and margin; chaperones
+ * grow with the free places earned (atGroupSize).
  * Derived from the version's inputs, so it stays out of the approval hash like `sheet`.
  */
 export function volumePrices(v: FullVersion) {
   return VOLUME_SIZES.map((participants) => ({
     participants,
-    pricePerParticipant: money(engine({ ...v, participants }).pricePerParticipant),
+    pricePerParticipant: money(
+      engine(atGroupSize(v, participants, v.studentsPerFreePlace)).pricePerParticipant,
+    ),
   }));
 }
 

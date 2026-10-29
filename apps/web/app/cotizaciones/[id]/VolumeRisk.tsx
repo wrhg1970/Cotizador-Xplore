@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { calculateQuote, D, freePlaces, type QuoteInput, safeDivide } from '@ee/quote-engine';
+import { atGroupSize, calculateQuote, D, freePlaces, type QuoteInput, safeDivide } from '@ee/quote-engine';
 import { downloadCsv } from '../../lib/csv';
 import type { QuoteDto } from '../../lib/types';
 
@@ -9,11 +9,13 @@ const n2 = (x: Dec) => x.toFixed(2);
 const SIZES = [15, 20, 25, 30, 35] as const;
 
 /** Chaperones, EE staff and emergency fund spread over n students: the sheet's "Gastos del líder". */
-function at(input: QuoteInput, participants: number) {
-  const r = calculateQuote({ ...input, participants });
+function at(input: QuoteInput, participants: number, studentsPerFreePlace?: number | null) {
+  const sized = atGroupSize(input, participants, studentsPerFreePlace);
+  const r = calculateQuote(sized);
   const b = r.byCategory;
   return {
     ...r,
+    chaperones: sized.chaperones,
     leaderEach: safeDivide(b.PER_CHAPERONE.plus(b.PER_STAFF).plus(b.CONTINGENCY), new D(participants)),
   };
 }
@@ -117,7 +119,7 @@ export function Sensitivity({ input, d }: { input: QuoteInput; d: QuoteDto }) {
   );
 }
 
-/** V2 volume ladder: same costs, chaperones and margin; only how many students share the fixed costs changes. */
+/** V2 volume ladder: same costs and margin; chaperones grow with the free places earned. */
 export function VolumeMatrix({
   input,
   d,
@@ -129,7 +131,7 @@ export function VolumeMatrix({
   input: QuoteInput;
   d: QuoteDto;
   editable: boolean;
-  onFix: (participants: number) => void;
+  onFix: (participants: number, chaperones: number) => void;
   onShow: (show: boolean) => void;
   fileName: string;
 }) {
@@ -137,12 +139,14 @@ export function VolumeMatrix({
   const mxn = cur === 'MXN' ? new D(1) : d.mxnRate ? new D(d.mxnRate) : null;
   const ratio = d.studentsPerFreePlace;
   const rows = SIZES.map((n, i) => {
-    const r = at(input, n);
+    const r = at(input, n, ratio);
     const next = SIZES[i + 1];
     return {
       n,
       range: next ? `${n} a ${next - 1}` : `${n} o más`,
       active: d.participants >= n && (!next || d.participants < next),
+      chaps: `${r.chaperones} escuela · ${d.staff} EE`,
+      chaperones: r.chaperones,
       free: ratio ? freePlaces(n, ratio) : null,
       leader: r.leaderEach,
       price: r.pricePerParticipant,
@@ -150,7 +154,6 @@ export function VolumeMatrix({
       group: mxn && r.pricePerParticipant.mul(mxn).mul(n),
     };
   });
-  const chaps = `${d.chaperones} escuela · ${d.staff} EE`;
 
   return (
     <section className="card" aria-labelledby="volumen">
@@ -161,8 +164,8 @@ export function VolumeMatrix({
             Precio escalonado por rangos de aforo (15, 20, 25, 30 y 35+)
           </h2>
           <p className="muted" style={{ margin: '4px 0 0' }}>
-            Mismos costos, chaperones y % de comisión; cambia entre cuántos se reparten los gastos de
-            chaperones y del grupo. Los lugares liberados se informan y no bajan el precio.
+            Mismos costos y % de comisión; cambia entre cuántos se reparten los gastos de chaperones y del
+            grupo. Con lugares liberados, viaja un chaperón por cada lugar ganado (como en la V2).
           </p>
         </div>
         <button
@@ -182,7 +185,7 @@ export function VolumeMatrix({
               ...rows.map((r) => [
                 r.range,
                 r.n,
-                chaps,
+                r.chaps,
                 r.free ?? '',
                 n2(r.leader),
                 n2(r.price),
@@ -216,7 +219,7 @@ export function VolumeMatrix({
                 </td>
                 <td className="num">{r.n}</td>
                 <td>
-                  {chaps}
+                  {r.chaps}
                   {r.free !== null && ` (${r.free} liberados)`}
                 </td>
                 <td className="num">{n2(r.leader)}</td>
@@ -227,7 +230,11 @@ export function VolumeMatrix({
                   {r.active ? (
                     <span className="pill dark">Activo</span>
                   ) : editable ? (
-                    <button type="button" className="secondary small" onClick={() => onFix(r.n)}>
+                    <button
+                      type="button"
+                      className="secondary small"
+                      onClick={() => onFix(r.n, r.chaperones)}
+                    >
                       Fijar aforo
                     </button>
                   ) : null}
