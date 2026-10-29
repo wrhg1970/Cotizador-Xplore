@@ -246,7 +246,7 @@ export const CHANNEL_LABEL: Record<DeliveryChannel, string> = {
   OTHER: 'Otro',
 };
 
-export const PENDING_LEGEND = 'VIAJE CON AUTORIZACIÓN PENDIENTE';
+export const PENDING_LEGEND = 'Viaje con autorización pendiente';
 
 export interface ScenarioDto {
   id: string;

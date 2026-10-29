@@ -337,14 +337,33 @@ ol.timeline li {
   border-bottom: 1px solid var(--border);
 }
 
-/* Unauthorized trips must be unmistakable on screen and on paper. */
+/* Unauthorized trips: a calm notice that is still impossible to miss. */
 .legend {
-  border: 2px solid var(--danger);
-  color: var(--danger);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  padding: 8px 12px;
-  text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--brand-yellow);
+  border-radius: 12px;
+  color: var(--text);
+  padding: 10px 14px;
+}
+.legend strong {
+  color: var(--warn);
+}
+.legend strong::before {
+  content: '⏳ ';
+}
+/* An unauthorized proposal never reaches paper or PDF. */
+@media print {
+  .proposal.unauthorized > * {
+    display: none !important;
+  }
+  .proposal.unauthorized::before {
+    content: 'Propuesta sin autorizar: no se puede imprimir ni descargar.';
+  }
 }
 
 @media print {
@@ -1347,18 +1366,6 @@ button.warn {
   background: #00457f;
   border-color: #00457f;
   color: #ffffff;
-}
-.tabs.grouped {
-  border-radius: 16px;
-  align-items: center;
-}
-.tab-group {
-  padding: 0 4px 0 10px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 fieldset.plain {
   margin: 0;

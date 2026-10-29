@@ -72,9 +72,9 @@ test('admin grants "Autorizar viaje"; legend shows until the trip is authorized'
   await advCtx.addCookies([advisor.cookie]);
   const adv = await advCtx.newPage();
   await adv.goto(`/solicitudes/${req.id}`);
-  await expect(adv.getByRole('cell', { name: 'VIAJE CON AUTORIZACIÓN PENDIENTE' })).toBeVisible();
+  await expect(adv.getByRole('cell', { name: 'Viaje con autorización pendiente' })).toBeVisible();
   await adv.getByRole('link', { name: 'Opción 1 · v1' }).click();
-  await expect(adv.getByText('VIAJE CON AUTORIZACIÓN PENDIENTE')).toHaveCount(2);
+  await expect(adv.getByText('Viaje con autorización pendiente')).toHaveCount(2);
   await expect(adv.getByText('5000.00 EUR')).toBeVisible();
 
   // Quoter submits.
@@ -98,7 +98,7 @@ test('admin grants "Autorizar viaje"; legend shows until the trip is authorized'
   // Legend gone for the advisor.
   await adv.reload();
   await expect(adv.getByRole('heading', { name: 'Italia Spring Break 2027' })).toBeVisible();
-  await expect(adv.getByText('VIAJE CON AUTORIZACIÓN PENDIENTE')).toHaveCount(0);
+  await expect(adv.getByText('Viaje con autorización pendiente')).toHaveCount(0);
 
   // Quoter downloads the internal Excel and records the send.
   await quo.reload();
