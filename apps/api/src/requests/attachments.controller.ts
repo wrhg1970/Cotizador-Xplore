@@ -83,6 +83,11 @@ export class AttachmentsController {
         message: 'Solo se aceptan PDF, imágenes PNG/JPG, Excel, Word, PowerPoint, CSV o texto',
       });
     return this.prisma.$transaction(async (tx) => {
+      if (
+        body.versionId &&
+        !(await tx.quoteVersion.count({ where: { id: body.versionId, scenario: { requestId: id } } }))
+      )
+        throw new NotFoundException('Propuesta no encontrada en esta solicitud');
       if ((await tx.requestAttachment.count({ where: { requestId: id } })) >= MAX_FILES)
         throw new ConflictException({
           code: 'ATTACHMENT',
@@ -96,6 +101,7 @@ export class AttachmentsController {
           size: content.length,
           content,
           uploadedById: user.id,
+          versionId: body.versionId,
         },
         omit: { content: true },
       });
@@ -106,7 +112,7 @@ export class AttachmentsController {
         entityType: 'TravelRequest',
         entityId: id,
         correlationId: req.correlationId,
-        diff: { attachmentId: a.id, fileName: a.fileName, mimeType, size: a.size },
+        diff: { attachmentId: a.id, fileName: a.fileName, mimeType, size: a.size, versionId: a.versionId },
       });
       return { ...a, createdAt: a.createdAt.toISOString() };
     });

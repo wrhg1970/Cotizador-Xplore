@@ -213,6 +213,8 @@ export const UploadAttachment = z.strictObject({
     .string()
     .min(1)
     .max(Math.ceil((MAX_ATTACHMENT_BYTES * 4) / 3) + 4),
+  /** Files it into that proposal's expediente; the version must belong to the request. */
+  versionId: z.uuid().optional(),
 });
 /** Request team (V2): one commercial executive and up to 20 support people, all from the request's office. */
 export const SetRequestTeam = z

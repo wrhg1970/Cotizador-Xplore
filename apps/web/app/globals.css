@@ -2069,3 +2069,19 @@ ol.decision-log li {
   border-radius: 10px;
   padding: 10px 14px;
 }
+
+/* 4-step progress in the requests/quotes table (V2 "Etapa del proceso"). */
+.stage-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin: 4px 0;
+}
+.stage-bar span {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--border);
+}
+.stage-bar span.on {
+  background: var(--accent);
+}

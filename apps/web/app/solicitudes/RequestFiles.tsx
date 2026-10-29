@@ -11,24 +11,31 @@ interface Attachment {
   size: number;
   createdAt: string;
   uploadedBy: { id: string; name: string };
+  versionId: string | null;
 }
 
 const MAX_BYTES = 3 * 1024 * 1024;
 const kb = (n: number) => `${Math.max(1, Math.round(n / 1024))} KB`;
 
-/** V2 "adjuntos": school letters, supplier quotes; the server sniffs the type and forces download. */
+/**
+ * V2 "adjuntos": school letters, supplier quotes; the server sniffs the type and forces download.
+ * With `versionId` it is that proposal's expediente: only its files, and uploads go there.
+ */
 export function RequestFiles({
   requestId,
+  versionId,
   canUpload,
   canDeleteAny,
   meId,
 }: {
   requestId: string;
+  versionId?: string;
   canUpload: boolean;
   canDeleteAny: boolean;
   meId: string | undefined;
 }) {
-  const [files, setFiles] = useState<Attachment[]>([]);
+  const [all, setFiles] = useState<Attachment[]>([]);
+  const files = versionId ? all.filter((a) => a.versionId === versionId) : all;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const base = `/requests/${requestId}/attachments`;
@@ -47,7 +54,10 @@ export function RequestFiles({
       if (!(file instanceof File) || !file.size) throw new Error('Elige un archivo');
       if (file.size > MAX_BYTES) throw new Error('El archivo pesa más de 3 MB');
       setBusy(true);
-      await api(base, { method: 'POST', body: { fileName: file.name, fileBase64: await toBase64(file) } });
+      await api(base, {
+        method: 'POST',
+        body: { fileName: file.name, fileBase64: await toBase64(file), versionId },
+      });
       form.reset();
       reload();
     } catch (err) {
@@ -68,8 +78,12 @@ export function RequestFiles({
   }
 
   return (
-    <section aria-labelledby="archivos">
-      <h2 id="archivos">Archivos</h2>
+    <section aria-labelledby={versionId ? 'archivos-propuesta' : 'archivos'}>
+      {versionId ? (
+        <h3 id="archivos-propuesta">Archivos enviados al cliente</h3>
+      ) : (
+        <h2 id="archivos">Archivos</h2>
+      )}
       {files.length === 0 ? (
         <p className="muted">Sin archivos.</p>
       ) : (

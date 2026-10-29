@@ -33,7 +33,8 @@ import {
   type SupplierDto,
   type TravelRequestDto,
 } from '../../lib/types';
-import { canExportXlsx, isOfficeAdmin, useMe } from '../../lib/useMe';
+import { can, canExportXlsx, isOfficeAdmin, useMe } from '../../lib/useMe';
+import { RequestFiles } from '../../solicitudes/RequestFiles';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const blankLine = (
@@ -554,16 +555,6 @@ export default function QuoteEditorPage() {
             <button>Registrar envío al cliente</button>
           </form>
         )}
-        {q.deliveries.length > 0 && (
-          <ul>
-            {q.deliveries.map((d, i) => (
-              <li key={i}>
-                Enviada el {fmtDate(d.sentOn)} por {CHANNEL_LABEL[d.channel]} a {d.recipients} · {d.sentBy}
-                {d.notes && <span className="muted"> · {d.notes}</span>}
-              </li>
-            ))}
-          </ul>
-        )}
         <VersionChanges quoteId={q.id} rowVersion={q.rowVersion} />
         <ShareLinks
           quoteId={q.id}
@@ -585,6 +576,37 @@ export default function QuoteEditorPage() {
               </li>
             ))}
           </ol>
+        )}
+      </section>
+
+      <section className="card" id="expediente" aria-labelledby="expediente-titulo">
+        <h2 id="expediente-titulo" style={{ marginTop: 0 }}>
+          Expediente de la propuesta
+        </h2>
+        <p className="muted">Todo lo que se mandó al colegio con esta versión.</p>
+        <p>
+          <Link href={`/cotizaciones/${q.id}/propuesta`}>Propuesta para el cliente (PDF / liga)</Link>
+        </p>
+        {q.deliveries.length === 0 ? (
+          <p className="muted">Aún no se registra ningún envío.</p>
+        ) : (
+          <ul>
+            {q.deliveries.map((d, i) => (
+              <li key={i}>
+                Enviada el {fmtDate(d.sentOn)} por {CHANNEL_LABEL[d.channel]} a {d.recipients} · {d.sentBy}
+                {d.notes && <span className="muted"> · {d.notes}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {req && (
+          <RequestFiles
+            requestId={req.id}
+            versionId={q.id}
+            canUpload={req.status !== 'CANCELLED' && can(me, req.office.id, 'canEdit')}
+            canDeleteAny={can(me, req.office.id, 'canDelete')}
+            meId={me?.id}
+          />
         )}
       </section>
 
