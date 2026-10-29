@@ -127,8 +127,8 @@ describe('agencies (platform)', () => {
     expect(ctx.oidc.redirectUri).toBe(`https://${own}/api/v1/auth/google/callback`);
     expect(response.headers.location).toBe(`https://${own}`);
     expect(cookie).toBeDefined();
-    // Any other host keeps the default deployment.
-    await loginAs(ctx, adminEmail, undefined, 'evil.example');
-    expect(ctx.oidc.redirectUri).toBeUndefined();
+    // Any other host is sent to the default deployment's login.
+    const other = await api().get('/api/v1/auth/google/login').set('X-Forwarded-Host', 'evil.example');
+    expect(other.headers.location).toBe('http://127.0.0.1:4000/api/v1/auth/google/login');
   });
 });

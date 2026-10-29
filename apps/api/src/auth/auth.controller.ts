@@ -22,6 +22,13 @@ import { AllowWhileSimulating, CurrentUser, Public, SESSION_COOKIE } from './ses
 const LOGIN_COOKIE = 'ee_oidc';
 const LOGIN_TTL_MS = 10 * 60 * 1000;
 
+/** Host the browser used (the web proxy forwards it), without port: cookies ignore ports. */
+function requestHost(req: Request): string {
+  return (req.header('x-forwarded-host')?.split(',')[0]?.trim() || req.hostname)
+    .toLowerCase()
+    .replace(/:\d+$/, '');
+}
+
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger('Auth');
@@ -34,10 +41,9 @@ export class AuthController {
   ) {}
 
   /** https://{domain} when the login was opened on an agency's own domain; null = the default deployment. */
-  private async customOrigin(req: Request): Promise<string | null> {
-    const host = (req.header('x-forwarded-host')?.split(',')[0]?.trim() ?? req.hostname).toLowerCase();
+  private async customOrigin(host: string): Promise<string | null> {
     const a = await this.prisma.agency.findFirst({
-      where: { customDomain: host.replace(/:\d+$/, ''), active: true },
+      where: { customDomain: host, active: true },
       select: { customDomain: true },
     });
     return a?.customDomain ? `https://${a.customDomain}` : null;
@@ -57,9 +63,16 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Get('google/login')
   async login(@Req() req: Request, @Res() res: Response): Promise<void> {
+    const provider = this.provider();
+    const host = requestHost(req);
+    const origin = await this.customOrigin(host);
+    // The login cookie only reaches the callback on the callback's host: a login opened on another host
+    // (e.g. the *.run.app URL of a service with its own domain) would always end in LOGIN_EXPIRED.
+    const canonical = new URL(this.env.API_PUBLIC_URL).hostname;
+    if (!origin && host !== canonical)
+      return res.redirect(302, new URL('/api/v1/auth/google/login', this.env.API_PUBLIC_URL).href);
     const checks = newLoginChecks();
-    const origin = await this.customOrigin(req);
-    const url = await this.provider().authorizationUrl(
+    const url = await provider.authorizationUrl(
       checks,
       origin ? `${origin}/api/v1/auth/google/callback` : undefined,
     );
