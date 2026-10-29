@@ -191,6 +191,20 @@ describe('scenarios (US-029, US-030, US-031)', () => {
     await api().get(`/api/v1/quotes/${v.id}`).set('Cookie', c.advisor).expect(404);
   });
 
+  it('keeps a note per line on the sheet, never on the client proposal', async () => {
+    const v = (await newScenario(c.quoter).expect(201)).body.latest;
+    const [first, ...rest] = option1.lines;
+    const res = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ lines: [{ ...first, note: 'avión' }, ...rest], rowVersion: 1 })
+      .expect(200);
+    expect(res.body.lines[0].note).toBe('avión');
+    expect(res.body.lines[1].note).toBeNull();
+    const p = await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', c.quoter).expect(200);
+    expect(JSON.stringify(p.body)).not.toContain('avión');
+  });
+
   it('derives the margin from a typed final price and refuses one below cost', async () => {
     const v = (await newScenario(c.quoter).expect(201)).body.latest;
     const res = await api()
@@ -416,8 +430,8 @@ describe('authorization (US-071..076)', () => {
     expect(ee.get('SubTotal chaperones')).toBe(1700);
     expect(ee.get('Total chaperones')).toBe(1850);
     const lines = values('Conceptos');
-    expect(lines).toContainEqual(['Por estudiante', 'Precio neto', 1, 3900, 'EUR', 3900, 'No', '']);
-    expect(lines).toContainEqual(['Por chaperón EE', 'Viáticos 16 días', 16, 50, 'EUR', 1600, 'No', '']);
+    expect(lines).toContainEqual(['Por estudiante', 'Precio neto', 1, 3900, 'EUR', 3900, 'No', '', '']);
+    expect(lines).toContainEqual(['Por chaperón EE', 'Viáticos 16 días', 16, 50, 'EUR', 1600, 'No', '', '']);
     expect(values('Plan de pagos')).toContainEqual(['Sin plan de pagos']);
     await api().get(`/api/v1/quotes/${v.id}/export.xlsx`).set('Cookie', c.advisor).expect(404);
     expect((await prisma.travelRequest.findUniqueOrThrow({ where: { id: requestId } })).status).toBe('SENT');

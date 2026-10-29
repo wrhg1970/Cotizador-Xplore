@@ -327,7 +327,8 @@ export function snapshotHash(v: FullVersion) {
   return calculationHash({
     ...kept,
     ...(exclusions.length ? { exclusions } : {}),
-    lines: lines.map(({ id: _l, ...l }) => l),
+    // Line notes came later: only a set note enters the hash.
+    lines: lines.map(({ id: _l, note, ...l }) => (note ? { ...l, note } : l)),
   });
 }
 
@@ -374,6 +375,7 @@ export function toDto(v: FullVersion) {
       lineTotal: l.quantity.mul(l.unitCost).toFixed(),
       internalOnly: l.internalOnly,
       costSource: l.costSource,
+      note: l.note,
     })),
     fxRates: v.fxRates.map((f) => ({
       fromCurrency: f.fromCurrency,

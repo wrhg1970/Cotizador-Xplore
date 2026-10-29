@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { type FormEvent, Fragment, type ReactNode, useCallback, useEffect, useState } from 'react';
 import { CurrencyCode } from '@ee/contracts';
 import { api, errorText } from '../lib/api';
@@ -27,6 +28,7 @@ export function Scenarios({
   const [items, setItems] = useState<ScenarioDto[] | null>(null);
   const [templates, setTemplates] = useState<QuoteTemplateDto[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const reload = useCallback(
     () =>
@@ -53,15 +55,27 @@ export function Scenarios({
     }
   }
 
-  function create(e: FormEvent<HTMLFormElement>) {
+  async function create(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     const f = new FormData(form);
-    void run(`/requests/${requestId}/scenarios`, {
-      name: String(f.get('name')).trim(),
-      saleCurrency: f.get('saleCurrency'),
-      ...(f.get('templateId') ? { templateId: f.get('templateId') } : {}),
-    }).then(() => form.reset());
+    setError(null);
+    try {
+      const s = await api<ScenarioDto>(`/requests/${requestId}/scenarios`, {
+        method: 'POST',
+        body: {
+          name: String(f.get('name')).trim(),
+          saleCurrency: f.get('saleCurrency'),
+          ...(f.get('templateId') ? { templateId: f.get('templateId') } : {}),
+        },
+      });
+      // The first scenario opens its EE sheet so quoting starts right away (Will, 2026-10-29).
+      if (!items?.length) return router.push(`/cotizaciones/${s.latest.id}`);
+      form.reset();
+      await reload();
+    } catch (err) {
+      setError(errorText(err));
+    }
   }
 
   return (
@@ -75,7 +89,7 @@ export function Scenarios({
       {items?.length === 0 && <p className="muted">Aún no hay escenarios.</p>}
       {!!items?.length && <Comparison items={items} canWork={canWork} run={run} />}
       {canWork && (
-        <form onSubmit={create} className="row" style={{ marginTop: 8 }}>
+        <form onSubmit={(e) => void create(e)} className="row" style={{ marginTop: 8 }}>
           <label>
             Nombre del escenario
             <input name="name" required maxLength={150} placeholder="Opción 1" />

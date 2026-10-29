@@ -31,7 +31,7 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await page.getByLabel('Nombre del escenario').fill('Opción 1');
   await page.getByLabel('Moneda de venta').selectOption('EUR');
   await page.getByRole('button', { name: 'Nuevo escenario' }).click();
-  await page.getByRole('link', { name: 'Opción 1' }).click();
+  await expect(page).toHaveURL(/\/cotizaciones\//); // the first scenario opens its sheet
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Opción 1 · v1');
 
   // The scenario starts with the EE sheet's base concepts; fill Finance's "Opción 1" costs.

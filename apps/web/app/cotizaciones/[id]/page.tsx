@@ -303,6 +303,7 @@ export default function QuoteEditorPage() {
           lines: draft.lines.map(({ id: _id, lineTotal: _t, ...l }) => ({
             ...l,
             costSource: l.costSource ?? undefined,
+            note: l.note?.trim() || undefined,
           })),
           fxRates: draft.fxRates.map(({ fromCurrency, rate, rateDate, source }) => ({
             fromCurrency,
@@ -958,6 +959,7 @@ export default function QuoteEditorPage() {
                             <th>Costo unitario</th>
                             <th>Moneda</th>
                             <th>Interno</th>
+                            <th>Nota / detalle</th>
                             <th className="num">Total {draft.saleCurrency}</th>
                             <th />
                           </tr>
@@ -1008,6 +1010,15 @@ export default function QuoteEditorPage() {
                                   aria-label={`Solo interno ${i + 1}`}
                                   checked={l.internalOnly}
                                   onChange={(e) => setLine(i, { internalOnly: e.target.checked })}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  aria-label={`Nota ${i + 1}`}
+                                  placeholder="+ nota…"
+                                  maxLength={300}
+                                  value={l.note ?? ''}
+                                  onChange={(e) => setLine(i, { note: e.target.value })}
                                 />
                               </td>
                               <td className="num">{live.ok ? live.lineTotals[i] : '—'}</td>
