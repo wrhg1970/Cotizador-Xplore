@@ -353,7 +353,7 @@ model QuoteVersion {
   exclusions           String[]            @default([])
   /// Destination photo on the proposal: an image attachment of the same request.
   coverAttachmentId    String?             @map("cover_attachment_id") @db.Uuid
-  coverAttachment      RequestAttachment?  @relation(fields: [coverAttachmentId], references: [id], onDelete: Restrict)
+  coverAttachment      RequestAttachment?  @relation("cover", fields: [coverAttachmentId], references: [id], onDelete: Restrict)
   /// Shows the price-per-group-size table (prices only, no costs) on the client's proposal.
   showVolumePrices     Boolean             @default(false) @map("show_volume_prices")
   /// Optimistic concurrency token for edits.
@@ -370,6 +370,8 @@ model QuoteVersion {
   wonFor               TravelRequest?      @relation("wonVersion")
   shares               ProposalShare[]
   acceptance           ProposalAcceptance?
+  /// Proposal file ("expediente"): what was sent to the client for this version.
+  files                RequestAttachment[] @relation("expediente")
 
   @@unique([scenarioId, number])
   @@map("quote_versions")
@@ -542,9 +544,13 @@ model RequestAttachment {
   createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   request      TravelRequest  @relation(fields: [requestId], references: [id], onDelete: Restrict)
   uploadedBy   User           @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
-  coverOf      QuoteVersion[]
+  coverOf      QuoteVersion[] @relation("cover")
+  /// Set when the file belongs to a proposal's expediente (what was sent to the client).
+  versionId    String?        @map("version_id") @db.Uuid
+  version      QuoteVersion?  @relation("expediente", fields: [versionId], references: [id], onDelete: Restrict)
 
   @@index([requestId, createdAt])
+  @@index([versionId])
   @@map("request_attachments")
 }
 

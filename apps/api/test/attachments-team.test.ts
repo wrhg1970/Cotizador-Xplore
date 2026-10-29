@@ -115,6 +115,55 @@ describe('request attachments', () => {
     ).toBe(1);
     await api().get(`/api/v1/requests/${requestId}/attachments`).expect(401);
   });
+
+  it("files into a proposal's expediente only when the version belongs to the request", async () => {
+    const { version } = await prisma.travelRequest.findUniqueOrThrow({ where: { id: requestId } });
+    await api()
+      .post(`/api/v1/requests/${requestId}/assign`)
+      .set('Cookie', c.adminA)
+      .send({ assigneeId: ids.quoter, version })
+      .expect(201);
+    const v = (
+      await api()
+        .post(`/api/v1/requests/${requestId}/scenarios`)
+        .set('Cookie', c.quoter)
+        .send({ name: 'Expediente', saleCurrency: 'EUR' })
+        .expect(201)
+    ).body.latest;
+    const a = (
+      await upload(c.quoter, { fileName: 'enviado.pdf', fileBase64: pdf, versionId: v.id }).expect(201)
+    ).body;
+    expect(a.versionId).toBe(v.id);
+    const log = await prisma.auditLog.findFirstOrThrow({
+      where: {
+        action: 'request.attachment_added',
+        entityId: requestId,
+        diff: { path: ['attachmentId'], equals: a.id },
+      },
+    });
+    expect(log.diff).toMatchObject({ versionId: v.id });
+    const other = (
+      await api()
+        .post('/api/v1/requests')
+        .set('Cookie', c.advisor)
+        .send({
+          officeId: officeA,
+          groupName: 'Otro 2027',
+          city: 'Roma',
+          countryCode: 'IT',
+          departureDate: '2027-03-19',
+          returnDate: '2027-03-25',
+          participants: 10,
+        })
+        .expect(201)
+    ).body.id;
+    await api()
+      .post(`/api/v1/requests/${other}/attachments`)
+      .set('Cookie', c.advisor)
+      .send({ fileName: 'x.pdf', fileBase64: pdf, versionId: v.id })
+      .expect(404);
+    await upload(c.quoter, { fileName: 'x.pdf', fileBase64: pdf, versionId: 'nope' }).expect(400);
+  });
 });
 
 describe('request team', () => {
