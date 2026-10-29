@@ -39,7 +39,7 @@ test('Solicitudes: stage tabs, search and Filas / Tarjetas / Kanban', async ({ b
   await page.goto(`/solicitudes?officeId=${office.id}`);
   await expect(page.getByRole('heading', { name: 'Expedientes (3)' })).toBeVisible();
   const row = page.getByRole('row', { name: /Inmersión Boston/ });
-  await expect(row).toContainText('25 + 2 chap.');
+  await expect(row).toContainText('25 alum. · 2 chap.');
   await expect(row).toContainText('01. Solicitada');
   await expect(row.getByRole('link', { name: 'Cotizar' })).toBeVisible();
 
@@ -65,6 +65,13 @@ test('Solicitudes: stage tabs, search and Filas / Tarjetas / Kanban', async ({ b
 
   await page.getByRole('button', { name: 'Tarjetas' }).click();
   await expect(page.getByRole('article', { name: /Inmersión Boston/ })).toContainText('Boston, US');
+
+  // Cotizaciones shows the same expedientes (V2 "Administrador de Solicitudes y Propuestas").
+  await page.goto(`/cotizaciones?officeId=${office.id}`);
+  await expect(page.getByRole('heading', { name: 'Expedientes (3)' })).toBeVisible();
+  await expect(
+    page.getByRole('row', { name: /Inmersión Boston/ }).getByRole('link', { name: 'Expediente' }),
+  ).toBeVisible();
   await ctx.close();
 });
 
