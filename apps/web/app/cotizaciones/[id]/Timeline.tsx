@@ -138,8 +138,7 @@ export function Timeline({ data, folio }: { data: TimelineData | null; folio: st
       <div className="section-head">
         <div>
           <h2 id="linea" style={{ margin: 0 }}>
-            Línea de tiempo y bitácora del expediente {folio}{' '}
-            <span className="pill dark">Bitácora inalterable</span>
+            Bitácora del expediente {folio} <span className="pill dark">Bitácora inalterable</span>
           </h2>
           <p className="muted" style={{ margin: '4px 0 0' }}>
             Cambios de precio, de estado y notas en orden cronológico. La bitácora no se puede editar ni

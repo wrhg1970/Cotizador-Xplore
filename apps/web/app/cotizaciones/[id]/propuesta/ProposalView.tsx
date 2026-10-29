@@ -63,11 +63,19 @@ export function ProposalView({
   const legend = !p.authorized && <p className="legend">{PENDING_LEGEND}</p>;
 
   return (
-    <article className="proposal">
+    // Unauthorized: readable on screen, never printable or downloadable (the print CSS blanks it).
+    <article className={p.authorized ? 'proposal' : 'proposal unauthorized'}>
       <BrandColors brand={p.brand} />
       <p className="no-print row">
         {actions}
-        <button onClick={() => window.print()}>Imprimir o guardar PDF</button>
+        {p.authorized ? (
+          <button onClick={() => window.print()}>Imprimir o guardar PDF</button>
+        ) : (
+          <>
+            <button disabled>Imprimir o guardar PDF</button>
+            <span className="muted">Disponible cuando se apruebe el viaje.</span>
+          </>
+        )}
       </p>
       {legend}
       <header className="hero">

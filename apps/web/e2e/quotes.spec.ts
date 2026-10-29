@@ -63,24 +63,21 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await page.getByRole('button', { name: 'Guardar y calcular' }).click();
   await expect(bar).toContainText('Guardado');
   // 4020 + (17 × 50 + 50) × 2 ÷ 10 + 150 ÷ 10 = 4215 → 4215 / 0.82 = 5140.24 → 5141
-  const sheetTab = page.getByRole('tab', { name: 'Hoja EE' });
-  const conceptsTab = page.getByRole('tab', { name: 'Grupo y conceptos' });
-  await sheetTab.click();
+  // Cotización holds the inputs and, under them, the saved sheet.
+  const sheetTab = page.getByRole('tab', { name: 'Cotización' });
+  await expect(sheetTab).toHaveAttribute('aria-selected', 'true');
   const finalPrice = page.getByRole('row', { name: /PRECIO FINAL/ });
   await expect(finalPrice).toContainText('5141.00');
   await expect(page.getByRole('row', { name: /Gastos del líder/ })).toContainText('195.00');
   await expect(page.getByRole('cell', { name: '104825.00 MXN' })).toBeVisible();
 
   // Typing the final price derives the %.
-  await conceptsTab.click();
   await page.getByLabel('Precio final por estudiante').fill('5200');
   await page.getByRole('button', { name: 'Guardar y calcular' }).click();
   await expect(page.getByLabel('% Comisión (sobre el precio final)')).toHaveValue('18.9423');
-  await sheetTab.click();
   await expect(finalPrice).toContainText('5200.00');
 
   // Proposal extras: 15% registration + 6 monthly payments, free places, itinerary, exclusions.
-  await conceptsTab.click();
   await page.getByLabel('1 lugar por cada (estudiantes)').fill('5');
   await expect(page.getByText('2 lugares liberados')).toBeVisible();
   await page.getByRole('tab', { name: 'Plan de pagos' }).click();
@@ -110,10 +107,16 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await expect(page.getByText('Lugares liberados: 2')).toBeVisible();
 
   // Price edits and their saves show in the file's timeline, filterable by kind.
-  await page.getByRole('tab', { name: 'Línea de tiempo' }).click();
+  await page.getByRole('button', { name: /^Bitácora/ }).click();
   await page.getByRole('button', { name: /Cambios de precio/ }).click();
   await expect(page.getByText('Editó la cotización').first()).toBeVisible();
-  await page.getByRole('link', { name: 'Ver propuesta para compartir' }).click();
+  // Grupo y conceptos shows what was captured in the request.
+  await page.getByRole('tab', { name: 'Grupo y conceptos' }).click();
+  await expect(page.getByRole('heading', { name: 'Datos de la solicitud' })).toBeVisible();
+  await expect(page.getByText('Roma, IT').first()).toBeVisible();
+  // Not authorized yet: only a preview, which cannot be printed.
+  await page.getByRole('link', { name: 'Vista previa de la propuesta' }).last().click();
+  await expect(page.getByRole('button', { name: 'Imprimir o guardar PDF' })).toBeDisabled();
   await expect(page.getByRole('heading', { name: 'Plan de pagos por estudiante' })).toBeVisible();
   await expect(page.getByRole('table', { name: 'Precio por tamaño del grupo' })).toContainText('35 o más');
   await expect(page.getByText('Día 1: Llegada a Roma')).toBeVisible();

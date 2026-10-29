@@ -10,7 +10,7 @@ import {
 
 const STAGES = [
   { title: 'Solicitada', hint: 'Ficha y especificaciones del colegio' },
-  { title: 'Cotizada', hint: 'Hoja EE y opciones financieras' },
+  { title: 'Cotizada', hint: 'Cotización y opciones financieras' },
   { title: 'Aprobada', hint: 'Autorizada para enviar al colegio' },
   { title: 'Enviada', hint: 'Propuesta entregada y en seguimiento' },
 ] as const;
@@ -31,7 +31,7 @@ function duty(s: QuoteDto['status'], role: Role): string {
   switch (s) {
     case 'DRAFT':
       return works
-        ? 'Completa la hoja EE, revisa los tipos de cambio y envía a autorización.'
+        ? 'Completa la cotización, revisa los tipos de cambio y envía a autorización.'
         : 'El cotizador está armando esta opción.';
     case 'RETURNED':
       return works
@@ -112,7 +112,7 @@ export function QuoteHeader({
       <div className="row actions">{actions}</div>
       <p className="muted" style={{ margin: 0 }}>
         {optionCount} {optionCount === 1 ? 'opción' : 'opciones'} en la solicitud
-        {eventCount !== null && ` · ${eventCount} eventos en la línea de tiempo`}
+        {eventCount !== null && ` · ${eventCount} eventos en la bitácora`}
       </p>
 
       {(expired || late) && (

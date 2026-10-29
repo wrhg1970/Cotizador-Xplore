@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CurrencyCode, LineCategory } from '@ee/contracts';
 import { api, errorText } from '../../lib/api';
 import { preview, TotalsBar } from './LiveTotals';
@@ -34,6 +34,7 @@ import {
   type TravelRequestDto,
 } from '../../lib/types';
 import { can, canExportXlsx, isOfficeAdmin, useMe } from '../../lib/useMe';
+import { RequestFactRows, RequestNotes } from '../../solicitudes/RequestFacts';
 import { RequestFiles } from '../../solicitudes/RequestFiles';
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -57,20 +58,16 @@ const fromPct = (pct: string) => String(Number((Number(pct) / 100).toFixed(6)));
 const OPTIMAL_PCT = 18;
 
 type Tab = 'hoja' | 'conceptos' | 'pagos' | 'volumen' | 'propuesta' | 'bitacora' | 'importar';
-const TAB_LABEL: Record<Tab, string> = {
-  hoja: 'Hoja EE',
+const TAB_LABEL: Record<Exclude<Tab, 'bitacora'>, string> = {
+  hoja: 'Cotización',
   conceptos: 'Grupo y conceptos',
   pagos: 'Plan de pagos',
   volumen: 'Volumen y riesgo',
   propuesta: 'Propuesta',
-  bitacora: 'Línea de tiempo',
   importar: 'Importar hoja',
 };
-const GROUPS: { label: string; tabs: Tab[] }[] = [
-  { label: 'Finanzas y cotización', tabs: ['hoja', 'conceptos', 'pagos', 'volumen'] },
-  { label: 'Propuesta y cierre', tabs: ['propuesta', 'bitacora'] },
-  { label: 'Herramientas', tabs: ['importar'] },
-];
+// The Bitácora has no tab: the header's button opens it.
+const TABS = ['hoja', 'conceptos', 'pagos', 'volumen', 'propuesta', 'importar'] as const;
 
 /** Quote version editor (US-031, US-055) laid out like the V2 model: header, stages, tabs, live bar. */
 export default function QuoteEditorPage() {
@@ -201,9 +198,9 @@ export default function QuoteEditorPage() {
   // Allowances count both travel days: return − departure + 1 (Finance, 2026-10-22).
   const tripDays = req ? (Date.parse(req.returnDate) - Date.parse(req.departureDate)) / 86_400_000 + 1 : null;
 
-  // Whoever edits lands on the concepts; everyone else on the computed sheet.
-  const current: Tab = tab ?? (editable ? 'conceptos' : 'hoja');
-  const tabs = GROUPS.flatMap((g) => g.tabs).filter((t) => t !== 'importar' || editable);
+  // Everyone lands on Cotización: it is where the trip is quoted.
+  const current: Tab = tab ?? 'hoja';
+  const tabs = TABS.filter((t) => t !== 'importar' || editable);
   const tabProps = (t: Tab) => ({
     id: `panel-${t}`,
     role: 'tabpanel',
@@ -329,6 +326,27 @@ export default function QuoteEditorPage() {
     : null;
   const goodPct = live.ok && Number(live.pct) >= OPTIMAL_PCT;
 
+  // Saved result of the sheet: readers see it first, whoever quotes sees it under the inputs.
+  const sheet = (
+    <>
+      <SheetSummary q={q} />
+      {(q.paymentSchedule || q.freePlaces !== null) && (
+        <section className="card" aria-labelledby="plan-guardado" style={{ marginTop: 16 }}>
+          <h2 id="plan-guardado" style={{ marginTop: 0 }}>
+            Plan de pagos y lugares liberados (guardado)
+          </h2>
+          {q.freePlaces !== null && (
+            <p>
+              Lugares liberados: <strong>{q.freePlaces}</strong> (1 por cada {q.studentsPerFreePlace}{' '}
+              estudiantes, para {q.freePlaceBenefit === 'STUDENT' ? 'beca de estudiante' : 'chaperón'})
+            </p>
+          )}
+          <PaymentSchedule q={q} />
+        </section>
+      )}
+    </>
+  );
+
   return (
     <>
       <QuoteHeader
@@ -339,16 +357,16 @@ export default function QuoteEditorPage() {
         eventCount={eventCount}
         onStage={(i) => {
           if (i === 0) router.push(`/solicitudes/${q.requestId}`);
-          else if (i === 1) setTab(editable ? 'conceptos' : 'hoja');
+          else if (i === 1) setTab('hoja');
           else toApproval();
         }}
         actions={
           <>
             <Link className="button" href={`/cotizaciones/${q.id}/propuesta`}>
-              Propuesta PDF
+              {isAuthorized(q.status) ? 'Propuesta PDF' : 'Vista previa de la propuesta'}
             </Link>
             <button type="button" className="secondary" onClick={() => setTab('bitacora')}>
-              Línea de tiempo{eventCount !== null ? ` (${eventCount})` : ''}
+              Bitácora{eventCount !== null ? ` (${eventCount})` : ''}
             </button>
             {scenarios.length > 1 && (
               <Link className="button secondary" href={`/solicitudes/${q.requestId}#escenarios`}>
@@ -424,242 +442,32 @@ export default function QuoteEditorPage() {
 
       {!isAuthorized(q.status) && (
         <p className="legend" role="status">
-          {PENDING_LEGEND}
+          <strong>{PENDING_LEGEND}</strong>
+          <span>La propuesta no se puede enviar ni descargar hasta que se apruebe.</span>
         </p>
       )}
 
-      {scenarios.length > 0 && (
-        <section className="card compact scenario-chips" aria-label="Escenarios de la solicitud">
-          <div className="chips">
-            {scenarios.map((s, i) => (
-              <Link
-                key={s.id}
-                href={`/cotizaciones/${s.latest.id}`}
-                className={s.id === q.scenarioId ? 'chip active' : 'chip'}
-                aria-current={s.id === q.scenarioId ? 'page' : undefined}
-              >
-                Escenario {String.fromCharCode(65 + (i % 26))}: {s.latest.participants} est. +{' '}
-                {s.latest.chaperones + s.latest.staff} chap. (v{s.latest.number} ·{' '}
-                {QUOTE_STATUS_LABEL[s.latest.status]})
-              </Link>
-            ))}
-          </div>
-          {works && req?.status === 'QUOTING' && (
-            <div className="row">
-              <button type="button" className="secondary small" onClick={() => void duplicatePlus5()}>
-                Duplicar escenario (+5 estudiantes)
-              </button>
-              <Link className="button secondary small" href={`/solicitudes/${q.requestId}#escenarios`}>
-                Nuevo escenario
-              </Link>
-              {scenarios.length > 1 && (
-                <Link className="button secondary small" href={`/solicitudes/${q.requestId}#escenarios`}>
-                  Comparar en columnas ({scenarios.length})
-                </Link>
-              )}
-            </div>
-          )}
-        </section>
-      )}
-
-      <section className="card" aria-labelledby="autorizacion">
-        <h2 id="autorizacion" style={{ marginTop: 0 }}>
-          Autorización
-        </h2>
-        <div className="row">
-          <Link className="button secondary" href={`/cotizaciones/${q.id}/propuesta`}>
-            Ver propuesta para compartir
-          </Link>
-          {works && ['DRAFT', 'RETURNED'].includes(q.status) && (
-            <button onClick={() => void act('submit')}>Enviar a autorización</button>
-          )}
-          {approver && q.status === 'IN_REVIEW' && (
-            <>
-              <button onClick={() => void act('approve')}>Autorizar viaje</button>
-              <button
-                className="danger"
-                onClick={() => {
-                  const comment = window.prompt('Motivo de la devolución (obligatorio):')?.trim();
-                  if (comment) void act('return', { comment });
-                }}
-              >
-                Devolver con comentarios
-              </button>
-            </>
-          )}
-          {works && (
-            <button
-              className="secondary"
-              onClick={async () => {
-                const name = window.prompt('Nombre de la plantilla:', q.scenarioName)?.trim();
-                if (!name) return;
-                setError(null);
-                try {
-                  await api(`/quotes/${q.id}/template`, { method: 'POST', body: { name } });
-                  setNotice(`Plantilla "${name}" guardada para la oficina`);
-                } catch (e) {
-                  setError(errorText(e));
-                }
-              }}
-            >
-              Guardar como plantilla
-            </button>
-          )}
-        </div>
-        {works && q.status === 'APPROVED' && (
-          <form
-            className="row"
-            style={{ marginTop: 8 }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              const f = new FormData(e.currentTarget);
-              void act('send', {
-                recipients: String(f.get('recipients')).trim(),
-                channel: f.get('channel'),
-                sentOn: f.get('sentOn'),
-                notes: String(f.get('notes') ?? '').trim() || undefined,
-                emailClient: f.get('emailClient') === 'on',
-                message: String(f.get('message') ?? '').trim() || undefined,
-              });
+      <div role="tablist" aria-label="Secciones de la cotización" className="tabs">
+        {tabs.map((t) => (
+          <button
+            key={t}
+            id={`tab-${t}`}
+            role="tab"
+            aria-selected={current === t}
+            aria-controls={`panel-${t}`}
+            tabIndex={current === t ? 0 : -1}
+            onClick={() => setTab(t)}
+            onKeyDown={(e) => {
+              const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+              if (!step) return;
+              const next = tabs[(tabs.indexOf(t) + step + tabs.length) % tabs.length]!;
+              setTab(next);
+              document.getElementById(`tab-${next}`)?.focus();
             }}
           >
-            <label>
-              Enviada a
-              <input name="recipients" required maxLength={500} placeholder="correo o nombre del contacto" />
-            </label>
-            <label>
-              Medio
-              <select name="channel" defaultValue="EMAIL">
-                {Object.entries(CHANNEL_LABEL).map(([v, label]) => (
-                  <option key={v} value={v}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Fecha de envío
-              <input name="sentOn" type="date" required defaultValue={today()} />
-            </label>
-            <label>
-              Notas
-              <input name="notes" maxLength={2000} />
-            </label>
-            <label style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <input name="emailClient" type="checkbox" />
-              Mandar el correo al colegio desde el cotizador (con liga a la propuesta por 30 días)
-            </label>
-            <label>
-              Mensaje para el colegio (opcional)
-              <textarea name="message" maxLength={2000} rows={2} />
-            </label>
-            <button>Registrar envío al cliente</button>
-          </form>
-        )}
-        <VersionChanges quoteId={q.id} rowVersion={q.rowVersion} />
-        <ShareLinks
-          quoteId={q.id}
-          canShare={
-            works &&
-            !!req &&
-            ['APPROVED', 'SENT'].includes(q.status) &&
-            ['QUOTING', 'SENT', 'WON'].includes(req.status)
-          }
-          canRevoke={works}
-        />
-        {q.reviews.length > 0 && (
-          <ol className="timeline">
-            {q.reviews.map((r, i) => (
-              <li key={i}>
-                {r.decision === 'APPROVED' ? 'Autorizó' : 'Devolvió'} · {r.reviewer}{' '}
-                <span className="muted">{fmtDateTime(r.at)}</span>
-                {r.comment && <p style={{ margin: '4px 0 0' }}>{r.comment}</p>}
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-
-      <section className="card" id="expediente" aria-labelledby="expediente-titulo">
-        <h2 id="expediente-titulo" style={{ marginTop: 0 }}>
-          Expediente de la propuesta
-        </h2>
-        <p className="muted">Todo lo que se mandó al colegio con esta versión.</p>
-        <p>
-          <Link href={`/cotizaciones/${q.id}/propuesta`}>Propuesta para el cliente (PDF / liga)</Link>
-        </p>
-        {q.deliveries.length === 0 ? (
-          <p className="muted">Aún no se registra ningún envío.</p>
-        ) : (
-          <ul>
-            {q.deliveries.map((d, i) => (
-              <li key={i}>
-                Enviada el {fmtDate(d.sentOn)} por {CHANNEL_LABEL[d.channel]} a {d.recipients} · {d.sentBy}
-                {d.notes && <span className="muted"> · {d.notes}</span>}
-              </li>
-            ))}
-          </ul>
-        )}
-        {req && (
-          <RequestFiles
-            requestId={req.id}
-            versionId={q.id}
-            canUpload={req.status !== 'CANCELLED' && can(me, req.office.id, 'canEdit')}
-            canDeleteAny={can(me, req.office.id, 'canDelete')}
-            meId={me?.id}
-          />
-        )}
-      </section>
-
-      <div role="tablist" aria-label="Secciones de la cotización" className="tabs grouped">
-        {GROUPS.map((g) => {
-          const shown = g.tabs.filter((t) => tabs.includes(t));
-          return shown.length ? (
-            <Fragment key={g.label}>
-              <span role="presentation" className="tab-group">
-                {g.label}:
-              </span>
-              {shown.map((t) => (
-                <button
-                  key={t}
-                  id={`tab-${t}`}
-                  role="tab"
-                  aria-selected={current === t}
-                  aria-controls={`panel-${t}`}
-                  tabIndex={current === t ? 0 : -1}
-                  onClick={() => setTab(t)}
-                  onKeyDown={(e) => {
-                    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-                    if (!step) return;
-                    const next = tabs[(tabs.indexOf(t) + step + tabs.length) % tabs.length]!;
-                    setTab(next);
-                    document.getElementById(`tab-${next}`)?.focus();
-                  }}
-                >
-                  {TAB_LABEL[t]}
-                </button>
-              ))}
-            </Fragment>
-          ) : null;
-        })}
-      </div>
-
-      <div {...tabProps('hoja')}>
-        <SheetSummary q={q} />
-        {(q.paymentSchedule || q.freePlaces !== null) && (
-          <section className="card" aria-labelledby="plan-guardado" style={{ marginTop: 16 }}>
-            <h2 id="plan-guardado" style={{ marginTop: 0 }}>
-              Plan de pagos y lugares liberados (guardado)
-            </h2>
-            {q.freePlaces !== null && (
-              <p>
-                Lugares liberados: <strong>{q.freePlaces}</strong> (1 por cada {q.studentsPerFreePlace}{' '}
-                estudiantes, para {q.freePlaceBenefit === 'STUDENT' ? 'beca de estudiante' : 'chaperón'})
-              </p>
-            )}
-            <PaymentSchedule q={q} />
-          </section>
-        )}
+            {TAB_LABEL[t]}
+          </button>
+        ))}
       </div>
 
       <div {...tabProps('pagos')}>
@@ -689,7 +497,7 @@ export default function QuoteEditorPage() {
         )}
       </div>
 
-      <div {...tabProps('bitacora')}>
+      <div id="panel-bitacora" hidden={current !== 'bitacora'}>
         <Timeline data={timeline} folio={req?.folio ?? ''} />
       </div>
 
@@ -715,109 +523,8 @@ export default function QuoteEditorPage() {
       )}
 
       <fieldset disabled={!editable} className="editor">
-        <div {...tabProps('conceptos')}>
-          {editable && req && (
-            <QuickLoad
-              draft={draft}
-              set={set}
-              officeId={req.office.id}
-              suppliers={suppliers}
-              onMargin={(rate) => {
-                setMarginPct(toPct(rate));
-                setByPrice(false);
-              }}
-              onNotice={setNotice}
-            />
-          )}
-          <section className="card compact" aria-labelledby="fx">
-            <div className="section-head">
-              <h2 id="fx">Tipos de cambio</h2>
-              <span className="muted">
-                Unidades de {draft.saleCurrency} por 1 unidad de la otra moneda, con fecha y fuente.
-              </span>
-              <div className="row">
-                <button className="secondary" onClick={() => addFx()}>
-                  Agregar tipo de cambio
-                </button>
-                <button className="secondary" onClick={applyOfficialRates}>
-                  Usar tipos de cambio oficiales
-                </button>
-              </div>
-            </div>
-            {missingFx.length > 0 && (
-              <p className="error" style={{ margin: '0 0 8px' }}>
-                Falta el tipo de cambio de {missingFx.map((c) => `${c} → ${draft.saleCurrency}`).join(', ')}{' '}
-                para calcular.{' '}
-                {missingFx.map((c) => (
-                  <button key={c} className="secondary small" onClick={() => addFx(c)}>
-                    Capturar {c}
-                  </button>
-                ))}
-              </p>
-            )}
-            <div className="fields">
-              {draft.fxRates.map((f, i) => (
-                <div className="fx-row" key={i}>
-                  <label>
-                    De
-                    <select
-                      value={f.fromCurrency}
-                      onChange={(e) => setFx(i, { fromCurrency: e.target.value as CurrencyCode })}
-                    >
-                      {CurrencyCode.options.map((c) => (
-                        <option key={c}>{c}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Tipo de cambio
-                    <input
-                      inputMode="decimal"
-                      value={f.rate}
-                      placeholder="0.00"
-                      onChange={(e) => setFx(i, { rate: e.target.value.trim() })}
-                    />
-                  </label>
-                  <label>
-                    Fecha
-                    <input
-                      type="date"
-                      value={f.rateDate}
-                      onChange={(e) => setFx(i, { rateDate: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Fuente
-                    <input
-                      value={f.source}
-                      maxLength={150}
-                      placeholder="Banxico, banco, proveedor…"
-                      onChange={(e) => setFx(i, { source: e.target.value })}
-                    />
-                  </label>
-                  <button
-                    className="secondary small"
-                    aria-label={`Quitar tipo de cambio ${f.fromCurrency}`}
-                    onClick={() => set({ fxRates: draft.fxRates.filter((_, j) => j !== i) })}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-              {draft.saleCurrency !== 'MXN' && (
-                <label className="fx-mxn">
-                  Tipo de cambio a MXN (aproximado)
-                  <input
-                    inputMode="decimal"
-                    value={draft.mxnRate ?? ''}
-                    placeholder="20.39"
-                    onChange={(e) => set({ mxnRate: e.target.value })}
-                  />
-                </label>
-              )}
-            </div>
-          </section>
-
+        <div {...tabProps('hoja')}>
+          {!editable && sheet}
           <section className="card compact" aria-labelledby="grupo">
             <div className="section-head">
               <h2 id="grupo">Grupo y precio</h2>
@@ -1108,6 +815,125 @@ export default function QuoteEditorPage() {
           </section>
 
           <FreePlaces draft={draft} set={set} live={live} />
+          <section className="card compact" aria-labelledby="fx">
+            <div className="section-head">
+              <h2 id="fx">Tipos de cambio</h2>
+              <span className="muted">
+                Unidades de {draft.saleCurrency} por 1 unidad de la otra moneda, con fecha y fuente.
+              </span>
+              <div className="row">
+                <button className="secondary" onClick={() => addFx()}>
+                  Agregar tipo de cambio
+                </button>
+                <button className="secondary" onClick={applyOfficialRates}>
+                  Usar tipos de cambio oficiales
+                </button>
+              </div>
+            </div>
+            {missingFx.length > 0 && (
+              <p className="error" style={{ margin: '0 0 8px' }}>
+                Falta el tipo de cambio de {missingFx.map((c) => `${c} → ${draft.saleCurrency}`).join(', ')}{' '}
+                para calcular.{' '}
+                {missingFx.map((c) => (
+                  <button key={c} className="secondary small" onClick={() => addFx(c)}>
+                    Capturar {c}
+                  </button>
+                ))}
+              </p>
+            )}
+            <div className="fields">
+              {draft.fxRates.map((f, i) => (
+                <div className="fx-row" key={i}>
+                  <label>
+                    De
+                    <select
+                      value={f.fromCurrency}
+                      onChange={(e) => setFx(i, { fromCurrency: e.target.value as CurrencyCode })}
+                    >
+                      {CurrencyCode.options.map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Tipo de cambio
+                    <input
+                      inputMode="decimal"
+                      value={f.rate}
+                      placeholder="0.00"
+                      onChange={(e) => setFx(i, { rate: e.target.value.trim() })}
+                    />
+                  </label>
+                  <label>
+                    Fecha
+                    <input
+                      type="date"
+                      value={f.rateDate}
+                      onChange={(e) => setFx(i, { rateDate: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Fuente
+                    <input
+                      value={f.source}
+                      maxLength={150}
+                      placeholder="Banxico, banco, proveedor…"
+                      onChange={(e) => setFx(i, { source: e.target.value })}
+                    />
+                  </label>
+                  <button
+                    className="secondary small"
+                    aria-label={`Quitar tipo de cambio ${f.fromCurrency}`}
+                    onClick={() => set({ fxRates: draft.fxRates.filter((_, j) => j !== i) })}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {draft.saleCurrency !== 'MXN' && (
+                <label className="fx-mxn">
+                  Tipo de cambio a MXN (aproximado)
+                  <input
+                    inputMode="decimal"
+                    value={draft.mxnRate ?? ''}
+                    placeholder="20.39"
+                    onChange={(e) => set({ mxnRate: e.target.value })}
+                  />
+                </label>
+              )}
+            </div>
+          </section>
+          {editable && sheet}
+        </div>
+
+        <div {...tabProps('conceptos')}>
+          <section className="card compact" aria-labelledby="datos-solicitud">
+            <div className="section-head">
+              <h2 id="datos-solicitud">Datos de la solicitud</h2>
+              {req && <Link href={`/solicitudes/${req.id}`}>Ver o editar en la solicitud</Link>}
+            </div>
+            {req && (
+              <>
+                <dl className="facts">
+                  <RequestFactRows r={req} />
+                </dl>
+                <RequestNotes r={req} />
+              </>
+            )}
+          </section>
+          {editable && req && (
+            <QuickLoad
+              draft={draft}
+              set={set}
+              officeId={req.office.id}
+              suppliers={suppliers}
+              onMargin={(rate) => {
+                setMarginPct(toPct(rate));
+                setByPrice(false);
+              }}
+              onNotice={setNotice}
+            />
+          )}
           {editable && (
             <NewConcept
               draft={draft}
@@ -1137,6 +963,189 @@ export default function QuoteEditorPage() {
           </section>
         </div>
       </fieldset>
+
+      {scenarios.length > 0 && (
+        <section className="card compact scenario-chips" aria-label="Escenarios de la solicitud">
+          <div className="chips">
+            {scenarios.map((s, i) => (
+              <Link
+                key={s.id}
+                href={`/cotizaciones/${s.latest.id}`}
+                className={s.id === q.scenarioId ? 'chip active' : 'chip'}
+                aria-current={s.id === q.scenarioId ? 'page' : undefined}
+              >
+                Escenario {String.fromCharCode(65 + (i % 26))}: {s.latest.participants} est. +{' '}
+                {s.latest.chaperones + s.latest.staff} chap. (v{s.latest.number} ·{' '}
+                {QUOTE_STATUS_LABEL[s.latest.status]})
+              </Link>
+            ))}
+          </div>
+          {works && req?.status === 'QUOTING' && (
+            <div className="row">
+              <button type="button" className="secondary small" onClick={() => void duplicatePlus5()}>
+                Duplicar escenario (+5 estudiantes)
+              </button>
+              <Link className="button secondary small" href={`/solicitudes/${q.requestId}#escenarios`}>
+                Nuevo escenario
+              </Link>
+              {scenarios.length > 1 && (
+                <Link className="button secondary small" href={`/solicitudes/${q.requestId}#escenarios`}>
+                  Comparar en columnas ({scenarios.length})
+                </Link>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      <section className="card" aria-labelledby="autorizacion">
+        <h2 id="autorizacion" style={{ marginTop: 0 }}>
+          Autorización
+        </h2>
+        <div className="row">
+          <Link className="button secondary" href={`/cotizaciones/${q.id}/propuesta`}>
+            {isAuthorized(q.status) ? 'Ver propuesta para compartir' : 'Vista previa de la propuesta'}
+          </Link>
+          {works && ['DRAFT', 'RETURNED'].includes(q.status) && (
+            <button onClick={() => void act('submit')}>Enviar a autorización</button>
+          )}
+          {approver && q.status === 'IN_REVIEW' && (
+            <>
+              <button onClick={() => void act('approve')}>Autorizar viaje</button>
+              <button
+                className="danger"
+                onClick={() => {
+                  const comment = window.prompt('Motivo de la devolución (obligatorio):')?.trim();
+                  if (comment) void act('return', { comment });
+                }}
+              >
+                Devolver con comentarios
+              </button>
+            </>
+          )}
+          {works && (
+            <button
+              className="secondary"
+              onClick={async () => {
+                const name = window.prompt('Nombre de la plantilla:', q.scenarioName)?.trim();
+                if (!name) return;
+                setError(null);
+                try {
+                  await api(`/quotes/${q.id}/template`, { method: 'POST', body: { name } });
+                  setNotice(`Plantilla "${name}" guardada para la oficina`);
+                } catch (e) {
+                  setError(errorText(e));
+                }
+              }}
+            >
+              Guardar como plantilla
+            </button>
+          )}
+        </div>
+        {works && q.status === 'APPROVED' && (
+          <form
+            className="row"
+            style={{ marginTop: 8 }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget);
+              void act('send', {
+                recipients: String(f.get('recipients')).trim(),
+                channel: f.get('channel'),
+                sentOn: f.get('sentOn'),
+                notes: String(f.get('notes') ?? '').trim() || undefined,
+                emailClient: f.get('emailClient') === 'on',
+                message: String(f.get('message') ?? '').trim() || undefined,
+              });
+            }}
+          >
+            <label>
+              Enviada a
+              <input name="recipients" required maxLength={500} placeholder="correo o nombre del contacto" />
+            </label>
+            <label>
+              Medio
+              <select name="channel" defaultValue="EMAIL">
+                {Object.entries(CHANNEL_LABEL).map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Fecha de envío
+              <input name="sentOn" type="date" required defaultValue={today()} />
+            </label>
+            <label>
+              Notas
+              <input name="notes" maxLength={2000} />
+            </label>
+            <label style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <input name="emailClient" type="checkbox" />
+              Mandar el correo al colegio desde el cotizador (con liga a la propuesta por 30 días)
+            </label>
+            <label>
+              Mensaje para el colegio (opcional)
+              <textarea name="message" maxLength={2000} rows={2} />
+            </label>
+            <button>Registrar envío al cliente</button>
+          </form>
+        )}
+        <VersionChanges quoteId={q.id} rowVersion={q.rowVersion} />
+        <ShareLinks
+          quoteId={q.id}
+          canShare={
+            works &&
+            !!req &&
+            ['APPROVED', 'SENT'].includes(q.status) &&
+            ['QUOTING', 'SENT', 'WON'].includes(req.status)
+          }
+          canRevoke={works}
+        />
+        {q.reviews.length > 0 && (
+          <ol className="timeline">
+            {q.reviews.map((r, i) => (
+              <li key={i}>
+                {r.decision === 'APPROVED' ? 'Autorizó' : 'Devolvió'} · {r.reviewer}{' '}
+                <span className="muted">{fmtDateTime(r.at)}</span>
+                {r.comment && <p style={{ margin: '4px 0 0' }}>{r.comment}</p>}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
+      <section className="card" id="expediente" aria-labelledby="expediente-titulo">
+        <h2 id="expediente-titulo" style={{ marginTop: 0 }}>
+          Expediente de la propuesta
+        </h2>
+        <p className="muted">Todo lo que se mandó al colegio con esta versión.</p>
+        <p>
+          <Link href={`/cotizaciones/${q.id}/propuesta`}>Propuesta para el cliente (PDF / liga)</Link>
+        </p>
+        {q.deliveries.length === 0 ? (
+          <p className="muted">Aún no se registra ningún envío.</p>
+        ) : (
+          <ul>
+            {q.deliveries.map((d, i) => (
+              <li key={i}>
+                Enviada el {fmtDate(d.sentOn)} por {CHANNEL_LABEL[d.channel]} a {d.recipients} · {d.sentBy}
+                {d.notes && <span className="muted"> · {d.notes}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {req && (
+          <RequestFiles
+            requestId={req.id}
+            versionId={q.id}
+            canUpload={req.status !== 'CANCELLED' && can(me, req.office.id, 'canEdit')}
+            canDeleteAny={can(me, req.office.id, 'canDelete')}
+            meId={me?.id}
+          />
+        )}
+      </section>
     </>
   );
 }
