@@ -205,7 +205,7 @@ export default function ExecutivePage() {
                 Meta anual {data.goals.year}
               </h2>
               <div className="table-wrap">
-                <table>
+                <table className="office-table">
                   <thead>
                     <tr>
                       <th>Oficina</th>
@@ -218,7 +218,7 @@ export default function ExecutivePage() {
                     {data.goals.offices.map((o) => (
                       <tr key={o.id}>
                         <th scope="row">
-                          {o.code} · {o.name}
+                          <span className="ofc-code">{o.code}</span> {o.name}
                         </th>
                         <td className="num">{mxn.format(Number(o.goalMxn))}</td>
                         <td className="num">
@@ -228,12 +228,22 @@ export default function ExecutivePage() {
                           )}
                         </td>
                         <td>
-                          <progress
-                            max={100}
-                            value={Math.min(100, o.progress ?? 0)}
-                            aria-label={`Avance ${o.code}`}
-                          />{' '}
-                          {o.progress === null ? '—' : `${o.progress}%`}
+                          <div className="goal-bar">
+                            <span
+                              className="track"
+                              role="progressbar"
+                              aria-label={`Avance ${o.code}`}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-valuenow={Math.min(100, o.progress ?? 0)}
+                            >
+                              <span
+                                className={(o.progress ?? 0) >= 100 ? 'fill done' : 'fill'}
+                                style={{ width: `${Math.min(100, o.progress ?? 0)}%` }}
+                              />
+                            </span>
+                            <strong>{o.progress === null ? '—' : `${o.progress}%`}</strong>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -248,7 +258,7 @@ export default function ExecutivePage() {
               Por oficina
             </h2>
             <div className="table-wrap">
-              <table>
+              <table className="office-table">
                 <thead>
                   <tr>
                     <th>Oficina</th>
@@ -264,12 +274,12 @@ export default function ExecutivePage() {
                   {data.byOffice.map((o) => (
                     <tr key={o.id}>
                       <th scope="row">
-                        {o.code} · {o.name}
+                        <span className="ofc-code">{o.code}</span> {o.name}
                       </th>
                       <td className="num">{o.requests}</td>
-                      <td className="num">{o.open}</td>
-                      <td className="num">{o.won}</td>
-                      <td className="num">{o.lost}</td>
+                      <td className={o.open ? 'num' : 'num zero'}>{o.open}</td>
+                      <td className={o.won ? 'num' : 'num zero'}>{o.won}</td>
+                      <td className={o.lost ? 'num' : 'num zero'}>{o.lost}</td>
                       <td className="num">{pct(o.conversion)}</td>
                       <td>{amounts(o.wonAmount)}</td>
                     </tr>

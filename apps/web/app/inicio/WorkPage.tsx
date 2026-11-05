@@ -403,7 +403,7 @@ export function WorkPage({ initialView }: { initialView: View }) {
               Solicitudes por oficina
             </h2>
             <div className="table-wrap">
-              <table>
+              <table className="office-table">
                 <thead>
                   <tr>
                     <th>Oficina</th>
@@ -426,12 +426,14 @@ export function WorkPage({ initialView }: { initialView: View }) {
                   {activeOffices.map((o) => (
                     <tr key={o.id}>
                       <th scope="row">
-                        {o.code} · {o.name}
+                        <span className="ofc-code">{o.code}</span> {o.name}
                       </th>
                       {STATUSES.map((s) => (
-                        <td key={s} className="num">
+                        <td key={s} className={o.byStatus[s] ? 'num' : 'num zero'}>
                           {o.byStatus[s] ? (
-                            <Link href={`/solicitudes?status=${s}&officeId=${o.id}`}>{o.byStatus[s]}</Link>
+                            <Link className="count" href={`/solicitudes?status=${s}&officeId=${o.id}`}>
+                              {o.byStatus[s]}
+                            </Link>
                           ) : (
                             0
                           )}
