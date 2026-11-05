@@ -2141,3 +2141,81 @@ ol.decision-log li {
 .ficha [role='tabpanel'] > section > h2:first-child {
   margin-top: 0;
 }
+
+/* Office lists in Inicio and Dashboard ejecutivo: compact, aligned, zeros recede. */
+table.office-table {
+  font-size: 0.82rem;
+}
+table.office-table th,
+table.office-table td {
+  padding: 6px 10px;
+}
+table.office-table thead th {
+  font-size: 0.66rem;
+  white-space: normal;
+  vertical-align: bottom;
+  border-bottom: 2px solid var(--border);
+}
+table.office-table tbody th[scope='row'] {
+  font-weight: 500;
+  width: 1%;
+}
+table.office-table tbody tr:hover {
+  background: var(--subtle);
+}
+.ofc-code {
+  display: inline-block;
+  min-width: 6.4em;
+  margin-right: 2px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+}
+table.office-table td.zero {
+  color: var(--border);
+}
+table.office-table td a.count {
+  display: inline-block;
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+table.office-table td a.count:hover {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.goal-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 160px;
+}
+.goal-bar .track {
+  flex: 1;
+  height: 6px;
+  background: var(--subtle);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.goal-bar .fill {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+.goal-bar .fill.done {
+  background: var(--ok);
+}
+.goal-bar strong {
+  min-width: 3em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

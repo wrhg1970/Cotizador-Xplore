@@ -40,8 +40,8 @@ test('"Mi trabajo" lists what is waiting on the user and links to it', async ({ 
   await expect(card).toBeVisible();
   await page.getByRole('button', { name: 'Tarjetas comprimidas' }).click();
   await expect(card.getByText('Requiere tu acción')).toBeHidden();
-  await expect(page.getByRole('row', { name: `${office.code} · Oficina E2E` })).toHaveText(
-    `${office.code} · Oficina E2E0010000—`,
+  await expect(page.getByRole('row', { name: `${office.code} Oficina E2E` })).toHaveText(
+    `${office.code} Oficina E2E0010000—`,
   );
   await card.getByRole('link', { name: 'Cotizar →' }).click();
   await expect(page).toHaveURL(new RegExp(`/solicitudes/${req.id}$`));
