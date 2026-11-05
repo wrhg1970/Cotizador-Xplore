@@ -48,7 +48,7 @@ export async function computeAlerts(
   now = new Date(),
 ): Promise<Alert[]> {
   const alerts: Alert[] = [];
-  const inOffices = { officeId: { in: officeIds } };
+  const inOffices = { officeId: { in: officeIds }, archivedAt: null };
   const cutoff = (days: number) => new Date(startOfDay(now).getTime() - (days - 1) * DAY);
 
   if (s.unquotedDays) {

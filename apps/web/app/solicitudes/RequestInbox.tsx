@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
 import { fmtDate, STATUS_LABEL, type TravelRequestDto } from '../lib/types';
-import { canSeeQuotes, useMe } from '../lib/useMe';
+import { can, canSeeQuotes, useMe } from '../lib/useMe';
+import { archiveRequest, purgeRequest, unarchiveRequest } from './archive';
 
 /** "Mi trabajo" stage from the API: 1 Solicitada, 2 Por aprobar, 3 Aprobada, 4 Enviada. */
 type Row = TravelRequestDto & { scenarios: number; stage: 1 | 2 | 3 | 4 };
@@ -25,6 +26,8 @@ const TABS = [
   ['SENT', 'Enviadas / negociación'],
   ['WON', 'Aceptadas'],
 ] as const;
+/** Pseudo-tab: archived requests only, where they can be unarchived or purged. */
+const ARCHIVED = 'ARCHIVED';
 
 const VIEWS = [
   ['ROWS', 'Filas'],
@@ -63,6 +66,8 @@ function Inbox({ basePath, title, subtitle }: InboxProps) {
   const view: View = VIEWS.some(([k]) => k === params.get('vista')) ? (params.get('vista') as View) : 'ROWS';
   const advanced = !!(params.get('status') || params.get('officeId') || assignedToMe);
   const [showFilters, setShowFilters] = useState(advanced);
+  const [tick, setTick] = useState(0);
+  const archivedTab = params.get('archived') === 'true';
 
   useEffect(() => {
     setError(null);
@@ -78,7 +83,19 @@ function Inbox({ basePath, title, subtitle }: InboxProps) {
     return () => {
       current = false;
     };
-  }, [params]);
+  }, [params, tick]);
+
+  /** Row actions (archive, unarchive, purge); the list reloads afterwards. */
+  async function rowAction(run: typeof archiveRequest, r: Row) {
+    setError(null);
+    try {
+      if (await run(r)) setTick((t) => t + 1);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }
+  const manage = (r: Row) =>
+    can(me, r.office.id, 'canDelete') ? (run: typeof archiveRequest) => rowAction(run, r) : null;
   useEffect(() => {
     api<typeof offices>('/offices').then(setOffices, () => undefined);
   }, []);
@@ -88,6 +105,9 @@ function Inbox({ basePath, title, subtitle }: InboxProps) {
     if (value) next.set(key, value);
     else next.delete(key);
     if (key !== 'page') next.delete('page');
+    // The stage tabs and "Archivadas" are exclusive.
+    if (key === 'stage') next.delete('archived');
+    if (key === 'archived') next.delete('stage');
     router.push(`${basePath}?${next.toString()}`);
   }
 
@@ -116,13 +136,21 @@ function Inbox({ basePath, title, subtitle }: InboxProps) {
               <button
                 key={key}
                 type="button"
-                aria-pressed={stage === key}
+                aria-pressed={stage === key && !archivedTab}
                 onClick={() => setParam('stage', key)}
               >
                 {label}
-                {stage === key && data ? ` (${data.total})` : ''}
+                {stage === key && !archivedTab && data ? ` (${data.total})` : ''}
               </button>
             ))}
+            <button
+              key={ARCHIVED}
+              type="button"
+              aria-pressed={archivedTab}
+              onClick={() => setParam('archived', archivedTab ? '' : 'true')}
+            >
+              Archivadas{archivedTab && data ? ` (${data.total})` : ''}
+            </button>
           </div>
           <form
             role="search"
@@ -266,7 +294,7 @@ function Inbox({ basePath, title, subtitle }: InboxProps) {
                     </td>
                     <td className="num">{r.scenarios}</td>
                     <td className="req-actions">
-                      <Actions r={r} quotes={canSeeQuotes(me, r.office.id)} />
+                      <Actions r={r} quotes={canSeeQuotes(me, r.office.id)} manage={manage(r)} />
                     </td>
                   </tr>
                 ))}
@@ -277,7 +305,7 @@ function Inbox({ basePath, title, subtitle }: InboxProps) {
         {data && data.items.length > 0 && view === 'CARDS' && (
           <div className="wcards compact">
             {data.items.map((r) => (
-              <RequestCard key={r.id} r={r} quotes={canSeeQuotes(me, r.office.id)} />
+              <RequestCard key={r.id} r={r} quotes={canSeeQuotes(me, r.office.id)} manage={manage(r)} />
             ))}
           </div>
         )}
@@ -296,7 +324,12 @@ function Inbox({ basePath, title, subtitle }: InboxProps) {
                   </h3>
                   <div className="wcards compact">
                     {col.map((r) => (
-                      <RequestCard key={r.id} r={r} quotes={canSeeQuotes(me, r.office.id)} />
+                      <RequestCard
+                        key={r.id}
+                        r={r}
+                        quotes={canSeeQuotes(me, r.office.id)}
+                        manage={manage(r)}
+                      />
                     ))}
                   </div>
                 </section>
@@ -344,7 +377,27 @@ function Who({ r }: { r: Row }) {
 }
 
 /** Cotizar and Comparar both land on the request's scenarios (the comparison table lives there). */
-function Actions({ r, quotes }: { r: Row; quotes: boolean }) {
+type Manage = ((run: typeof archiveRequest) => Promise<void>) | null;
+
+function Actions({ r, quotes, manage }: { r: Row; quotes: boolean; manage: Manage }) {
+  if (r.archivedAt)
+    return (
+      <span className="row" style={{ gap: 6, alignItems: 'center' }}>
+        <Link className="button secondary req-act" href={`/solicitudes/${r.id}`}>
+          Ver
+        </Link>
+        {manage && (
+          <>
+            <button type="button" className="secondary req-act" onClick={() => manage(unarchiveRequest)}>
+              Desarchivar
+            </button>
+            <button type="button" className="danger req-act" onClick={() => manage(purgeRequest)}>
+              Borrar
+            </button>
+          </>
+        )}
+      </span>
+    );
   const open = r.status === 'SUBMITTED' || r.status === 'QUOTING';
   return (
     <span className="row" style={{ gap: 6, alignItems: 'center' }}>
@@ -361,11 +414,21 @@ function Actions({ r, quotes }: { r: Row; quotes: boolean }) {
       <Link className="button req-act" href={`/solicitudes/${r.id}#archivos`}>
         Expediente
       </Link>
+      {manage && (
+        <button
+          type="button"
+          className="secondary req-act"
+          title="Archivar"
+          onClick={() => manage(archiveRequest)}
+        >
+          Archivar
+        </button>
+      )}
     </span>
   );
 }
 
-function RequestCard({ r, quotes }: { r: Row; quotes: boolean }) {
+function RequestCard({ r, quotes, manage }: { r: Row; quotes: boolean; manage: Manage }) {
   return (
     <article className="card wcard" aria-label={`${r.folio} ${r.groupName}`}>
       <div className="eyebrow">
@@ -378,7 +441,7 @@ function RequestCard({ r, quotes }: { r: Row; quotes: boolean }) {
       </div>
       <div className="foot" style={{ marginTop: 10 }}>
         <span className="badge">{stepName(r)}</span>
-        <Actions r={r} quotes={quotes} />
+        <Actions r={r} quotes={quotes} manage={manage} />
       </div>
     </article>
   );

@@ -47,6 +47,8 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `POST /requests/{requestId}/submit`
 - `POST /requests/{requestId}/assign`
 - `POST /requests/{requestId}/outcome` — respuesta del cliente a una solicitud enviada (`SENT`): `{outcome:"WON", versionId, version}` (la versión debe estar enviada y ser de esa solicitud) o `{outcome:"LOST", reason, version}`. Solo el cotizador asignado o el coordinador; la solicitud queda cerrada y se audita (`request.won` / `request.lost`). `GET /requests/{id}/proposals` incluye `sent`
+- `POST /requests/{requestId}/archive` y `/unarchive` — `{version}`. Rol con «Borrar» de la oficina, en cualquier estado. Archivada: fuera de listas, tableros, alertas, reportes y recordatorios; solo lectura; su liga pública da 404. `GET /requests?archived=true` lista solo archivadas (por defecto se ocultan). Auditoría `request.archived|unarchived`.
+- `DELETE /requests/{requestId}` — `{folio}` (se reescribe para confirmar). Solo archivadas y rol con «Borrar». Borra de verdad solicitud, escenarios, versiones, líneas, TC, revisiones, envíos, ligas, aceptación, archivos, comentarios y equipo. Antes escribe `request.purged` (folio, grupo, estado, número de versiones y archivos) en la bitácora general, que sobrevive.
 - `POST /requests/{requestId}/comments`
 - `GET /requests/{requestId}/timeline` — eventos de la solicitud (con id) y, para quien ve costos, también los de sus versiones de cotización
 - `POST /requests/{requestId}/attachments`

@@ -63,6 +63,7 @@ export interface TravelRequestDto {
   lostReason: string | null;
   closedAt: string | null;
   wetravelUrl: string | null;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -111,6 +112,9 @@ export const ACTION_LABEL: Record<string, string> = {
   'request.submitted': 'Envió a cotización',
   'request.assigned': 'Asignó cotizador',
   'request.cancelled': 'Canceló la solicitud',
+  'request.archived': 'Archivó la solicitud',
+  'request.unarchived': 'Desarchivó la solicitud',
+  'request.purged': 'Borró definitivamente la solicitud',
   'request.won': 'Registró la solicitud como ganada',
   'request.lost': 'Registró la solicitud como perdida',
   'request.wetravel_link': 'Creó la liga de pago en WeTravel',

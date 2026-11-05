@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, errorText } from '../../lib/api';
 import { ACTION_LABEL, fmtDate, fmtDateTime, STATUS_LABEL, type TravelRequestDto } from '../../lib/types';
@@ -12,6 +12,7 @@ import { RequestFiles } from '../RequestFiles';
 import { RequestTeam } from '../RequestTeam';
 import { WeTravelPayments } from '../WeTravelPayments';
 import { Scenarios } from '../Scenarios';
+import { archiveRequest, purgeRequest, unarchiveRequest } from '../archive';
 
 interface Timeline {
   events: { action: string; actor: { id: string; name: string } | null; at: string }[];
@@ -46,6 +47,7 @@ export default function RequestDetailPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<Tab | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const fromHash = () => {
@@ -103,6 +105,22 @@ export default function RequestDetailPage() {
     }
   }
 
+  /** Archive, unarchive or purge; a purged request has no page left, so go to the archive list. */
+  async function archiveAction(run: typeof archiveRequest, purged = false) {
+    if (!r) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (!(await run(r))) return;
+      if (purged) router.push('/cotizaciones?archived=true');
+      else await reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function wetravel() {
     if (!r?.wonVersionId) return;
     setBusy(true);
@@ -151,13 +169,15 @@ export default function RequestDetailPage() {
   if (!r) return error ? <p className="error">{error}</p> : <p className="muted">Cargando…</p>;
 
   const isRequester = me?.id === r.requester.id;
-  const editable = ['DRAFT', 'SUBMITTED', 'QUOTING'].includes(r.status);
+  const archived = !!r.archivedAt;
+  const canArchive = can(me, r.office.id, 'canDelete');
+  const editable = !archived && ['DRAFT', 'SUBMITTED', 'QUOTING'].includes(r.status);
   const canEdit =
     editable && can(me, r.office.id, 'canEdit') && (isRequester || admin || me?.id === r.assignee?.id);
-  const canSubmit = r.status === 'DRAFT' && (isRequester || admin);
-  const canAssign = admin && (r.status === 'SUBMITTED' || r.status === 'QUOTING');
-  const canCancel = can(me, r.office.id, 'canDelete') && !['WON', 'LOST', 'CANCELLED'].includes(r.status);
-  const canRecordOutcome = r.status === 'SENT' && (admin || me?.id === r.assignee?.id);
+  const canSubmit = editable && r.status === 'DRAFT' && (isRequester || admin);
+  const canAssign = editable && admin && (r.status === 'SUBMITTED' || r.status === 'QUOTING');
+  const canCancel = !archived && canArchive && !['WON', 'LOST', 'CANCELLED'].includes(r.status);
+  const canRecordOutcome = !archived && r.status === 'SENT' && (admin || me?.id === r.assignee?.id);
   const sent = proposals.filter((p) => p.sent);
   const winner = proposals.find((p) => p.versionId === r.wonVersionId);
   const quotes = canSeeQuotes(me, r.office.id);
@@ -182,7 +202,10 @@ export default function RequestDetailPage() {
         <h1 style={{ margin: 0 }}>
           {r.folio} · {r.groupName}
         </h1>
-        <span className="badge">{STATUS_LABEL[r.status]}</span>
+        <span className="badge">
+          {STATUS_LABEL[r.status]}
+          {archived ? ' · Archivada' : ''}
+        </span>
       </div>
       <p className="muted">
         Responsable: {r.assignee?.name ?? 'sin asignar'} · Solicitante: {r.requester.name}
@@ -194,6 +217,12 @@ export default function RequestDetailPage() {
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      {archived && (
+        <p className="legend" role="status">
+          Archivada el {fmtDateTime(r.archivedAt!)}: no aparece en listas, tableros ni avisos y no se puede
+          modificar. Desarchívala para seguir trabajando o bórrala definitivamente.
+        </p>
+      )}
 
       <div className="row" style={{ marginBottom: 16 }}>
         {canEdit && (
@@ -285,6 +314,21 @@ export default function RequestDetailPage() {
           >
             Cancelar solicitud
           </button>
+        )}
+        {canArchive && !archived && (
+          <button className="secondary" disabled={busy} onClick={() => archiveAction(archiveRequest)}>
+            Archivar
+          </button>
+        )}
+        {canArchive && archived && (
+          <>
+            <button className="secondary" disabled={busy} onClick={() => archiveAction(unarchiveRequest)}>
+              Desarchivar
+            </button>
+            <button className="danger" disabled={busy} onClick={() => archiveAction(purgeRequest, true)}>
+              Borrar definitivamente
+            </button>
+          </>
         )}
       </div>
 

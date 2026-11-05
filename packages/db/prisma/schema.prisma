@@ -260,6 +260,8 @@ model TravelRequest {
   /// WeTravel payment link created from the winning version (uuid and checkout URL from their API).
   wetravelLinkId String?             @unique @map("wetravel_link_id")
   wetravelUrl    String?             @map("wetravel_url")
+  /// Archived: hidden from every list, dashboard and alert; only an archived request can be purged for good.
+  archivedAt     DateTime?           @map("archived_at") @db.Timestamptz(3)
   /// Optimistic concurrency (US-142).
   version        Int                 @default(1)
   createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)

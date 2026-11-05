@@ -3,6 +3,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Inject,
@@ -21,6 +22,7 @@ import {
   CreateComment,
   CreateRequest,
   ListRequestsQuery,
+  PurgeRequest,
   RecordOutcome,
   UpdateRequest,
   VersionOnly,
@@ -39,10 +41,12 @@ import { ZodPipe } from '../zod.pipe.js';
 import { stageOf } from '../dashboard/dashboard.controller.js';
 import { FOLIO_PATTERN, newFolio } from './folio.js';
 import {
+  canArchive,
   canAssign,
   canCancel,
   canCreateIn,
   canEdit,
+  canPurge,
   canRecordOutcome,
   canSubmit,
   canView,
@@ -115,6 +119,7 @@ function toDto(r: Row) {
     lostReason: r.lostReason,
     closedAt: r.closedAt?.toISOString() ?? null,
     wetravelUrl: r.wetravelUrl,
+    archivedAt: r.archivedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   };
@@ -246,6 +251,7 @@ export class RequestsController {
         {
           OR: [{ status: { not: 'DRAFT' } }, { requesterId: user.id }, { officeId: { in: adminOffices } }],
         },
+        { archivedAt: q.archived === 'true' ? { not: null } : null },
         q.officeId ? { officeId: q.officeId } : {},
         q.status ? { status: q.status } : {},
         q.assignedToMe === 'true' ? { assigneeId: user.id } : {},
@@ -389,6 +395,108 @@ export class RequestsController {
       cancelReason: body.reason,
       auditDiff: { reason: body.reason },
     }));
+  }
+
+  /** Hides the request from every list, dashboard and alert; any status, reversible (Will, 2026-11-05). */
+  @Post(':id/archive')
+  async archive(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(VersionOnly)) body: z.infer<typeof VersionOnly>,
+  ) {
+    return this.setArchived(user, req, id, body.version, true);
+  }
+
+  @Post(':id/unarchive')
+  async unarchive(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(VersionOnly)) body: z.infer<typeof VersionOnly>,
+  ) {
+    return this.setArchived(user, req, id, body.version, false);
+  }
+
+  private setArchived(user: AuthUser, req: Request, id: string, version: number, archived: boolean) {
+    return this.prisma.$transaction(async (tx) => {
+      const row = await this.load(tx, id, user);
+      if (!canArchive(user, row)) throw new ForbiddenException('Tu rol no tiene permiso de Borrar');
+      if (!!row.archivedAt === archived)
+        throw new ConflictException(
+          archived ? 'La solicitud ya está archivada' : 'La solicitud no está archivada',
+        );
+      const updated = await this.write(tx, row, version, { archivedAt: archived ? new Date() : null });
+      await audit(tx, {
+        actorUserId: user.id,
+        action: archived ? 'request.archived' : 'request.unarchived',
+        entityType: 'TravelRequest',
+        entityId: id,
+        correlationId: req.correlationId,
+        diff: { status: row.status },
+      });
+      return toDto(updated);
+    });
+  }
+
+  /**
+   * Permanent delete of an archived request with its scenarios, versions, sends, links, acceptances and files.
+   * The audit entry (written first, it outlives the request) keeps folio and counts for the agency log.
+   */
+  @Delete(':id')
+  async purge(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(PurgeRequest)) body: z.infer<typeof PurgeRequest>,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      const row = await this.load(tx, id, user);
+      if (!canPurge(user, row))
+        throw new ForbiddenException(
+          row.archivedAt ? 'Tu rol no tiene permiso de Borrar' : 'Primero archiva la solicitud',
+        );
+      if (body.folio !== row.folio)
+        throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'El folio no coincide' });
+      const versionIds = (
+        await tx.quoteVersion.findMany({ where: { scenario: { requestId: id } }, select: { id: true } })
+      ).map((v) => v.id);
+      const byVersion = { versionId: { in: versionIds } };
+      const files = await tx.requestAttachment.count({ where: { requestId: id } });
+      await audit(tx, {
+        actorUserId: user.id,
+        action: 'request.purged',
+        entityType: 'TravelRequest',
+        entityId: id,
+        correlationId: req.correlationId,
+        diff: {
+          folio: row.folio,
+          groupName: row.groupName,
+          status: row.status,
+          versions: versionIds.length,
+          files,
+        },
+      });
+      // Lets the append-only evidence tables (reviews, acceptances) accept this DELETE only (see migration).
+      await tx.$executeRaw`SELECT set_config('ee.purge', 'on', true)`;
+      // Breaks the request ↔ winning version cycle; DRAFT keeps the WON check happy for the instant before delete.
+      await tx.travelRequest.update({ where: { id }, data: { wonVersionId: null, status: 'DRAFT' } });
+      await tx.proposalAcceptance.deleteMany({ where: byVersion });
+      await tx.proposalShare.deleteMany({ where: byVersion });
+      await tx.proposalDelivery.deleteMany({ where: byVersion });
+      await tx.quoteReview.deleteMany({ where: byVersion });
+      await tx.quoteVersion.updateMany({
+        where: { id: { in: versionIds } },
+        data: { coverAttachmentId: null },
+      });
+      await tx.requestAttachment.deleteMany({ where: { requestId: id } });
+      await tx.quoteVersion.deleteMany({ where: { id: { in: versionIds } } }); // lines and FX rates cascade
+      await tx.quoteScenario.deleteMany({ where: { requestId: id } });
+      await tx.requestComment.deleteMany({ where: { requestId: id } });
+      await tx.requestMember.deleteMany({ where: { requestId: id } });
+      await tx.travelRequest.delete({ where: { id } });
+    });
+    return { ok: true };
   }
 
   /** PRD F-06: one winner per request (unique column), and it must be a version actually sent to the client. */
