@@ -67,6 +67,10 @@ const TAB_LABEL: Record<Exclude<Tab, 'bitacora'>, string> = {
   propuesta: 'Propuesta',
   importar: 'Importar hoja',
 };
+/** Bottom card: what happens after the sheet, one step per sub-tab. */
+type FlowTab = 'autorizacion' | 'envio' | 'expediente';
+const FLOW_TABS: FlowTab[] = ['autorizacion', 'envio', 'expediente'];
+
 // The Bitácora has no tab: the header's button opens it.
 const TABS = ['hoja', 'conceptos', 'pagos', 'volumen', 'propuesta', 'importar'] as const;
 
@@ -91,6 +95,7 @@ export default function QuoteEditorPage() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab | null>(null);
+  const [flowTab, setFlowTab] = useState<FlowTab | null>(null);
 
   const load = useCallback((v: QuoteDto) => {
     // Every save or step adds audit events: keep the timeline in step.
@@ -222,7 +227,28 @@ export default function QuoteEditorPage() {
   const fileName = `${req?.folio ?? 'cotizacion'}-${q.scenarioName}-v${q.number}`.replace(/[^\w.-]+/g, '-');
   // Only one approved scenario per request: another approved or sent one blocks this one (the API refuses too).
   const pickedElsewhere = scenarios.find((s) => s.id !== q.scenarioId && isPicked(s));
-  const toApproval = () => document.getElementById('autorizacion')?.scrollIntoView({ behavior: 'smooth' });
+  const toApproval = () => {
+    setFlowTab('autorizacion');
+    document.getElementById('autorizacion')?.scrollIntoView({ behavior: 'smooth' });
+  };
+  const canShare =
+    works && !!req && isAuthorized(q.status) && ['QUOTING', 'SENT', 'WON'].includes(req.status);
+  // Open the step that is next: authorize, then send, then the record of what was sent.
+  const flow: FlowTab =
+    flowTab ??
+    (q.status === 'APPROVED' && works ? 'envio' : q.deliveries.length > 0 ? 'expediente' : 'autorizacion');
+  const approval = [...q.reviews].reverse().find((r) => r.decision === 'APPROVED');
+  const FLOW_LABEL: Record<FlowTab, string> = {
+    autorizacion: 'Autorización',
+    envio: 'Envío al colegio',
+    expediente: 'Expediente',
+  };
+  const flowPanel = (t: FlowTab) => ({
+    id: `flow-panel-${t}`,
+    role: 'tabpanel',
+    'aria-labelledby': `flow-tab-${t}`,
+    hidden: flow !== t,
+  });
 
   /** Approval steps (US-071..074); submitting saves pending edits first. */
   async function act(action: string, body: object = {}) {
@@ -967,209 +993,251 @@ export default function QuoteEditorPage() {
         </div>
       </fieldset>
 
-      {scenarios.length > 0 && (
-        <section className="card compact scenario-chips" aria-label="Escenarios de la solicitud">
-          <div className="chips">
-            {scenarios.map((s, i) => (
-              <Link
-                key={s.id}
-                href={`/cotizaciones/${s.latest.id}`}
-                className={s.id === q.scenarioId ? 'chip active' : 'chip'}
-                aria-current={s.id === q.scenarioId ? 'page' : undefined}
-              >
-                Escenario {String.fromCharCode(65 + (i % 26))}: {s.latest.participants} est. +{' '}
-                {s.latest.chaperones + s.latest.staff} chap. (v{s.latest.number} ·{' '}
-                {QUOTE_STATUS_LABEL[s.latest.status]})
-              </Link>
-            ))}
-          </div>
-          {works && req?.status === 'QUOTING' && (
-            <div className="row">
-              <button type="button" className="secondary small" onClick={() => void duplicatePlus5()}>
-                Duplicar escenario (+5 estudiantes)
-              </button>
-              <Link className="button secondary small" href={`/solicitudes/${q.requestId}#escenarios`}>
-                Nuevo escenario
-              </Link>
-              {scenarios.length > 1 && (
-                <Link className="button secondary small" href={`/solicitudes/${q.requestId}#escenarios`}>
-                  Comparar en columnas ({scenarios.length})
+      <div className="ficha flow">
+        {scenarios.length > 0 && (
+          <section className="card compact scenario-chips" aria-label="Escenarios de la solicitud">
+            <div className="chips">
+              {scenarios.map((s, i) => (
+                <Link
+                  key={s.id}
+                  href={`/cotizaciones/${s.latest.id}`}
+                  className={s.id === q.scenarioId ? 'chip active' : 'chip'}
+                  aria-current={s.id === q.scenarioId ? 'page' : undefined}
+                >
+                  Escenario {String.fromCharCode(65 + (i % 26))}: {s.latest.participants} est. +{' '}
+                  {s.latest.chaperones + s.latest.staff} chap. (v{s.latest.number} ·{' '}
+                  {QUOTE_STATUS_LABEL[s.latest.status]})
                 </Link>
-              )}
+              ))}
             </div>
-          )}
-        </section>
-      )}
+            {works && req?.status === 'QUOTING' && (
+              <div className="row">
+                <button type="button" className="secondary small" onClick={() => void duplicatePlus5()}>
+                  Duplicar escenario (+5 estudiantes)
+                </button>
+                <Link className="button secondary small" href={`/solicitudes/${q.requestId}#escenarios`}>
+                  Nuevo escenario
+                </Link>
+                {scenarios.length > 1 && (
+                  <Link className="button secondary small" href={`/solicitudes/${q.requestId}#escenarios`}>
+                    Comparar en columnas ({scenarios.length})
+                  </Link>
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
-      <section className="card" aria-labelledby="autorizacion">
-        <h2 id="autorizacion" style={{ marginTop: 0 }}>
-          Autorización
-        </h2>
-        <div className="row">
-          <Link className="button secondary" href={`/cotizaciones/${q.id}/propuesta`}>
-            {isAuthorized(q.status) ? 'Ver propuesta para compartir' : 'Vista previa de la propuesta'}
-          </Link>
-          {pickedElsewhere && ['DRAFT', 'RETURNED', 'IN_REVIEW'].includes(q.status) && (
-            <p className="legend" role="status" style={{ flexBasis: '100%', margin: 0 }}>
-              Ya está aprobado el escenario «{pickedElsewhere.name}». Solo puede haber uno por solicitud: este
-              no se puede enviar a autorización ni autorizar mientras aquel siga aprobado.
-            </p>
-          )}
-          {works && !pickedElsewhere && ['DRAFT', 'RETURNED'].includes(q.status) && (
-            <button onClick={() => void act('submit')}>Enviar a autorización</button>
-          )}
-          {approver && q.status === 'APPROVED' && (
-            <button
-              className="secondary"
-              onClick={() => {
-                const comment = window
-                  .prompt(
-                    'Motivo para revocar la aprobación (obligatorio). Así podrás aprobar otro escenario:',
-                  )
-                  ?.trim();
-                if (comment) void act('revoke', { comment });
-              }}
-            >
-              Revocar aprobación
-            </button>
-          )}
-          {approver && q.status === 'IN_REVIEW' && (
-            <>
-              {!pickedElsewhere && <button onClick={() => void act('approve')}>Autorizar viaje</button>}
+        <section className="card" aria-labelledby="autorizacion">
+          <h2 id="autorizacion">Autorización y envío</h2>
+          <div role="tablist" aria-label="Autorización, envío y expediente" className="tabs">
+            {FLOW_TABS.map((t) => (
               <button
-                className="danger"
-                onClick={() => {
-                  const comment = window.prompt('Motivo de la devolución (obligatorio):')?.trim();
-                  if (comment) void act('return', { comment });
+                key={t}
+                id={`flow-tab-${t}`}
+                role="tab"
+                aria-selected={flow === t}
+                aria-controls={`flow-panel-${t}`}
+                tabIndex={flow === t ? 0 : -1}
+                onClick={() => setFlowTab(t)}
+                onKeyDown={(e) => {
+                  const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+                  if (!step) return;
+                  const next = FLOW_TABS[(FLOW_TABS.indexOf(t) + step + 3) % 3]!;
+                  setFlowTab(next);
+                  document.getElementById(`flow-tab-${next}`)?.focus();
                 }}
               >
-                Devolver con comentarios
+                {FLOW_LABEL[t]}
+                {t === 'expediente' && q.deliveries.length > 0 && (
+                  <span className="tab-count">{q.deliveries.length}</span>
+                )}
               </button>
-            </>
-          )}
-          {works && (
-            <button
-              className="secondary"
-              onClick={async () => {
-                const name = window.prompt('Nombre de la plantilla:', q.scenarioName)?.trim();
-                if (!name) return;
-                setError(null);
-                try {
-                  await api(`/quotes/${q.id}/template`, { method: 'POST', body: { name } });
-                  setNotice(`Plantilla "${name}" guardada para la oficina`);
-                } catch (e) {
-                  setError(errorText(e));
-                }
-              }}
-            >
-              Guardar como plantilla
-            </button>
-          )}
-        </div>
-        {works && q.status === 'APPROVED' && (
-          <form
-            className="row"
-            style={{ marginTop: 8 }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              const f = new FormData(e.currentTarget);
-              void act('send', {
-                recipients: String(f.get('recipients')).trim(),
-                channel: f.get('channel'),
-                sentOn: f.get('sentOn'),
-                notes: String(f.get('notes') ?? '').trim() || undefined,
-                emailClient: f.get('emailClient') === 'on',
-                message: String(f.get('message') ?? '').trim() || undefined,
-              });
-            }}
-          >
-            <label>
-              Enviada a
-              <input name="recipients" required maxLength={500} placeholder="correo o nombre del contacto" />
-            </label>
-            <label>
-              Medio
-              <select name="channel" defaultValue="EMAIL">
-                {Object.entries(CHANNEL_LABEL).map(([v, label]) => (
-                  <option key={v} value={v}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Fecha de envío
-              <input name="sentOn" type="date" required defaultValue={today()} />
-            </label>
-            <label>
-              Notas
-              <input name="notes" maxLength={2000} />
-            </label>
-            <label style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <input name="emailClient" type="checkbox" />
-              Mandar el correo al colegio desde el cotizador (con liga a la propuesta por 30 días)
-            </label>
-            <label>
-              Mensaje para el colegio (opcional)
-              <textarea name="message" maxLength={2000} rows={2} />
-            </label>
-            <button>Registrar envío al cliente</button>
-          </form>
-        )}
-        <VersionChanges quoteId={q.id} rowVersion={q.rowVersion} />
-        <ShareLinks
-          quoteId={q.id}
-          canShare={
-            works &&
-            !!req &&
-            ['APPROVED', 'SENT'].includes(q.status) &&
-            ['QUOTING', 'SENT', 'WON'].includes(req.status)
-          }
-          canRevoke={works}
-        />
-        {q.reviews.length > 0 && (
-          <ol className="timeline">
-            {q.reviews.map((r, i) => (
-              <li key={i}>
-                {r.decision === 'APPROVED' ? 'Autorizó' : 'Devolvió'} · {r.reviewer}{' '}
-                <span className="muted">{fmtDateTime(r.at)}</span>
-                {r.comment && <p style={{ margin: '4px 0 0' }}>{r.comment}</p>}
-              </li>
             ))}
-          </ol>
-        )}
-      </section>
+          </div>
 
-      <section className="card" id="expediente" aria-labelledby="expediente-titulo">
-        <h2 id="expediente-titulo" style={{ marginTop: 0 }}>
-          Expediente de la propuesta
-        </h2>
-        <p className="muted">Todo lo que se mandó al colegio con esta versión.</p>
-        <p>
-          <Link href={`/cotizaciones/${q.id}/propuesta`}>Propuesta para el cliente (PDF / liga)</Link>
-        </p>
-        {q.deliveries.length === 0 ? (
-          <p className="muted">Aún no se registra ningún envío.</p>
-        ) : (
-          <ul>
-            {q.deliveries.map((d, i) => (
-              <li key={i}>
-                Enviada el {fmtDate(d.sentOn)} por {CHANNEL_LABEL[d.channel]} a {d.recipients} · {d.sentBy}
-                {d.notes && <span className="muted"> · {d.notes}</span>}
-              </li>
-            ))}
-          </ul>
-        )}
-        {req && (
-          <RequestFiles
-            requestId={req.id}
-            versionId={q.id}
-            canUpload={req.status !== 'CANCELLED' && can(me, req.office.id, 'canEdit')}
-            canDeleteAny={can(me, req.office.id, 'canDelete')}
-            meId={me?.id}
-          />
-        )}
-      </section>
+          <div {...flowPanel('autorizacion')}>
+            <div className="row">
+              <Link className="button secondary" href={`/cotizaciones/${q.id}/propuesta`}>
+                {isAuthorized(q.status) ? 'Ver propuesta para compartir' : 'Vista previa de la propuesta'}
+              </Link>
+              {pickedElsewhere && ['DRAFT', 'RETURNED', 'IN_REVIEW'].includes(q.status) && (
+                <p className="legend" role="status" style={{ flexBasis: '100%', margin: 0 }}>
+                  Ya está aprobado el escenario «{pickedElsewhere.name}». Solo puede haber uno por solicitud:
+                  este no se puede enviar a autorización ni autorizar mientras aquel siga aprobado.
+                </p>
+              )}
+              {works && !pickedElsewhere && ['DRAFT', 'RETURNED'].includes(q.status) && (
+                <button onClick={() => void act('submit')}>Enviar a autorización</button>
+              )}
+              {approver && q.status === 'APPROVED' && (
+                <button
+                  className="secondary"
+                  onClick={() => {
+                    const comment = window
+                      .prompt(
+                        'Motivo para revocar la aprobación (obligatorio). Así podrás aprobar otro escenario:',
+                      )
+                      ?.trim();
+                    if (comment) void act('revoke', { comment });
+                  }}
+                >
+                  Revocar aprobación
+                </button>
+              )}
+              {approver && q.status === 'IN_REVIEW' && (
+                <>
+                  {!pickedElsewhere && <button onClick={() => void act('approve')}>Autorizar viaje</button>}
+                  <button
+                    className="danger"
+                    onClick={() => {
+                      const comment = window.prompt('Motivo de la devolución (obligatorio):')?.trim();
+                      if (comment) void act('return', { comment });
+                    }}
+                  >
+                    Devolver con comentarios
+                  </button>
+                </>
+              )}
+              {works && (
+                <button
+                  className="secondary"
+                  onClick={async () => {
+                    const name = window.prompt('Nombre de la plantilla:', q.scenarioName)?.trim();
+                    if (!name) return;
+                    setError(null);
+                    try {
+                      await api(`/quotes/${q.id}/template`, { method: 'POST', body: { name } });
+                      setNotice(`Plantilla "${name}" guardada para la oficina`);
+                    } catch (e) {
+                      setError(errorText(e));
+                    }
+                  }}
+                >
+                  Guardar como plantilla
+                </button>
+              )}
+            </div>
+            <VersionChanges quoteId={q.id} rowVersion={q.rowVersion} />
+            {q.reviews.length > 0 && (
+              <ol className="timeline">
+                {q.reviews.map((r, i) => (
+                  <li key={i}>
+                    {r.decision === 'APPROVED' ? 'Autorizó' : 'Devolvió'} · {r.reviewer}{' '}
+                    <span className="muted">{fmtDateTime(r.at)}</span>
+                    {r.comment && <p style={{ margin: '4px 0 0' }}>{r.comment}</p>}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+
+          <div {...flowPanel('envio')}>
+            {!isAuthorized(q.status) ? (
+              <p className="muted">
+                Se habilita cuando el escenario esté aprobado. Primero envíalo a autorización en la pestaña
+                Autorización.
+              </p>
+            ) : (
+              <>
+                {approval && (
+                  <p className="muted">
+                    Aprobada por {approval.reviewer} el {fmtDateTime(approval.at)}
+                  </p>
+                )}
+                {works && q.status === 'APPROVED' && <h3>Registrar envío al cliente</h3>}
+                {works && q.status === 'APPROVED' && (
+                  <form
+                    className="send-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const f = new FormData(e.currentTarget);
+                      void act('send', {
+                        recipients: String(f.get('recipients')).trim(),
+                        channel: f.get('channel'),
+                        sentOn: f.get('sentOn'),
+                        notes: String(f.get('notes') ?? '').trim() || undefined,
+                        emailClient: f.get('emailClient') === 'on',
+                        message: String(f.get('message') ?? '').trim() || undefined,
+                      });
+                    }}
+                  >
+                    <label>
+                      Enviada a
+                      <input
+                        name="recipients"
+                        required
+                        maxLength={500}
+                        placeholder="correo o nombre del contacto"
+                      />
+                    </label>
+                    <label>
+                      Medio
+                      <select name="channel" defaultValue="EMAIL">
+                        {Object.entries(CHANNEL_LABEL).map(([v, label]) => (
+                          <option key={v} value={v}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Fecha de envío
+                      <input name="sentOn" type="date" required defaultValue={today()} />
+                    </label>
+                    <label>
+                      Notas
+                      <input name="notes" maxLength={2000} />
+                    </label>
+                    <label className="inline wide">
+                      <input name="emailClient" type="checkbox" />
+                      Mandar el correo al colegio desde el cotizador (con liga a la propuesta por 30 días)
+                    </label>
+                    <label className="wide">
+                      Mensaje para el colegio (opcional)
+                      <textarea name="message" maxLength={2000} rows={2} />
+                    </label>
+                    <button>Registrar envío al cliente</button>
+                  </form>
+                )}
+                <ShareLinks quoteId={q.id} canShare={canShare} canRevoke={works} />
+                {!works && (
+                  <p className="muted">Solo el cotizador asignado o un administrador registra el envío.</p>
+                )}
+              </>
+            )}
+          </div>
+
+          <div {...flowPanel('expediente')}>
+            <p className="muted">Todo lo que se mandó al colegio con esta versión.</p>
+            <p>
+              <Link href={`/cotizaciones/${q.id}/propuesta`}>Propuesta para el cliente (PDF / liga)</Link>
+            </p>
+            {q.deliveries.length === 0 ? (
+              <p className="muted">Aún no se registra ningún envío.</p>
+            ) : (
+              <ul>
+                {q.deliveries.map((d, i) => (
+                  <li key={i}>
+                    Enviada el {fmtDate(d.sentOn)} por {CHANNEL_LABEL[d.channel]} a {d.recipients} ·{' '}
+                    {d.sentBy}
+                    {d.notes && <span className="muted"> · {d.notes}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {req && (
+              <RequestFiles
+                requestId={req.id}
+                versionId={q.id}
+                canUpload={req.status !== 'CANCELLED' && can(me, req.office.id, 'canEdit')}
+                canDeleteAny={can(me, req.office.id, 'canDelete')}
+                meId={me?.id}
+              />
+            )}
+          </div>
+        </section>
+      </div>
     </>
   );
 }

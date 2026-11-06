@@ -2381,3 +2381,30 @@ table.compare thead th.picked {
     background: #0f2a1d;
   }
 }
+
+/* Quote page, bottom: scenarios, then Autorización / Envío al colegio / Expediente in sub-tabs. */
+.flow > .card + .card {
+  margin-top: 12px;
+}
+.flow [role='tabpanel'] > section {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.flow h3 {
+  font-size: 0.9rem;
+  margin: 10px 0 6px;
+}
+.send-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px 12px;
+  align-items: end;
+}
+.send-form .wide {
+  grid-column: 1 / -1;
+}
+.send-form > button {
+  justify-self: start;
+  white-space: nowrap;
+}

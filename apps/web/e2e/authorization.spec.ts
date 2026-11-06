@@ -82,6 +82,10 @@ test('admin grants "Autorizar viaje"; legend shows until the trip is authorized'
   await quoCtx.addCookies([quoter.cookie]);
   const quo = await quoCtx.newPage();
   await quo.goto(`/cotizaciones/${version.id}`);
+  // Sending stays locked in its own tab until the version is approved.
+  await quo.getByRole('tab', { name: 'Envío al colegio' }).click();
+  await expect(quo.getByText('Se habilita cuando el escenario esté aprobado')).toBeVisible();
+  await quo.getByRole('tab', { name: 'Autorización' }).click();
   await quo.getByRole('button', { name: 'Enviar a autorización' }).click();
   await expect(quo.locator('.badge')).toHaveText('En revisión');
   await expect(quo.getByRole('button', { name: 'Autorizar viaje' })).toHaveCount(0);
@@ -105,9 +109,13 @@ test('admin grants "Autorizar viaje"; legend shows until the trip is authorized'
   const download = quo.waitForEvent('download');
   await quo.getByRole('link', { name: 'Descargar Excel interno' }).click();
   expect((await download).suggestedFilename()).toMatch(/\.xlsx$/);
+  // Approved: the page opens on the send step.
+  await expect(quo.getByRole('tab', { name: 'Envío al colegio' })).toHaveAttribute('aria-selected', 'true');
+  await expect(quo.getByText('Aprobada por Aurora Autoriza')).toBeVisible();
   await quo.getByLabel('Enviada a').fill('direccion@colegio.example');
   await quo.getByLabel('Medio').selectOption({ label: 'WhatsApp' });
   await quo.getByRole('button', { name: 'Registrar envío al cliente' }).click();
   await expect(quo.locator('.badge')).toHaveText('Enviada');
+  await expect(quo.getByRole('tab', { name: /Expediente/ })).toHaveAttribute('aria-selected', 'true');
   await expect(quo.getByText(/por WhatsApp a direccion@colegio\.example · Quique/)).toBeVisible();
 });
