@@ -6,6 +6,7 @@ import { api, errorText } from '../lib/api';
 import type { RequestStatus } from '@ee/contracts';
 import { fmtDate, STATUS_LABEL } from '../lib/types';
 import { useMe } from '../lib/useMe';
+import { DEFAULT_OFFICE_VIEW, OfficeFilter, visibleOffices } from '../OfficeFilter';
 
 type TaskKind = 'SUBMIT_REQUEST' | 'ASSIGN' | 'QUOTE' | 'FIX_QUOTE' | 'APPROVE' | 'SEND' | 'RECORD_OUTCOME';
 type Stage = 1 | 2 | 3 | 4;
@@ -134,8 +135,8 @@ const needs = (n: number) => (n === 1 ? '1 requiere tu acción' : `${n} requiere
 
 // Pipeline order of the EE process; closed states go last.
 const STATUSES: RequestStatus[] = ['DRAFT', 'SUBMITTED', 'QUOTING', 'SENT', 'WON', 'LOST', 'CANCELLED'];
-/** Offices only show up while they have work in progress (not just closed requests). */
-const ACTIVE: RequestStatus[] = ['DRAFT', 'SUBMITTED', 'QUOTING', 'SENT'];
+/** By default offices only show up while they have requests in Borrador, Por asignar or En cotización. */
+const ACTIVE: RequestStatus[] = ['DRAFT', 'SUBMITTED', 'QUOTING'];
 
 /** Won ÷ (won + lost): only proposals the client already answered count. */
 const conversion = (s: Partial<Record<RequestStatus, number>>) => {
@@ -232,6 +233,7 @@ export function WorkPage({ initialView }: { initialView: View }) {
   const [filter, setFilter] = useState<Filter>('ALL');
   const [view, setView] = useState<View>(initialView);
   const [query, setQuery] = useState('');
+  const [officeView, setOfficeView] = useState(DEFAULT_OFFICE_VIEW);
 
   const tasksOf = (id: string) => data?.tasks.filter((t) => t.requestId === id) ?? [];
   const PASSES: Record<Filter, (r: WorkRequest) => boolean> = {
@@ -240,7 +242,9 @@ export function WorkPage({ initialView }: { initialView: View }) {
     OWNER: (r) => r.role !== 'SUPPORT',
     SUPPORT: (r) => r.role === 'SUPPORT',
   };
-  const activeOffices = (data?.offices ?? []).filter((o) => ACTIVE.some((s) => o.byStatus[s]));
+  const activeOffices = visibleOffices(data?.offices ?? [], officeView, (o) =>
+    ACTIVE.some((s) => o.byStatus[s]),
+  );
   const q = query.trim().toLowerCase();
   const shown = (data?.requests ?? [])
     .filter(PASSES[filter])
@@ -399,9 +403,13 @@ export function WorkPage({ initialView }: { initialView: View }) {
             )}
           </section>
           <section className="card" aria-labelledby="oficinas">
-            <h2 id="oficinas" style={{ marginTop: 0 }}>
-              Solicitudes por oficina
-            </h2>
+            <OfficeFilter
+              id="oficinas"
+              title="Solicitudes por oficina"
+              offices={data.offices}
+              value={officeView}
+              onChange={setOfficeView}
+            />
             <div className="table-wrap">
               <table className="office-table">
                 <thead>
@@ -419,7 +427,7 @@ export function WorkPage({ initialView }: { initialView: View }) {
                   {activeOffices.length === 0 && (
                     <tr>
                       <td colSpan={STATUSES.length + 2} className="muted">
-                        Ninguna oficina tiene cotizaciones activas.
+                        Ninguna oficina tiene solicitudes en Borrador, Por asignar o En cotización.
                       </td>
                     </tr>
                   )}

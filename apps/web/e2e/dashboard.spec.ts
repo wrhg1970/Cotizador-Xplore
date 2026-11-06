@@ -43,6 +43,12 @@ test('"Mi trabajo" lists what is waiting on the user and links to it', async ({ 
   await expect(page.getByRole('row', { name: `${office.code} Oficina E2E` })).toHaveText(
     `${office.code} Oficina E2E0010000—`,
   );
+  // Only offices with Borrador / Por asignar / En cotización; the button and the picker widen or narrow it.
+  const byOffice = page.getByRole('region', { name: 'Solicitudes por oficina' });
+  await byOffice.getByRole('button', { name: 'Ver todas las oficinas' }).click();
+  await byOffice.getByRole('button', { name: 'Solo oficinas activas' }).click();
+  await byOffice.getByRole('combobox').selectOption(office.id);
+  await expect(byOffice.locator('tbody tr')).toHaveCount(1);
   await card.getByRole('link', { name: 'Cotizar →' }).click();
   await expect(page).toHaveURL(new RegExp(`/solicitudes/${req.id}$`));
   await ctx.close();
