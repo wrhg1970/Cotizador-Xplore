@@ -17,10 +17,11 @@ export function SheetSummary({ q }: { q: QuoteDto }) {
       </section>
     );
   // Line totals come from the server already converted and multiplied by headcount.
+  // Read-only view: concepts at 0 are hidden (Will, 2026-11-06); subtotals and totals always show.
   const rows = (category: string) =>
     q.lines
       .map((l, i) => ({ l, total: t.lineTotals[i]! }))
-      .filter(({ l }) => l.category === category)
+      .filter(({ l, total }) => l.category === category && Number(total) !== 0)
       .map(({ l, total }, k) => (
         <tr key={`${category}-${k}`}>
           <td>
@@ -109,10 +110,12 @@ export function SheetSummary({ q }: { q: QuoteDto }) {
             {rows('PER_STAFF')}
             {rows('PER_CHAPERONE')}
             {total('SubTotal chaperones', s.chaperonesTotal)}
-            <tr>
-              <td>{title('CONTINGENCY')}</td>
-              <td className="num">{s.emergencyFund}</td>
-            </tr>
+            {Number(s.emergencyFund) !== 0 && (
+              <tr>
+                <td>{title('CONTINGENCY')}</td>
+                <td className="num">{s.emergencyFund}</td>
+              </tr>
+            )}
             {total('Total chaperones', s.totalChaperones, true)}
             {Number(s.groupFixedTotal) > 0 && (
               <>
