@@ -7,6 +7,8 @@ export interface RequestRef {
   requesterId: string;
   assigneeId: string | null;
   status: RequestStatus;
+  /** Archived requests are read-only until unarchived. */
+  archivedAt?: Date | null;
 }
 
 const EDITABLE: readonly RequestStatus[] = ['DRAFT', 'SUBMITTED', 'QUOTING'];
@@ -14,6 +16,7 @@ const CLOSED: readonly RequestStatus[] = ['WON', 'LOST', 'CANCELLED'];
 
 const isOfficeAdmin = (u: AuthUser, r: RequestRef) => hasOfficeRole(u, r.officeId, ['OFFICE_ADMIN']);
 const isMember = (u: AuthUser, r: RequestRef) => officeScope(u).includes(r.officeId);
+const active = (r: RequestRef) => !r.archivedAt;
 
 /** Drafts stay private to their author and office admins (US-010). */
 export const canView = (u: AuthUser, r: RequestRef): boolean =>
@@ -23,24 +26,25 @@ export const canCreateIn = (u: AuthUser, officeId: string): boolean => canDo(u, 
 
 /** Edits after submission are allowed but audited with a diff (US-027). */
 export const canEdit = (u: AuthUser, r: RequestRef): boolean =>
+  active(r) &&
   EDITABLE.includes(r.status) &&
   isMember(u, r) &&
   canDo(u, r.officeId, 'canEdit') &&
   (r.requesterId === u.id || r.assigneeId === u.id || isOfficeAdmin(u, r));
 
 export const canSubmit = (u: AuthUser, r: RequestRef): boolean =>
-  r.status === 'DRAFT' && (r.requesterId === u.id || isOfficeAdmin(u, r));
+  active(r) && r.status === 'DRAFT' && (r.requesterId === u.id || isOfficeAdmin(u, r));
 
 export const canAssign = (u: AuthUser, r: RequestRef): boolean =>
-  (r.status === 'SUBMITTED' || r.status === 'QUOTING') && isOfficeAdmin(u, r);
+  active(r) && (r.status === 'SUBMITTED' || r.status === 'QUOTING') && isOfficeAdmin(u, r);
 
-/** "Borrar" = cancel with a reason; requests are never hard-deleted (audit trail). */
+/** "Borrar" on an active request = cancel with a reason; hard delete only after archiving (canPurge). */
 export const canCancel = (u: AuthUser, r: RequestRef): boolean =>
-  !CLOSED.includes(r.status) && isMember(u, r) && canDo(u, r.officeId, 'canDelete');
+  active(r) && !CLOSED.includes(r.status) && isMember(u, r) && canDo(u, r.officeId, 'canDelete');
 
 /** The client's answer is recorded by whoever sends proposals: the assignee or the office admin. */
 export const canRecordOutcome = (u: AuthUser, r: RequestRef): boolean =>
-  r.status === 'SENT' && (r.assigneeId === u.id || isOfficeAdmin(u, r));
+  active(r) && r.status === 'SENT' && (r.assigneeId === u.id || isOfficeAdmin(u, r));
 
 /** Quotes carry internal costs: only roles allowed by policy see them (US-070, PRD §PDF). */
 export const canViewQuotes = (u: AuthUser, r: RequestRef): boolean =>
@@ -48,7 +52,15 @@ export const canViewQuotes = (u: AuthUser, r: RequestRef): boolean =>
 
 /** Scenarios are built while the request is being quoted, by its assignee or the office admin. */
 export const canWorkQuotes = (u: AuthUser, r: RequestRef): boolean =>
+  active(r) &&
   r.status === 'QUOTING' &&
   isMember(u, r) &&
   canDo(u, r.officeId, 'canEdit') &&
   (r.assigneeId === u.id || isOfficeAdmin(u, r));
+
+/** Archive / unarchive / purge: the "Borrar" permission of the role matrix, in any status (Will, 2026-11-05). */
+export const canArchive = (u: AuthUser, r: RequestRef): boolean =>
+  isMember(u, r) && canDo(u, r.officeId, 'canDelete');
+
+/** Permanent delete only from the archive, never straight from an active list. */
+export const canPurge = (u: AuthUser, r: RequestRef): boolean => !active(r) && canArchive(u, r);

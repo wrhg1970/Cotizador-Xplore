@@ -32,7 +32,7 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 const wonRequests = (prisma: PrismaClient, where: { id?: string; office?: { agencyId: string } } = {}) =>
   prisma.travelRequest.findMany({
-    where: { ...where, status: 'WON', wonVersionId: { not: null } },
+    where: { ...where, status: 'WON', wonVersionId: { not: null }, archivedAt: null },
     include: { wonVersion: { include: full } },
   });
 type Won = Awaited<ReturnType<typeof wonRequests>>[number];

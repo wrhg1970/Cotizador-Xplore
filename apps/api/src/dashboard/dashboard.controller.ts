@@ -216,7 +216,10 @@ export class DashboardController {
     const today = new Date().toISOString().slice(0, 10);
     const from = q.from ?? `${today.slice(0, 4)}-01-01`;
     const to = q.to ?? today;
-    const offices: Prisma.TravelRequestWhereInput = { officeId: q.officeId ?? { in: scope } };
+    const offices: Prisma.TravelRequestWhereInput = {
+      officeId: q.officeId ?? { in: scope },
+      archivedAt: null,
+    };
     const soon = new Date(Date.now() + UPCOMING_DAYS * 86_400_000);
     const year = Number(to.slice(0, 4));
 
@@ -394,6 +397,7 @@ export class DashboardController {
         where: {
           officeId: { in: visible },
           status: 'WON',
+          archivedAt: null,
           closedAt: { gte: new Date(`${year}-01-01T00:00:00Z`), lt: new Date(`${year + 1}-01-01T00:00:00Z`) },
         },
         select: { officeId: true, wonVersion: { include: { lines: true, fxRates: true } } },
@@ -434,6 +438,7 @@ export class DashboardController {
     const rows = await this.prisma.travelRequest.findMany({
       where: {
         officeId: { in: scope },
+        archivedAt: null,
         OR: [
           { status: { in: ['SUBMITTED', 'QUOTING', 'SENT'] } },
           { status: 'DRAFT', requesterId: user.id },
@@ -489,10 +494,14 @@ export class DashboardController {
   private async tasks(user: AuthUser): Promise<DashboardTask[]> {
     const me = user.id;
     const findRequests = (where: Prisma.TravelRequestWhereInput) =>
-      this.prisma.travelRequest.findMany({ where, select: requestSelect, take: TASK_LIMIT });
+      this.prisma.travelRequest.findMany({
+        where: { ...where, archivedAt: null },
+        select: requestSelect,
+        take: TASK_LIMIT,
+      });
     const findQuotes = (where: Prisma.QuoteVersionWhereInput) =>
       this.prisma.quoteVersion.findMany({
-        where,
+        where: { AND: [where, { scenario: { request: { archivedAt: null } } }] },
         take: TASK_LIMIT,
         select: {
           id: true,
@@ -562,6 +571,7 @@ export class DashboardController {
         by: ['officeId', 'status'],
         where: {
           officeId: { in: scope },
+          archivedAt: null,
           OR: [{ status: { not: 'DRAFT' } }, { requesterId: user.id }],
         },
         _count: { _all: true },

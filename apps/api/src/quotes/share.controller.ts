@@ -156,7 +156,7 @@ export class ProposalShareController {
     const r = await this.prisma.travelRequest.findUniqueOrThrow({
       where: { id: s.version.scenario.requestId },
     });
-    if (!OPEN.includes(r.status)) throw gone;
+    if (!OPEN.includes(r.status) || r.archivedAt) throw gone;
     return { s, r };
   }
 

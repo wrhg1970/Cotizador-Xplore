@@ -52,6 +52,7 @@ export class SchoolsController {
     return {
       clientName: { not: null },
       officeId: { in: scope },
+      archivedAt: null,
       OR: [{ status: { not: 'DRAFT' } }, { requesterId: user.id }, { officeId: { in: admin } }],
     };
   }

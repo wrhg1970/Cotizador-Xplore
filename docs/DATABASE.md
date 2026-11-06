@@ -21,6 +21,7 @@
 - `Document`: tipo, storage key, checksum, versión y metadatos.
 - `ProposalDelivery`: versión enviada, destinatarios, canal, fecha, resultado.
 - Resultado con el cliente: columnas de `TravelRequest` (`won_version_id` único, `lost_reason`, `closed_at`), con CHECKs `WON` ⇔ versión ganadora y `LOST` ⇒ motivo. Sustituye a la tabla `ProposalOutcome` prevista.
+- `TravelRequest.archived_at` (2026-11-05): archivada. Solo una archivada se puede borrar definitivamente (`DELETE /requests/{id}`); en esa transacción `SET LOCAL ee.purge = 'on'` permite el DELETE en `quote_reviews` y `proposal_acceptances`, que siguen siendo append-only en cualquier otro caso. `audit_logs` nunca se borra.
 - `ProposalShare` (tabla `proposal_shares`, 2026-10-28): ligas para el colegio por versión: hash SHA-256 del token (único), caducidad, revocación, vistas y última vista, quién la creó. El token en claro nunca se guarda.
 - `OfficialRate` (tabla `official_rates`, 2026-10-28): tipos de cambio oficiales EE (de, a, tasa, fecha, fuente, quién publicó). Append-only por trigger; el vigente por par es el más reciente. Las cotizaciones copian el valor a `quote_fx_rates`, así que publicar uno nuevo no cambia nada existente.
 - `TravelRequest.specifications` (JSON, 2026-10-28): especificaciones del viaje validadas con `TripSpecs` (alojamiento, escuela receptora, cursos, traslados y alimentación, vuelos y excursiones, seguro y accesibilidad, no incluidos; desde 2026-10-29 también plan de alimentación, incluidos y campos adicionales, sin migración por ser JSON).

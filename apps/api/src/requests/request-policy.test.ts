@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { AuthUser } from '../auth/auth.types.js';
-import { canAssign, canCancel, canEdit, canSubmit, canView, type RequestRef } from './request-policy.js';
+import {
+  canArchive,
+  canAssign,
+  canCancel,
+  canEdit,
+  canPurge,
+  canSubmit,
+  canView,
+  type RequestRef,
+} from './request-policy.js';
 
 const A = '00000000-0000-4000-8000-00000000000a';
 const B = '00000000-0000-4000-8000-00000000000b';
@@ -53,5 +62,17 @@ describe('request policy', () => {
     expect(canAssign(admin, req({ status: 'QUOTING' }))).toBe(true);
     expect(canCancel(admin, req({ status: 'WON' }))).toBe(false);
     expect(canCancel(advisor, req({ status: 'SUBMITTED' }))).toBe(false);
+  });
+
+  it('archive needs Borrar; an archived request is read-only and only then purgeable', () => {
+    const open = req({ status: 'QUOTING', assigneeId: 'quo' });
+    const archived = { ...open, archivedAt: new Date() };
+    expect(canArchive(admin, open)).toBe(true);
+    expect(canArchive(quoter, open)).toBe(false);
+    expect(canArchive(foreign, open)).toBe(false);
+    expect(canPurge(admin, open)).toBe(false);
+    expect(canPurge(admin, archived)).toBe(true);
+    expect(canEdit(quoter, archived)).toBe(false);
+    expect(canCancel(admin, archived)).toBe(false);
   });
 });

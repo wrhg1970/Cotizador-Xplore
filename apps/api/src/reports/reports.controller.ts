@@ -58,7 +58,9 @@ export class ReportsController {
                   ? { in: ['IN_REVIEW', 'APPROVED'] }
                   : (q.status ?? { not: 'SUPERSEDED' as const }),
             }),
-        scenario: { request: { ...inOffices(officeScope(user)), status: { not: 'CANCELLED' } } },
+        scenario: {
+          request: { ...inOffices(officeScope(user)), status: { not: 'CANCELLED' }, archivedAt: null },
+        },
       },
       orderBy: { updatedAt: 'desc' },
       take: LIMIT,
@@ -173,6 +175,7 @@ export class ReportsController {
       where: {
         ...(q.officeId ? { officeId: q.officeId } : inOffices(scope)),
         status: 'WON',
+        archivedAt: null,
         departureDate: { gte: new Date(from), lte: new Date(to) },
       },
       orderBy: [{ departureDate: 'asc' }, { folio: 'asc' }],

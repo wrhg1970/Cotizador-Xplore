@@ -259,6 +259,8 @@ export const CreateProposalShare = z.strictObject({ days: z.number().int().min(1
 export const VersionOnly = z.strictObject({ version: z.number().int().min(1) });
 export const AssignRequest = z.strictObject({ assigneeId: z.uuid(), version: z.number().int().min(1) });
 export const CancelRequest = z.strictObject({ reason: ShortText(1000), version: z.number().int().min(1) });
+/** Permanent delete of an archived request: the user retypes its folio to confirm. */
+export const PurgeRequest = z.strictObject({ folio: z.string().trim().toUpperCase().max(40) });
 export const CreateComment = z.strictObject({ body: ShortText(2000) });
 /** Client's answer to a sent request (PRD F-06): the one winning sent version, or why it was lost. */
 export const RecordOutcome = z.discriminatedUnion('outcome', [
@@ -272,6 +274,8 @@ export const ListRequestsQuery = z.strictObject({
   assignedToMe: z.enum(['true', 'false']).optional(),
   /** V2 tabs: En cotización, Por aprobar, Enviadas / negociación, Aceptadas. */
   stage: z.enum(['QUOTING', 'APPROVAL', 'SENT', 'WON']).optional(),
+  /** "true" lists only archived requests; by default they are hidden. */
+  archived: z.enum(['true', 'false']).optional(),
   /** Folio (exact), or group, school or city (contains). */
   q: z.string().trim().max(100).optional(),
   page: z.coerce.number().int().min(1).default(1),
