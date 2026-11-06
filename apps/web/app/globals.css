@@ -2163,6 +2163,29 @@ table.office-table tbody th[scope='row'] {
 table.office-table tbody tr:hover {
   background: var(--subtle);
 }
+/* Header of the office tables: title, "Ver todas las oficinas" and the office picker on one line. */
+.office-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.office-filter h2 {
+  margin: 0 auto 0 0;
+}
+.office-filter button.small {
+  min-height: 30px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+}
+.office-filter select {
+  width: auto;
+  max-width: 240px;
+  min-height: 30px;
+  padding: 3px 8px;
+  font-size: 0.78rem;
+}
 .ofc-code {
   display: inline-block;
   min-width: 6.4em;

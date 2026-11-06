@@ -5,6 +5,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
 import { fmtDate } from '../lib/types';
 import { canExportXlsx, useMe } from '../lib/useMe';
+import { DEFAULT_OFFICE_VIEW, OfficeFilter, visibleOffices } from '../OfficeFilter';
 import { type CohortRow, Panel } from './Panel';
 
 interface Bucket {
@@ -21,7 +22,8 @@ interface Executive {
   period: { from: string; to: string };
   totals: Bucket;
   funnel: { stage: 1 | 2 | 3 | 4; count: number }[];
-  byOffice: (Bucket & { id: string; code: string; name: string })[];
+  /** Every office in scope; `active` = requests in Borrador, Por asignar or En cotización today. */
+  byOffice: (Bucket & { id: string; code: string; name: string; active: number })[];
   monthly: (Bucket & { month: string })[];
   upcoming: {
     id: string;
@@ -71,6 +73,7 @@ export default function ExecutivePage() {
   const [query, setQuery] = useState('');
   const [data, setData] = useState<Executive | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [officeView, setOfficeView] = useState(DEFAULT_OFFICE_VIEW);
 
   useEffect(() => {
     api<Office[]>('/offices').then(setOffices, () => undefined);
@@ -98,6 +101,18 @@ export default function ExecutivePage() {
   }
 
   const t = data?.totals;
+  const activeIds = new Set(data?.byOffice.filter((o) => o.active > 0).map((o) => o.id));
+  const shownOffices = visibleOffices(data?.byOffice ?? [], officeView, (o) => activeIds.has(o.id));
+  const shownGoals = visibleOffices(data?.goals.offices ?? [], officeView, (o) => activeIds.has(o.id));
+  const noOffices = (
+    <tr>
+      <td colSpan={7} className="muted">
+        {officeView.officeId
+          ? 'Sin datos para esta oficina.'
+          : 'Ninguna oficina tiene solicitudes en Borrador, Por asignar o En cotización.'}
+      </td>
+    </tr>
+  );
 
   return (
     <>
@@ -201,9 +216,13 @@ export default function ExecutivePage() {
 
           {data.goals.offices.length > 0 && (
             <section className="card" aria-labelledby="metas" style={{ marginTop: 16 }}>
-              <h2 id="metas" style={{ marginTop: 0 }}>
-                Meta anual {data.goals.year}
-              </h2>
+              <OfficeFilter
+                id="metas"
+                title={`Meta anual ${data.goals.year}`}
+                offices={data.byOffice}
+                value={officeView}
+                onChange={setOfficeView}
+              />
               <div className="table-wrap">
                 <table className="office-table">
                   <thead>
@@ -215,7 +234,8 @@ export default function ExecutivePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.goals.offices.map((o) => (
+                    {shownGoals.length === 0 && noOffices}
+                    {shownGoals.map((o) => (
                       <tr key={o.id}>
                         <th scope="row">
                           <span className="ofc-code">{o.code}</span> {o.name}
@@ -254,9 +274,13 @@ export default function ExecutivePage() {
           )}
 
           <section className="card" aria-labelledby="por-oficina" style={{ marginTop: 16 }}>
-            <h2 id="por-oficina" style={{ marginTop: 0 }}>
-              Por oficina
-            </h2>
+            <OfficeFilter
+              id="por-oficina"
+              title="Por oficina"
+              offices={data.byOffice}
+              value={officeView}
+              onChange={setOfficeView}
+            />
             <div className="table-wrap">
               <table className="office-table">
                 <thead>
@@ -271,7 +295,8 @@ export default function ExecutivePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.byOffice.map((o) => (
+                  {shownOffices.length === 0 && noOffices}
+                  {shownOffices.map((o) => (
                     <tr key={o.id}>
                       <th scope="row">
                         <span className="ofc-code">{o.code}</span> {o.name}

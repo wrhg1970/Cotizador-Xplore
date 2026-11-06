@@ -19,7 +19,7 @@ type Bucket = {
 type Executive = {
   totals: Bucket;
   funnel: { stage: number; count: number }[];
-  byOffice: (Bucket & { id: string })[];
+  byOffice: (Bucket & { id: string; active: number })[];
   monthly: (Bucket & { month: string })[];
   upcoming: { folio: string }[];
   requests: { status: string; reached: number; volumeMxn: string | null; commissionMxn?: string | null }[];
@@ -132,6 +132,38 @@ describe('executive dashboard', () => {
     const b = (await executive(c.sysadmin, `?officeId=${officeB}`)).body as Executive;
     expect(b.byOffice.map((o) => o.id)).toEqual([officeB]);
     expect(b.totals.won).toBe(1);
+  });
+
+  it('lists every office in scope with its requests in progress (Borrador, Por asignar, En cotización)', async () => {
+    // Office A: one SUBMITTED; office B: only closed/sent ones, so it is hidden by default on the page.
+    expect(((await executive(c.adminA)).body as Executive).byOffice).toMatchObject([
+      { id: officeA, active: 1 },
+    ]);
+    const b = (await executive(c.sysadmin, `?officeId=${officeB}`)).body as Executive;
+    expect(b.byOffice).toMatchObject([{ id: officeB, active: 0 }]);
+    // An office without any request still shows up (zeros) for "Ver todas las oficinas".
+    const empty = (await makeOffice()).id;
+    const u = await makeUser([{ officeId: empty, role: 'OFFICE_ADMIN' }]);
+    const cookie = (await loginAs(ctx, u.email)).cookie!;
+    expect(((await executive(cookie)).body as Executive).byOffice).toMatchObject([
+      { id: empty, requests: 0, active: 0 },
+    ]);
+    // Someone else's draft does not make an office active; a SENT one does not either.
+    await prisma.travelRequest.create({
+      data: {
+        folio: `EE-2027-${uniq().toUpperCase().slice(0, 6)}`,
+        officeId: empty,
+        requesterId: advisorId,
+        status: 'DRAFT',
+        groupName: 'Borrador ajeno',
+        city: 'Roma',
+        countryCode: 'IT',
+        departureDate: new Date('2027-03-19'),
+        returnDate: new Date('2027-03-25'),
+        participants: 10,
+      },
+    });
+    expect(((await executive(cookie)).body as Executive).byOffice).toMatchObject([{ id: empty, active: 0 }]);
   });
 
   it('annual goals: system admins set them; each office sees its MXN won against its goal', async () => {

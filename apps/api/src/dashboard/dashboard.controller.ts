@@ -270,7 +270,15 @@ export class DashboardController {
         take: TASK_LIMIT,
       }),
     ]);
-    const goals = await this.goals(user.agencyId, q.officeId ? [q.officeId] : scope, year);
+    const visible = q.officeId ? [q.officeId] : scope;
+    const [goals, officeList, inProgress] = await Promise.all([
+      this.goals(user.agencyId, visible, year),
+      this.prisma.office.findMany({
+        where: { id: { in: visible } },
+        select: { id: true, code: true, name: true },
+      }),
+      this.activeCounts(user, visible),
+    ]);
 
     type Bucket = {
       requests: number;
@@ -292,7 +300,8 @@ export class DashboardController {
     });
     const totals = bucket();
     const funnel: Record<Stage, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
-    const byOffice = new Map<string, Bucket & { id: string; code: string; name: string }>();
+    // Every office in scope (zeros included) so the page can offer "Ver todas las oficinas".
+    const byOffice = new Map(officeList.map((o) => [o.id, { ...o, ...bucket() }]));
     const byMonth = new Map<string, Bucket>();
     for (const r of rows) {
       const office = byOffice.get(r.office.id) ?? { ...r.office, ...bucket() };
@@ -328,7 +337,9 @@ export class DashboardController {
       period: { from, to },
       totals: out(totals),
       funnel: ([1, 2, 3, 4] as const).map((stage) => ({ stage, count: funnel[stage] })),
-      byOffice: [...byOffice.values()].sort((a, b) => a.code.localeCompare(b.code)).map(out),
+      byOffice: [...byOffice.values()]
+        .sort((a, b) => a.code.localeCompare(b.code))
+        .map((o) => ({ ...out(o), active: inProgress.get(o.id) ?? 0 })),
       monthly: [...byMonth.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([month, b]) => ({ month, ...out(b) })),
@@ -556,6 +567,24 @@ export class DashboardController {
       ...fromQuotes('SEND', toSend),
       ...awaitingClient.map((r) => task('RECORD_OUTCOME', r)),
     ];
+  }
+
+  /**
+   * Requests in progress today (Borrador, Por asignar, En cotización) per office, whatever the period:
+   * decides which offices the dashboards list by default. Same draft visibility as the inbox.
+   */
+  private async activeCounts(user: AuthUser, officeIds: string[]) {
+    const groups = await this.prisma.travelRequest.groupBy({
+      by: ['officeId'],
+      where: {
+        officeId: { in: officeIds },
+        archivedAt: null,
+        status: { in: ['DRAFT', 'SUBMITTED', 'QUOTING'] },
+        OR: [{ status: { not: 'DRAFT' } }, { requesterId: user.id }],
+      },
+      _count: { _all: true },
+    });
+    return new Map(groups.map((g) => [g.officeId, g._count._all]));
   }
 
   /** Same visibility as the inbox: other people's drafts are not counted. */
