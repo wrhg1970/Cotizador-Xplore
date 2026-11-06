@@ -773,6 +773,31 @@ input[type='radio'] {
   gap: 8px;
 }
 
+/* Solicitudes > Tarjetas: bordered boxes, every row the same height, stage + actions pinned to the foot. */
+.req-cards {
+  grid-auto-rows: 1fr;
+}
+.req-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 0.88rem;
+}
+.req-card .foot {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  flex-direction: column;
+  align-items: flex-start;
+}
+.req-card .req-act {
+  min-height: 30px;
+  font-size: 0.8rem;
+}
+
 /* Solicitudes: denser table so all nine columns fit beside the side menu; compact row actions. */
 .req-table th,
 .req-table td {

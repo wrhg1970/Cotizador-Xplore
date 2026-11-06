@@ -311,7 +311,7 @@ function Inbox({ basePath, title, subtitle }: InboxProps) {
           </div>
         )}
         {data && data.items.length > 0 && view === 'CARDS' && (
-          <div className="wcards compact">
+          <div className="wcards compact req-cards">
             {data.items.map((r) => (
               <RequestCard key={r.id} r={r} quotes={canSeeQuotes(me, r.office.id)} manage={manage(r)} />
             ))}
@@ -439,7 +439,7 @@ function Actions({ r, quotes, manage }: { r: Row; quotes: boolean; manage: Manag
 
 function RequestCard({ r, quotes, manage }: { r: Row; quotes: boolean; manage: Manage }) {
   return (
-    <article className="card wcard" aria-label={`${r.folio} ${r.groupName}`}>
+    <article className="card wcard req-card" aria-label={`${r.folio} ${r.groupName}`}>
       <div className="eyebrow">
         {r.folio} · {r.office.code} · Entrega {fmtDate(r.dueDate)}
       </div>
@@ -448,7 +448,7 @@ function RequestCard({ r, quotes, manage }: { r: Row; quotes: boolean; manage: M
         {r.city}, {r.countryCode} · {r.participants} + {r.chaperones} chap. ·{' '}
         {r.scenarios === 1 ? '1 escenario' : `${r.scenarios} escenarios`}
       </div>
-      <div className="foot" style={{ marginTop: 10 }}>
+      <div className="foot">
         <span className="badge">{stepName(r)}</span>
         <Actions r={r} quotes={quotes} manage={manage} />
       </div>
