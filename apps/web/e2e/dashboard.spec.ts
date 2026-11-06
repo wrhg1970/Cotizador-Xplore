@@ -33,13 +33,19 @@ test('"Mi trabajo" lists what is waiting on the user and links to it', async ({ 
   await expect(card).toContainText('Etapa actual: 01. Solicitada');
   await expect(card).toContainText('Rol: Cotizador titular');
   await expect(card).toContainText('Requiere tu acción');
-  await page.getByRole('button', { name: 'Comité / apoyo (0)' }).click();
+  await page.getByRole('button', { name: 'Participando (0)' }).click();
   await expect(card).toBeHidden();
-  await page.getByRole('button', { name: /^Mi turno hoy/ }).click();
+  await page.getByRole('button', { name: /^Pendientes/ }).click();
   await page.getByRole('searchbox', { name: 'Buscar' }).fill(folio.toLowerCase());
   await expect(card).toBeVisible();
   await page.getByRole('button', { name: 'Tarjetas comprimidas' }).click();
   await expect(card.getByText('Requiere tu acción')).toBeHidden();
+  // The office table lives only in the Por oficina tab, which hides the list, search and view switch.
+  await expect(page.getByRole('region', { name: 'Solicitudes por oficina' })).toBeHidden();
+  await page.getByRole('button', { name: 'Por oficina' }).click();
+  await expect(card).toBeHidden();
+  await expect(page.getByRole('searchbox', { name: 'Buscar' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Tarjetas comprimidas' })).toBeHidden();
   await expect(page.getByRole('row', { name: `${office.code} Oficina E2E` })).toHaveText(
     `${office.code} Oficina E2E001000000—`, // Borrador, Por asignar, En cotización, Por aprobar, Aprobada, Enviada…
   );
@@ -49,6 +55,7 @@ test('"Mi trabajo" lists what is waiting on the user and links to it', async ({ 
   await byOffice.getByRole('button', { name: 'Solo oficinas activas' }).click();
   await byOffice.getByRole('combobox').selectOption(office.id);
   await expect(byOffice.locator('tbody tr')).toHaveCount(1);
+  await page.getByRole('button', { name: /^Pendientes/ }).click();
   await card.getByRole('link', { name: 'Cotizar →' }).click();
   await expect(page).toHaveURL(new RegExp(`/solicitudes/${req.id}$`));
   await ctx.close();
