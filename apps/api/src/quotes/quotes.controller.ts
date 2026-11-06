@@ -26,6 +26,7 @@ import {
   QuoteLineInput,
   DuplicateScenario,
   ReturnQuote,
+  RevokeApproval,
   ReviewQuote,
   SendQuote,
   UpdateQuote,
@@ -220,6 +221,31 @@ export function needsTwoLevels(rules: ApprovalRules, v: FullVersion): boolean {
 }
 
 export const REJECTED_PREFIX = 'Rechazada: ';
+export const REVOKED_PREFIX = 'Aprobación revocada: ';
+
+type MaybePromise<T> = T | Promise<T>;
+
+/**
+ * One approved scenario per request (Will, 2026-11-06): an approved or sent version in another
+ * scenario blocks sending this one to review or authorizing it. Locks the request row so two
+ * approvers can't pick different scenarios at the same time.
+ */
+export async function assertOnlyApprovedScenario(tx: Tx, v: FullVersion) {
+  const requestId = v.scenario.requestId;
+  await tx.$queryRaw`SELECT 1 FROM travel_requests WHERE id = ${requestId}::uuid FOR UPDATE`;
+  const other = await tx.quoteVersion.findFirst({
+    where: {
+      status: { in: ['APPROVED', 'SENT'] },
+      scenario: { requestId, id: { not: v.scenarioId } },
+    },
+    select: { scenario: { select: { name: true } } },
+  });
+  if (other)
+    throw new ConflictException({
+      code: 'SCENARIO_ALREADY_APPROVED',
+      message: `Ya está aprobado el escenario «${other.scenario.name}»; solo puede haber uno por solicitud. Revoca esa aprobación para aprobar otro.`,
+    });
+}
 
 /** Which authorization rule applies to a version, as shown to the approval committee. */
 export function policyFor(rules: ApprovalRules, v: FullVersion): string {
@@ -878,29 +904,37 @@ export class QuotesController {
   ) {
     const rules = await approvalRules(this.prisma, user.agencyId);
     let auto: string | null = null;
-    const dto = await this.review(user, req, id, body.rowVersion, 'quote.submitted_for_approval', (v, r) => {
-      this.assertWork(user, r);
-      if (!(EDITABLE as readonly string[]).includes(v.status))
-        throw new ForbiddenException('Solo se envían a autorización versiones en borrador o devueltas');
-      const dto = toDto(v);
-      const missing = [
-        // Base concepts start at zero, so "has lines" is not enough.
-        !dto.lines.some((l) => new D(l.lineTotal).gt(0)) && 'conceptos',
-        !dto.validUntil && 'vigencia',
-        !dto.totals && 'tipos de cambio',
-        dto.warnings.some((w) => w.code === 'PAYMENT_PLAN') && 'plan de pagos',
-      ].filter(Boolean);
-      if (missing.length)
-        throw new BadRequestException({
-          code: 'INCOMPLETE_QUOTE',
-          message: `Falta completar: ${missing.join(', ')}`,
-        });
-      auto = autoApproval(rules, v);
-      // A rule approval is a formal policy exception (CLAUDE.md): recorded as its own review, audited.
-      return auto
-        ? { status: 'APPROVED', decision: 'APPROVED', comment: auto, reviewer: null }
-        : { status: 'IN_REVIEW' };
-    });
+    const dto = await this.review(
+      user,
+      req,
+      id,
+      body.rowVersion,
+      'quote.submitted_for_approval',
+      async (v, r, tx) => {
+        this.assertWork(user, r);
+        if (!(EDITABLE as readonly string[]).includes(v.status))
+          throw new ForbiddenException('Solo se envían a autorización versiones en borrador o devueltas');
+        const dto = toDto(v);
+        const missing = [
+          // Base concepts start at zero, so "has lines" is not enough.
+          !dto.lines.some((l) => new D(l.lineTotal).gt(0)) && 'conceptos',
+          !dto.validUntil && 'vigencia',
+          !dto.totals && 'tipos de cambio',
+          dto.warnings.some((w) => w.code === 'PAYMENT_PLAN') && 'plan de pagos',
+        ].filter(Boolean);
+        if (missing.length)
+          throw new BadRequestException({
+            code: 'INCOMPLETE_QUOTE',
+            message: `Falta completar: ${missing.join(', ')}`,
+          });
+        await assertOnlyApprovedScenario(tx, v);
+        auto = autoApproval(rules, v);
+        // A rule approval is a formal policy exception (CLAUDE.md): recorded as its own review, audited.
+        return auto
+          ? { status: 'APPROVED', decision: 'APPROVED', comment: auto, reviewer: null }
+          : { status: 'IN_REVIEW' };
+      },
+    );
     void this.notifier.notify({ kind: auto ? 'APPROVED' : 'REVIEW_REQUESTED', versionId: id }, user.id);
     return dto;
   }
@@ -915,9 +949,10 @@ export class QuotesController {
   ) {
     const rules = await approvalRules(this.prisma, user.agencyId);
     let final = true;
-    const dto = await this.review(user, req, id, body.rowVersion, 'quote.approved', (v, r) => {
+    const dto = await this.review(user, req, id, body.rowVersion, 'quote.approved', async (v, r, tx) => {
       this.assertReviewer(user, v, r);
       this.assertWithinLimit(user, v);
+      await assertOnlyApprovedScenario(tx, v);
       const earlier = approvalsThisRound(v);
       if (earlier.some((x) => x.reviewerId === user.id))
         throw new ForbiddenException('Ya autorizaste esta versión; falta la firma de otra persona');
@@ -944,6 +979,27 @@ export class QuotesController {
       // shortcut: a rejection is a return whose comment starts with REJECTED_PREFIX; add a decision if it needs its own status.
       const comment = body.reject ? `${REJECTED_PREFIX}${body.comment}` : body.comment;
       return { status: 'RETURNED', decision: 'RETURNED', comment };
+    });
+    void this.notifier.notify({ kind: 'RETURNED', versionId: id }, user.id);
+    return dto;
+  }
+
+  /**
+   * Takes back an authorization not yet sent, so another scenario can be the approved one.
+   * Same people who can authorize; the version goes back to RETURNED with the reason, like "Rechazar".
+   */
+  @Post('quotes/:id/revoke')
+  async revoke(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(RevokeApproval)) body: z.infer<typeof RevokeApproval>,
+  ) {
+    const dto = await this.review(user, req, id, body.rowVersion, 'quote.approval_revoked', (v, r) => {
+      if (v.status !== 'APPROVED')
+        throw new ForbiddenException('Solo se revoca una versión aprobada y no enviada');
+      this.assertReviewer(user, { ...v, status: 'IN_REVIEW' }, r);
+      return { status: 'RETURNED', decision: 'RETURNED', comment: `${REVOKED_PREFIX}${body.comment}` };
     });
     void this.notifier.notify({ kind: 'RETURNED', versionId: id }, user.id);
     return dto;
@@ -1163,20 +1219,20 @@ export class QuotesController {
       v: FullVersion,
       r: RequestRef & { id: string },
       tx: Tx,
-    ) => {
+    ) => MaybePromise<{
       status: 'IN_REVIEW' | 'APPROVED' | 'RETURNED' | 'SENT';
       decision?: 'APPROVED' | 'RETURNED';
       comment?: string;
       /** null = approved by an Administración rule, not by the acting user. */
       reviewer?: null;
       after?: () => Promise<unknown>;
-    },
+    }>,
   ) {
     return this.prisma.$transaction(async (tx) => {
       const v = await tx.quoteVersion.findUnique({ where: { id }, include: full });
       if (!v) throw new NotFoundException('Cotización no encontrada');
       const r = await this.request(tx, v.scenario.requestId, user);
-      const next = decide(v, r, tx);
+      const next = await decide(v, r, tx);
       if (v.rowVersion !== rowVersion) throw conflict();
       const { count } = await tx.quoteVersion.updateMany({
         where: { id, rowVersion },

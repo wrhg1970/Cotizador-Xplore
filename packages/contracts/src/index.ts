@@ -272,8 +272,8 @@ export const ListRequestsQuery = z.strictObject({
   officeId: z.uuid().optional(),
   status: RequestStatus.optional(),
   assignedToMe: z.enum(['true', 'false']).optional(),
-  /** V2 tabs: En cotización, Por aprobar, Enviadas / negociación, Aceptadas. */
-  stage: z.enum(['QUOTING', 'APPROVAL', 'SENT', 'WON']).optional(),
+  /** V2 tabs: En cotización, Por aprobar, Aprobadas, Enviadas / negociación, Aceptadas. */
+  stage: z.enum(['QUOTING', 'APPROVAL', 'APPROVED', 'SENT', 'WON']).optional(),
   /** "true" lists only archived requests; by default they are hidden. */
   archived: z.enum(['true', 'false']).optional(),
   /** Folio (exact), or group, school or city (contains). */
@@ -548,6 +548,12 @@ export const ReturnQuote = z.strictObject({
   rowVersion: z.number().int().min(1),
   comment: ShortText(2000),
   reject: z.boolean().optional(),
+});
+
+/** Takes back an approval not yet sent; the reason is mandatory and goes to the version's reviews. */
+export const RevokeApproval = z.strictObject({
+  rowVersion: z.number().int().min(1),
+  comment: ShortText(2000),
 });
 
 export const DeliveryChannel = z.enum(['EMAIL', 'WHATSAPP', 'IN_PERSON', 'OTHER']);

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
 import type { RequestStatus } from '@ee/contracts';
-import { fmtDate, STATUS_LABEL } from '../lib/types';
+import { fmtDate, requestLabel, STATUS_LABEL } from '../lib/types';
 import { useMe } from '../lib/useMe';
 import { DEFAULT_OFFICE_VIEW, OfficeFilter, visibleOffices } from '../OfficeFilter';
 
@@ -61,7 +61,7 @@ const ALERT_LABEL: Record<AlertKind, string> = {
 interface Dashboard {
   alerts: Alert[];
   tasks: Task[];
-  offices: { id: string; code: string; name: string; byStatus: Partial<Record<RequestStatus, number>> }[];
+  offices: { id: string; code: string; name: string; byStatus: Partial<Record<Column, number>> }[];
   requests: WorkRequest[];
 }
 
@@ -133,10 +133,33 @@ const money = (p: WorkRequest['price']) =>
 
 const needs = (n: number) => (n === 1 ? '1 requiere tu acción' : `${n} requieren tu acción`);
 
+/** Office table columns; the API splits En cotización into Por aprobar and Aprobada. */
+type Column = RequestStatus | 'APPROVAL' | 'APPROVED';
 // Pipeline order of the EE process; closed states go last.
-const STATUSES: RequestStatus[] = ['DRAFT', 'SUBMITTED', 'QUOTING', 'SENT', 'WON', 'LOST', 'CANCELLED'];
-/** By default offices only show up while they have requests in Borrador, Por asignar or En cotización. */
-const ACTIVE: RequestStatus[] = ['DRAFT', 'SUBMITTED', 'QUOTING'];
+const STATUSES: Column[] = [
+  'DRAFT',
+  'SUBMITTED',
+  'QUOTING',
+  'APPROVAL',
+  'APPROVED',
+  'SENT',
+  'WON',
+  'LOST',
+  'CANCELLED',
+];
+const COLUMN_LABEL: Record<Column, string> = {
+  ...STATUS_LABEL,
+  APPROVAL: 'Por aprobar',
+  APPROVED: 'Aprobada',
+};
+/** Each count opens the same requests in Solicitudes. */
+const COLUMN_QUERY: Partial<Record<Column, string>> = {
+  QUOTING: 'status=QUOTING&stage=QUOTING',
+  APPROVAL: 'stage=APPROVAL',
+  APPROVED: 'stage=APPROVED',
+};
+/** By default offices only show up while they have requests in Borrador, Por asignar or En cotización (incl. its steps). */
+const ACTIVE: Column[] = ['DRAFT', 'SUBMITTED', 'QUOTING', 'APPROVAL', 'APPROVED'];
 
 /** Won ÷ (won + lost): only proposals the client already answered count. */
 const conversion = (s: Partial<Record<RequestStatus, number>>) => {
@@ -170,7 +193,7 @@ function WorkCard({ r, tasks, compact }: { r: WorkRequest; tasks: Task[]; compac
         <span>
           Etapa actual: 0{r.stage}. {stage.name}
         </span>
-        <span className="badge">{STATUS_LABEL[r.status]}</span>
+        <span className="badge">{requestLabel(r.status, r.stage)}</span>
       </div>
       {!compact && (
         <>
@@ -417,7 +440,7 @@ export function WorkPage({ initialView }: { initialView: View }) {
                     <th>Oficina</th>
                     {STATUSES.map((s) => (
                       <th key={s} className="num">
-                        {STATUS_LABEL[s]}
+                        {COLUMN_LABEL[s]}
                       </th>
                     ))}
                     <th className="num">Conversión</th>
@@ -439,7 +462,10 @@ export function WorkPage({ initialView }: { initialView: View }) {
                       {STATUSES.map((s) => (
                         <td key={s} className={o.byStatus[s] ? 'num' : 'num zero'}>
                           {o.byStatus[s] ? (
-                            <Link className="count" href={`/solicitudes?status=${s}&officeId=${o.id}`}>
+                            <Link
+                              className="count"
+                              href={`/solicitudes?${COLUMN_QUERY[s] ?? `status=${s}`}&officeId=${o.id}`}
+                            >
                               {o.byStatus[s]}
                             </Link>
                           ) : (

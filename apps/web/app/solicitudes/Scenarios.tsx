@@ -7,6 +7,7 @@ import { CurrencyCode } from '@ee/contracts';
 import { api, errorText } from '../lib/api';
 import {
   isAuthorized,
+  isPicked,
   PENDING_LEGEND,
   QUOTE_STATUS_LABEL,
   type QuoteDto,
@@ -76,18 +77,16 @@ export function Scenarios({
     }
   }
 
+  const picked = items?.find(isPicked);
+
   return (
     <section aria-labelledby="escenarios">
-      <h2 id="escenarios">Escenarios</h2>
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      {items?.length === 0 && <p className="muted">Aún no hay escenarios.</p>}
-      {!!items?.length && <Comparison items={items} canWork={canWork} duplicate={duplicate} />}
+      <h2 id="escenarios" style={{ marginTop: 0 }}>
+        Escenarios{items ? ` (${items.length})` : ''}
+      </h2>
+      {/* Above the comparison so a new option never means scrolling past every concept (Will, 2026-11-06). */}
       {canWork && (
-        <form onSubmit={(e) => void create(e)} className="row" style={{ marginTop: 8 }}>
+        <form onSubmit={(e) => void create(e)} className="row scenario-new" aria-label="Nuevo escenario">
           <label>
             Nombre del escenario
             <input name="name" required maxLength={150} placeholder="Opción 1" />
@@ -124,6 +123,21 @@ export function Scenarios({
           <button>Nuevo escenario</button>
         </form>
       )}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {picked && (
+        <p className="picked-note" role="status">
+          ✓ Escenario aprobado: <strong>{picked.name}</strong>. Solo puede haber uno por solicitud; los demás
+          no se pueden aprobar mientras siga aprobado.
+        </p>
+      )}
+      {items?.length === 0 && <p className="muted">Aún no hay escenarios.</p>}
+      {!!items?.length && (
+        <Comparison items={items} pickedId={picked?.id} canWork={canWork} duplicate={duplicate} />
+      )}
     </section>
   );
 }
@@ -142,10 +156,12 @@ function conceptTotal(v: QuoteDto, category: string, description: string) {
 /** Opción 1, 2, 3… as columns with the EE sheet's rows aligned across them. */
 function Comparison({
   items,
+  pickedId,
   canWork,
   duplicate,
 }: {
   items: ScenarioDto[];
+  pickedId?: string;
   canWork: boolean;
   duplicate: (id: string, name: string) => Promise<void>;
 }) {
@@ -153,7 +169,7 @@ function Comparison({
     <tr className={strong ? 'total strong' : undefined}>
       <th scope="row">{label}</th>
       {items.map((s) => (
-        <td key={s.id} className="num">
+        <td key={s.id} className={s.id === pickedId ? 'num picked' : 'num'}>
           {cell(s.latest)}
         </td>
       ))}
@@ -181,19 +197,31 @@ function Comparison({
           <tr>
             <th />
             {items.map((s) => (
-              <th key={s.id} scope="col" className="num">
+              <th key={s.id} scope="col" className={s.id === pickedId ? 'num picked' : 'num'}>
                 <Link href={`/cotizaciones/${s.latest.id}`}>{s.name}</Link>
+                {s.id === pickedId && (
+                  <div>
+                    <span className="picked-tag">✓ Escenario aprobado</span>
+                  </div>
+                )}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {row('Versión', (v) => (
-            <>
-              v{v.number} · {QUOTE_STATUS_LABEL[v.status]}
-              {!isAuthorized(v.status) && <div className="error">{PENDING_LEGEND}</div>}
-            </>
-          ))}
+          <tr>
+            <th scope="row">Versión</th>
+            {items.map((s) => (
+              <td key={s.id} className={s.id === pickedId ? 'num picked' : 'num'}>
+                v{s.latest.number} · {QUOTE_STATUS_LABEL[s.latest.status]}
+                {pickedId && s.id !== pickedId ? (
+                  <div className="muted">No se puede aprobar: ya hay un escenario aprobado</div>
+                ) : (
+                  !isAuthorized(s.latest.status) && <div className="error">{PENDING_LEGEND}</div>
+                )}
+              </td>
+            ))}
+          </tr>
           {row('Grupo', (v) => `${v.participants} est. · ${v.chaperones} chap. · ${v.staff} EE`)}
           {concepts.map((b) =>
             b.names.length ? (
@@ -250,7 +278,7 @@ function Comparison({
             <tr>
               <th />
               {items.map((s) => (
-                <td key={s.id} className="num">
+                <td key={s.id} className={s.id === pickedId ? 'num picked' : 'num'}>
                   <button
                     className="secondary"
                     onClick={() => {

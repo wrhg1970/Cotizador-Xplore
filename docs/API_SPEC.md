@@ -39,7 +39,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 
 ### Solicitudes
 - `POST /requests`
-- `GET /requests` — filtros `officeId`, `status`, `assignedToMe`, `stage` (`QUOTING` incluye por asignar, `APPROVAL`, `SENT`, `WON`) y `q` (folio exacto, o grupo, colegio o ciudad); cada fila trae `scenarios` (número) y `stage` (1-4 de «Mi trabajo»)
+- `GET /requests` — filtros `officeId`, `status`, `assignedToMe`, `stage` (`QUOTING` incluye por asignar, `APPROVAL` = por aprobar, `APPROVED` = un escenario aprobado sin enviar, `SENT`, `WON`) y `q` (folio exacto, o grupo, colegio o ciudad); cada fila trae `scenarios` (número) y `stage` (1-4 de «Mi trabajo»); la respuesta trae `stageCounts` (solicitudes por pestaña con los mismos filtros). `GET /requests/{id}` también trae `stage`. «Por aprobar» y «Aprobada» no son estados guardados: salen de los escenarios de una solicitud «En cotización»
 - `GET /requests/{requestId}`
 - `PATCH /requests/{requestId}` — incluye `specifications` (objeto `TripSpecs` con 7 bloques de texto opcionales, o `null` para borrarlas), igual que `POST /requests`
 - `GET|POST /requests/{requestId}/attachments`, `GET|DELETE /requests/{requestId}/attachments/{attachmentId}` — archivos de la solicitud. Subir: `{fileName, fileBase64}` (3 MB, máximo 20 por solicitud), quien vea la solicitud y tenga «Editar» en su oficina; el tipo se detecta por los bytes contra una lista permitida (PDF, PNG, JPG, XLSX, DOCX, PPTX, CSV, TXT) y se descarga siempre como adjunto con `nosniff`. Borrar: quien lo subió o un rol con «Borrar». Auditoría `request.attachment_added|removed` con nombre y tamaño, nunca el contenido.
@@ -67,6 +67,8 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 - `POST /quotes/{quoteVersionId}/submit-for-approval`
 - `POST /quotes/{quoteVersionId}/approve`
 - `POST /quotes/{quoteVersionId}/return` — comentario obligatorio; `reject: true` = «Rechazar» del comité (vuelve a cotización igual, el comentario queda como «Rechazada: …» y se audita como `quote.rejected`)
+- `POST /quotes/{quoteVersionId}/revoke` — «Revocar aprobación»: quien puede autorizar devuelve una versión APROBADA y no enviada a RETURNED con motivo obligatorio («Aprobación revocada: …», auditada como `quote.approval_revoked`), para poder aprobar otro escenario
+- Un solo escenario aprobado por solicitud: `submit` y `approve` responden 409 `SCENARIO_ALREADY_APPROVED` si otro escenario de la misma solicitud tiene una versión aprobada o enviada
 - `POST /quotes/{quoteVersionId}/send`
 - `POST /quotes/{quoteVersionId}/wetravel` — crea en WeTravel la liga de pago de la propuesta ganadora (solicitud `WON` y esta versión como ganadora). Solo el cotizador asignado o el coordinador. Responde `{wetravelUrl}`; `GET /requests/{id}` trae `wetravelUrl`. Errores: 403 si no es la ganadora, 409 `WETRAVEL_EXISTS` si ya hay liga, 400 si la cotización tiene avisos, 502 si WeTravel falla, 503 sin `WETRAVEL_API_KEY`
 - `GET|POST /quotes/{quoteVersionId}/shares`, `DELETE /quotes/{quoteVersionId}/shares/{shareId}` — liga para el colegio. Crear: `{days}` (1 a 90, por omisión 30), solo el cotizador asignado o el coordinador, con la versión autorizada o enviada y la solicitud en cotización, enviada o ganada. Responde `{id, token, expiresAt}`: el token se muestra **una sola vez** (se guarda solo su SHA-256). Listar no devuelve tokens; trae vistas y última vista. Revocar es inmediato. Auditoría `proposal.share_created|share_revoked` sin el token

@@ -6,6 +6,7 @@ let ctx: Awaited<ReturnType<typeof makeApp>>;
 const c: Record<'advisor' | 'quoter' | 'approver' | 'adminA' | 'adminB', string> = {} as never;
 const ids: Record<string, string> = {};
 let requestId: string;
+let officeA: string;
 
 const api = () => ctx.http();
 const act = (cookie: string, id: string, action: string, body: object = {}) =>
@@ -15,7 +16,7 @@ const open = (token: string) => api().get(`/api/v1/public/proposals/${token}`);
 
 beforeAll(async () => {
   ctx = await makeApp();
-  const officeA = (await makeOffice()).id;
+  officeA = (await makeOffice()).id;
   const officeB = (await makeOffice()).id;
   const login = async (
     key: keyof typeof c,
@@ -31,7 +32,16 @@ beforeAll(async () => {
   await login('approver', officeA, 'APPROVER');
   await login('adminA', officeA, 'OFFICE_ADMIN');
   await login('adminB', officeB, 'OFFICE_ADMIN');
-  requestId = (
+  requestId = await newRequest();
+});
+afterAll(async () => {
+  await ctx.app.close();
+  await prisma.$disconnect();
+});
+
+/** Submitted and assigned; each approved version gets its own (one approved scenario per request). */
+async function newRequest() {
+  const id: string = (
     await api()
       .post('/api/v1/requests')
       .set('Cookie', c.advisor)
@@ -46,21 +56,14 @@ beforeAll(async () => {
       })
       .expect(201)
   ).body.id;
+  await api().post(`/api/v1/requests/${id}/submit`).set('Cookie', c.advisor).send({ version: 1 }).expect(201);
   await api()
-    .post(`/api/v1/requests/${requestId}/submit`)
-    .set('Cookie', c.advisor)
-    .send({ version: 1 })
-    .expect(201);
-  await api()
-    .post(`/api/v1/requests/${requestId}/assign`)
+    .post(`/api/v1/requests/${id}/assign`)
     .set('Cookie', c.adminA)
     .send({ assigneeId: ids.quoter, version: 2 })
     .expect(201);
-});
-afterAll(async () => {
-  await ctx.app.close();
-  await prisma.$disconnect();
-});
+  return id;
+}
 
 async function draftVersion() {
   const v = (
@@ -93,6 +96,7 @@ async function draftVersion() {
 }
 
 async function approvedVersion() {
+  requestId = await newRequest();
   const v = await draftVersion();
   const s = (await act(c.quoter, v.id, 'submit', { rowVersion: v.rowVersion }).expect(201)).body;
   await act(c.approver, v.id, 'approve', { rowVersion: s.rowVersion }).expect(201);
@@ -194,6 +198,7 @@ describe('proposal cover photo and payment link', () => {
     ).body.id as string;
 
   it('only an image of the same request can be the cover; it is served to the session and the link', async () => {
+    requestId = await newRequest();
     const pdf = await upload('cotizacion.pdf', Buffer.from('%PDF-1.4 x'));
     const photo = await upload('roma.png', PNG);
     const v = await draftVersion();

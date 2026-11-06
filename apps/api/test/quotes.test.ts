@@ -28,6 +28,10 @@ beforeAll(async () => {
   await login('adminA', officeA, 'OFFICE_ADMIN');
   await login('adminB', officeB, 'OFFICE_ADMIN');
 
+  requestId = await newRequest();
+});
+/** Submitted and assigned to the quoter; tests that approve take their own (one approved scenario per request). */
+async function newRequest() {
   const r = await api()
     .post('/api/v1/requests')
     .set('Cookie', c.advisor)
@@ -42,18 +46,16 @@ beforeAll(async () => {
       staff: 2,
     })
     .expect(201);
-  requestId = r.body.id;
+  const id: string = r.body.id;
+  await api().post(`/api/v1/requests/${id}/submit`).set('Cookie', c.advisor).send({ version: 1 }).expect(201);
   await api()
-    .post(`/api/v1/requests/${requestId}/submit`)
-    .set('Cookie', c.advisor)
-    .send({ version: 1 })
-    .expect(201);
-  await api()
-    .post(`/api/v1/requests/${requestId}/assign`)
+    .post(`/api/v1/requests/${id}/assign`)
     .set('Cookie', c.adminA)
     .send({ assigneeId: ids.quoter, version: 2 })
     .expect(201);
-});
+  return id;
+}
+
 afterAll(async () => {
   await ctx.app.close();
   await prisma.$disconnect();
@@ -363,6 +365,7 @@ describe('authorization (US-071..076)', () => {
   });
 
   it('quoter submits, approver authorizes, quoter sends; request becomes SENT', async () => {
+    requestId = await newRequest();
     const v = await readyVersion();
     await act(c.quoter, v.id, 'send', { ...delivery, rowVersion: v.rowVersion }).expect(403); // not authorized yet
     const s = await act(c.quoter, v.id, 'submit', { rowVersion: v.rowVersion }).expect(201);
@@ -441,7 +444,7 @@ describe('authorization (US-071..076)', () => {
   });
 
   it('returns with a mandatory reason and the quoter can fix and resubmit', async () => {
-    await prisma.travelRequest.update({ where: { id: requestId }, data: { status: 'QUOTING' } });
+    requestId = await newRequest();
     const v = await readyVersion();
     const s = await act(c.quoter, v.id, 'submit', { rowVersion: v.rowVersion }).expect(201);
     await act(c.approver, v.id, 'return', { rowVersion: s.body.rowVersion }).expect(400);
@@ -458,6 +461,7 @@ describe('authorization (US-071..076)', () => {
   });
 
   it('refuses to send when the approved calculation changed (US-075)', async () => {
+    requestId = await newRequest();
     const v = await readyVersion();
     const s = await act(c.quoter, v.id, 'submit', { rowVersion: v.rowVersion }).expect(201);
     const a = await act(c.approver, v.id, 'approve', { rowVersion: s.body.rowVersion }).expect(201);

@@ -72,11 +72,16 @@ const awaitingApproval: Prisma.TravelRequestWhereInput[] = [
   { scenarios: { some: { versions: { some: { status: { in: ['IN_REVIEW', 'RETURNED'] } } } } } },
   { scenarios: { none: { versions: { some: { status: 'APPROVED' } } } } },
 ];
+/** A scenario was authorized and not yet sent: what dashboard stageOf calls stage 3. */
+const hasApproved: Prisma.TravelRequestWhereInput = {
+  scenarios: { some: { versions: { some: { status: 'APPROVED' } } } },
+};
 const STAGE_WHERE: Record<NonNullable<ListRequestsQuery['stage']>, Prisma.TravelRequestWhereInput> = {
   QUOTING: {
-    OR: [{ status: 'SUBMITTED' }, { status: 'QUOTING', NOT: { AND: awaitingApproval } }],
+    OR: [{ status: 'SUBMITTED' }, { status: 'QUOTING', NOT: [{ AND: awaitingApproval }, hasApproved] }],
   },
   APPROVAL: { status: 'QUOTING', AND: awaitingApproval },
+  APPROVED: { status: 'QUOTING', ...hasApproved },
   SENT: { status: 'SENT' },
   WON: { status: 'WON' },
 };
@@ -245,29 +250,29 @@ export class RequestsController {
   ) {
     const scope = officeScope(user);
     const adminOffices = officesWithRole(user, ['OFFICE_ADMIN']);
-    const where: Prisma.TravelRequestWhereInput = {
-      AND: [
-        { officeId: { in: scope } },
-        {
-          OR: [{ status: { not: 'DRAFT' } }, { requesterId: user.id }, { officeId: { in: adminOffices } }],
-        },
-        { archivedAt: q.archived === 'true' ? { not: null } : null },
-        q.officeId ? { officeId: q.officeId } : {},
-        q.status ? { status: q.status } : {},
-        q.assignedToMe === 'true' ? { assigneeId: user.id } : {},
-        q.stage ? STAGE_WHERE[q.stage] : {},
-        q.q
-          ? FOLIO_PATTERN.test(q.q.toUpperCase())
-            ? { folio: q.q.toUpperCase() }
-            : {
-                OR: (['groupName', 'clientName', 'city'] as const).map((f) => ({
-                  [f]: { contains: q.q, mode: 'insensitive' as const },
-                })),
-              }
-          : {},
-      ],
-    };
-    const [total, rows] = await this.prisma.$transaction([
+    // Everything but the stage tab, so every tab can show its own count.
+    const base: Prisma.TravelRequestWhereInput[] = [
+      { officeId: { in: scope } },
+      {
+        OR: [{ status: { not: 'DRAFT' } }, { requesterId: user.id }, { officeId: { in: adminOffices } }],
+      },
+      { archivedAt: q.archived === 'true' ? { not: null } : null },
+      q.officeId ? { officeId: q.officeId } : {},
+      q.status ? { status: q.status } : {},
+      q.assignedToMe === 'true' ? { assigneeId: user.id } : {},
+      q.q
+        ? FOLIO_PATTERN.test(q.q.toUpperCase())
+          ? { folio: q.q.toUpperCase() }
+          : {
+              OR: (['groupName', 'clientName', 'city'] as const).map((f) => ({
+                [f]: { contains: q.q, mode: 'insensitive' as const },
+              })),
+            }
+        : {},
+    ];
+    const where: Prisma.TravelRequestWhereInput = { AND: [...base, q.stage ? STAGE_WHERE[q.stage] : {}] };
+    const stages = Object.keys(STAGE_WHERE) as (keyof typeof STAGE_WHERE)[];
+    const [total, rows, ...counts] = await this.prisma.$transaction([
       this.prisma.travelRequest.count({ where }),
       this.prisma.travelRequest.findMany({
         where,
@@ -276,8 +281,10 @@ export class RequestsController {
         skip: (q.page - 1) * q.limit,
         take: q.limit,
       }),
+      ...stages.map((k) => this.prisma.travelRequest.count({ where: { AND: [...base, STAGE_WHERE[k]] } })),
     ]);
     return {
+      stageCounts: Object.fromEntries(stages.map((k, i) => [k, counts[i]])),
       items: rows.map(({ scenarios, ...r }) => ({
         ...toDto(r),
         scenarios: scenarios.length,
@@ -294,7 +301,12 @@ export class RequestsController {
 
   @Get(':id')
   async get(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
-    return toDto(await this.load(this.prisma, id, user));
+    const row = await this.load(this.prisma, id, user);
+    const versions = await this.prisma.quoteVersion.findMany({
+      where: { scenario: { requestId: id } },
+      select: { status: true },
+    });
+    return { ...toDto(row), stage: stageOf(row.status, versions) };
   }
 
   @Patch(':id')

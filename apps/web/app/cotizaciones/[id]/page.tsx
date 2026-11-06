@@ -21,6 +21,7 @@ import {
   fmtDate,
   fmtDateTime,
   isAuthorized,
+  isPicked,
   PENDING_LEGEND,
   QUOTE_STATUS_LABEL,
   SHEET_BLOCKS,
@@ -219,6 +220,8 @@ export default function QuoteEditorPage() {
   const role: Role =
     me?.id === req?.assignee?.id ? 'quoter' : isAdmin ? 'admin' : approver ? 'approver' : 'viewer';
   const fileName = `${req?.folio ?? 'cotizacion'}-${q.scenarioName}-v${q.number}`.replace(/[^\w.-]+/g, '-');
+  // Only one approved scenario per request: another approved or sent one blocks this one (the API refuses too).
+  const pickedElsewhere = scenarios.find((s) => s.id !== q.scenarioId && isPicked(s));
   const toApproval = () => document.getElementById('autorizacion')?.scrollIntoView({ behavior: 'smooth' });
 
   /** Approval steps (US-071..074); submitting saves pending edits first. */
@@ -1006,12 +1009,33 @@ export default function QuoteEditorPage() {
           <Link className="button secondary" href={`/cotizaciones/${q.id}/propuesta`}>
             {isAuthorized(q.status) ? 'Ver propuesta para compartir' : 'Vista previa de la propuesta'}
           </Link>
-          {works && ['DRAFT', 'RETURNED'].includes(q.status) && (
+          {pickedElsewhere && ['DRAFT', 'RETURNED', 'IN_REVIEW'].includes(q.status) && (
+            <p className="legend" role="status" style={{ flexBasis: '100%', margin: 0 }}>
+              Ya está aprobado el escenario «{pickedElsewhere.name}». Solo puede haber uno por solicitud: este
+              no se puede enviar a autorización ni autorizar mientras aquel siga aprobado.
+            </p>
+          )}
+          {works && !pickedElsewhere && ['DRAFT', 'RETURNED'].includes(q.status) && (
             <button onClick={() => void act('submit')}>Enviar a autorización</button>
+          )}
+          {approver && q.status === 'APPROVED' && (
+            <button
+              className="secondary"
+              onClick={() => {
+                const comment = window
+                  .prompt(
+                    'Motivo para revocar la aprobación (obligatorio). Así podrás aprobar otro escenario:',
+                  )
+                  ?.trim();
+                if (comment) void act('revoke', { comment });
+              }}
+            >
+              Revocar aprobación
+            </button>
           )}
           {approver && q.status === 'IN_REVIEW' && (
             <>
-              <button onClick={() => void act('approve')}>Autorizar viaje</button>
+              {!pickedElsewhere && <button onClick={() => void act('approve')}>Autorizar viaje</button>}
               <button
                 className="danger"
                 onClick={() => {
