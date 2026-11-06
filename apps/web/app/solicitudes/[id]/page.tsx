@@ -234,11 +234,7 @@ export default function RequestDetailPage() {
         Responsable: {r.assignee?.name ?? 'sin asignar'} · Solicitante: {r.requester.name}
       </p>
       {step !== null && (
-        <ol
-          className="stepper"
-          aria-label="Avance de la solicitud"
-          style={{ gridTemplateColumns: `repeat(${STEPS.length}, 1fr)` }}
-        >
+        <ol className="stepper" aria-label="Avance de la solicitud">
           {STEPS.map((name, i) => (
             <li
               key={name}

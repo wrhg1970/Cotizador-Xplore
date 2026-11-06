@@ -2310,6 +2310,14 @@ table.compare thead th.picked {
 }
 .ficha .stepper {
   margin: 4px 0 14px;
+  /* Six steps; minmax(0, …) lets long words wrap instead of widening the page on phones. */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .ficha .stepper {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 @media (prefers-color-scheme: dark) {
   .badge.st-q2 {
