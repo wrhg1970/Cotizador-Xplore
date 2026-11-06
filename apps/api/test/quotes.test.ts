@@ -501,6 +501,45 @@ describe('authorization (US-071..076)', () => {
   });
 });
 
+describe('chaperone concepts and gratuities by ratio (Will, 2026-11-06)', () => {
+  const line = (category: string, description: string, unitCost: string) => ({
+    category,
+    description,
+    quantity: '1',
+    unitCost,
+    currency: 'EUR',
+  });
+
+  it('copies the student seguro on save and frees only the course; older versions keep the old rule', async () => {
+    const v = (await newScenario(c.quoter).expect(201)).body.latest;
+    const res = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({
+        targetMarginRate: '0',
+        chaperones: 3,
+        staff: 0,
+        studentsPerFreePlace: 10,
+        freePlaceBenefit: 'CHAPERONE',
+        lines: [
+          line('PER_PARTICIPANT', 'Seguro MSI', '30'),
+          line('PER_CHAPERONE', 'Costo chaperón', '1000'),
+          line('PER_CHAPERONE', 'Seguro', '0'),
+        ],
+        rowVersion: 1,
+      })
+      .expect(200);
+    expect(res.body.lines[2].unitCost).toBe('30');
+    // 10 students, 1 per 10: 1 gratuity → 2 courses but 3 seguros.
+    expect(res.body.totals.lineTotals.slice(1)).toEqual(['2000.00', '90.00']);
+    expect(res.body.freeCourseByRatio).toBe(true);
+
+    await prisma.quoteVersion.update({ where: { id: v.id }, data: { freeCourseByRatio: false } });
+    const old = await api().get(`/api/v1/quotes/${v.id}`).set('Cookie', c.quoter).expect(200);
+    expect(old.body.totals.lineTotals.slice(1)).toEqual(['3000.00', '90.00']);
+  });
+});
+
 describe('payment plan, free places and itinerary (Sprint B)', () => {
   const plan = {
     depositRate: '0.15',
@@ -560,7 +599,7 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
     const payRows = tab('Plan de pagos');
     expect(payRows).toContainEqual(['Inscripción', '2026-11-15', 769.35]);
     expect(payRows).toContainEqual(['Pago 6 de 6', expect.any(String), expect.any(Number)]);
-    expect(payRows).toContainEqual(['Lugares liberados', 2, '1 por cada 5 estudiantes, para chaperón']);
+    expect(payRows).toContainEqual(['Gratuidades por ratio', 2, '1 por cada 5 estudiantes, para chaperón']);
     const itRows = tab('Itinerario');
     expect(itRows).toContainEqual([1, 'Llegada a Roma', 'Traslado al hotel']);
     expect(itRows).toContainEqual(['', 'Gastos personales']);

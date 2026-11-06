@@ -68,8 +68,15 @@ Layout tomado del prototipo V2 y validado con Finanzas (Will, 2026-10-26):
 ## Plan de pagos y lugares liberados (Sprint B, 2026-10-27)
 - Por estudiante, sobre el precio final ya redondeado. Inscripción opcional: % del precio (truncado a centavos) o monto fijo menor que el precio.
 - Parcialidades iguales truncadas a centavos; la última absorbe el residuo, así la suma da exactamente el precio. Fechas: mensual (mismo día, ajustado al fin de mes), quincenal (+14 días) o semanal (+7).
-- Lugares liberados = ⌊estudiantes ÷ N⌋. **Solo informativo**: no cambia el precio (confirmado por Will, 2026-10-27); se muestra en la propuesta.
+- Gratuidades por ratio (antes «lugares liberados») = ⌊estudiantes ÷ N⌋. Hasta 2026-11-06 eran solo informativas; ver la sección siguiente.
 - Los campos nuevos entran al hash de aprobación solo cuando tienen valor, para no invalidar autorizaciones previas.
+
+## Chaperones y gratuidades por ratio (Will, 2026-11-06)
+- Los rubros **Seguro, Kit y Transfer** de los bloques de chaperones (EE y escuela) copian cantidad, costo unitario y moneda del rubro del estudiante cuya primera palabra coincide («Seguro MSI», «Kit EE», «Transfer»; «Costo envío de kits» no cuenta). Se ven bloqueados en el editor y el servidor los vuelve a copiar al guardar (`syncChaperoneLines`).
+- Cada gratuidad descuenta **solo el «Costo chaperón»** (curso/programa; se reconoce por nombre: «Costo chaperón…», «curso» o «programa»). Seguro, kit, transfer y gastos se cobran a todos. Ejemplo: 1 gratuidad y 3 chaperones → 2 cursos y 3 seguros, kits y transfers.
+- Las gratuidades se asignan primero a los chaperones EE y luego a los de la escuela (mismo orden que la matriz por volumen), nunca más que los chaperones que viajan. Con destino «Beca para estudiante» siguen siendo informativas.
+- Aplica en la hoja, matriz por volumen, simulador, comparador, Excel interno y PDF (todo sale del mismo motor).
+- Versiones ya en autorización, aprobadas, enviadas o reemplazadas al momento del cambio conservan la regla anterior (`freeCourseByRatio = false`), así su precio y su hash de aprobación no cambian. Al editar una versión (p. ej. devuelta) pasa a la regla nueva.
 
 ## Versionado
 Cada versión guarda `formulaSetId`, `formulaSetVersion`, inputs, FX, líneas, resultados y `calculationHash`. Los cambios de fórmula no recalculan cotizaciones ya enviadas.

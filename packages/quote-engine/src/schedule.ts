@@ -66,6 +66,6 @@ export function paymentSchedule(price: Dec, plan: PaymentPlan): Payment[] {
   return payments;
 }
 
-/** "1 lugar liberado por cada N estudiantes"; informative until Finance defines how it prices. */
+/** "1 gratuidad por cada N estudiantes" (Gratuidades por ratio); calculateQuote frees chaperones' course with them. */
 export const freePlaces = (participants: number, studentsPerFreePlace: number) =>
   Math.floor(participants / studentsPerFreePlace);

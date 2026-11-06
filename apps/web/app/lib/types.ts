@@ -224,6 +224,8 @@ export interface QuoteDto {
   paymentPlan: PaymentPlanDto | null;
   studentsPerFreePlace: number | null;
   freePlaceBenefit: 'CHAPERONE' | 'STUDENT' | null;
+  /** False on versions priced before gratuities freed the chaperones' course (they stay informative). */
+  freeCourseByRatio: boolean;
   itinerary: ItineraryDayDto[] | null;
   exclusions: string[];
   coverAttachmentId: string | null;
@@ -299,12 +301,12 @@ export const SHEET_BLOCKS: { category: LineCategory; title: string; hint: string
   {
     category: 'PER_STAFF',
     title: 'Chaperones EE',
-    hint: 'Costo por chaperón; se multiplica por los chaperones EE.',
+    hint: 'Costo por chaperón × chaperones EE; seguro, kit y transfer = los del estudiante.',
   },
   {
     category: 'PER_CHAPERONE',
     title: 'Chaperones de la escuela',
-    hint: 'Costo por chaperón; se multiplica por los chaperones de la escuela.',
+    hint: 'Costo por chaperón × chaperones de la escuela; seguro, kit y transfer = los del estudiante.',
   },
   { category: 'CONTINGENCY', title: 'Fondo de emergencia', hint: 'Monto total para el grupo.' },
   { category: 'PER_GROUP', title: 'Fijos del grupo', hint: 'Monto total; se reparte entre los estudiantes.' },

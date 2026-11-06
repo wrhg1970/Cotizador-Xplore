@@ -346,9 +346,12 @@ model QuoteVersion {
   assumptions          String?
   /// Registration + installments config (contracts PaymentPlanInput); the schedule is computed, not stored.
   paymentPlan          Json?               @map("payment_plan")
-  /// "1 lugar liberado por cada N estudiantes"; informative only, never changes the price (confirmed 2026-10-27).
+  /// "1 gratuidad por cada N estudiantes" (Gratuidades por ratio).
   studentsPerFreePlace Int?                @map("students_per_free_place")
   freePlaceBenefit     FreePlaceBenefit?   @map("free_place_benefit")
+  /// Gratuities free the chaperones' course (Will, 2026-11-06). False on versions already in review,
+  /// approved or sent before that rule, so their price and approval hash never move.
+  freeCourseByRatio    Boolean             @default(true) @map("free_course_by_ratio")
   /// Day-by-day plan shown in the proposal (contracts ItineraryDay[]).
   itinerary            Json?
   /// "No incluye" lines for the proposal.
