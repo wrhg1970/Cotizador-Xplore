@@ -3,8 +3,16 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import type { RequestStatus } from '@ee/contracts';
 import { api, errorText } from '../../lib/api';
-import { ACTION_LABEL, fmtDate, fmtDateTime, STATUS_LABEL, type TravelRequestDto } from '../../lib/types';
+import {
+  ACTION_LABEL,
+  fmtDate,
+  fmtDateTime,
+  requestLabel,
+  type Stage,
+  type TravelRequestDto,
+} from '../../lib/types';
 import { can, canSeeQuotes, isOfficeAdmin, useMe } from '../../lib/useMe';
 import { type ProposalRow, Proposals } from '../Proposals';
 import { RequestFactRows, RequestNotes } from '../RequestFacts';
@@ -30,6 +38,19 @@ const HASH_TAB: Record<string, Tab> = {
   historial: 'bitacora',
   bitacora: 'bitacora',
 };
+
+/** The path a request follows, as Will reads it; lost and cancelled requests show only their status. */
+const STEPS = ['Solicitada', 'En cotización', 'Por aprobar', 'Aprobada', 'Enviada', 'Aceptada'];
+const stepIndex = (status: RequestStatus, stage?: Stage): number | null =>
+  status === 'LOST' || status === 'CANCELLED'
+    ? null
+    : status === 'WON'
+      ? 5
+      : status === 'SENT'
+        ? 4
+        : status === 'QUOTING'
+          ? (stage ?? 1)
+          : 0;
 
 interface Quoter {
   id: string;
@@ -181,11 +202,13 @@ export default function RequestDetailPage() {
   const sent = proposals.filter((p) => p.sent);
   const winner = proposals.find((p) => p.versionId === r.wonVersionId);
   const quotes = canSeeQuotes(me, r.office.id);
+  const step = stepIndex(r.status, r.stage);
+  const comments = tl?.comments.length ?? 0;
   const tabs: [Tab, string][] = [
     ...(r.status !== 'DRAFT' ? [['escenarios', quotes ? 'Escenarios' : 'Propuestas'] as [Tab, string]] : []),
     ['equipo', 'Equipo'],
     ['documentos', 'Documentos'],
-    ['bitacora', 'Bitácora'],
+    ['bitacora', comments ? `Bitácora (${comments})` : 'Bitácora'],
   ];
   const current = tabs.some(([t]) => t === tab) ? tab! : tabs[0]![0];
   // Panels stay mounted (hidden) so forms keep what was typed when switching tabs.
@@ -202,14 +225,32 @@ export default function RequestDetailPage() {
         <h1 style={{ margin: 0 }}>
           {r.folio} · {r.groupName}
         </h1>
-        <span className="badge">
-          {STATUS_LABEL[r.status]}
+        <span className={`badge st-${r.status === 'QUOTING' ? `q${r.stage}` : r.status.toLowerCase()}`}>
+          {requestLabel(r.status, r.stage)}
           {archived ? ' · Archivada' : ''}
         </span>
       </div>
-      <p className="muted">
+      <p className="muted" style={{ margin: '2px 0 6px' }}>
         Responsable: {r.assignee?.name ?? 'sin asignar'} · Solicitante: {r.requester.name}
       </p>
+      {step !== null && (
+        <ol
+          className="stepper"
+          aria-label="Avance de la solicitud"
+          style={{ gridTemplateColumns: `repeat(${STEPS.length}, 1fr)` }}
+        >
+          {STEPS.map((name, i) => (
+            <li
+              key={name}
+              className={i < step ? 'done' : i === step ? 'current' : undefined}
+              aria-current={i === step ? 'step' : undefined}
+            >
+              {i < step ? '✓ ' : ''}
+              {name}
+            </li>
+          ))}
+        </ol>
+      )}
 
       {error && (
         <p className="error" role="alert">

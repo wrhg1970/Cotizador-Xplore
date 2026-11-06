@@ -46,13 +46,15 @@ const OPEN: RequestStatus[] = ['SUBMITTED', 'QUOTING', 'SENT'];
 const isOpen = (r: CohortRow) => OPEN.includes(r.status);
 const active = (r: CohortRow) => r.status !== 'LOST' && r.status !== 'CANCELLED';
 const pendingApproval = (r: CohortRow) => r.status === 'QUOTING' && r.stage === 2;
-const quoting = (r: CohortRow) => r.status === 'QUOTING' && r.stage !== 2;
+const approved = (r: CohortRow) => r.status === 'QUOTING' && r.stage === 3;
+const quoting = (r: CohortRow) => r.status === 'QUOTING' && r.stage !== 2 && r.stage !== 3;
 
 /** Operational state, in the order the bars show it. */
 const STATES = [
   { key: 'NEW', label: 'Nueva / por asignar', test: (r: CohortRow) => r.status === 'SUBMITTED' },
   { key: 'QUOTING', label: 'En cotización', test: quoting },
   { key: 'APPROVAL', label: 'Pendiente de aprobación', test: pendingApproval },
+  { key: 'APPROVED', label: 'Aprobada (por enviar)', test: approved },
   { key: 'SENT', label: 'Enviada / en negociación', test: (r: CohortRow) => r.status === 'SENT' },
   { key: 'WON', label: 'Ganada', test: (r: CohortRow) => r.status === 'WON' },
   { key: 'LOST', label: 'Perdida', test: (r: CohortRow) => r.status === 'LOST' },
@@ -62,6 +64,7 @@ const FILTERS = [
   { key: 'ALL', label: 'Todas', test: (_: CohortRow) => true },
   { key: 'QUOTING', label: 'En cotización', test: (r: CohortRow) => r.status === 'SUBMITTED' || quoting(r) },
   { key: 'APPROVAL', label: 'Por aprobar', test: pendingApproval },
+  { key: 'APPROVED', label: 'Aprobadas', test: approved },
   { key: 'SENT', label: 'Enviadas / negociación', test: (r: CohortRow) => r.status === 'SENT' },
   { key: 'WON', label: 'Aceptadas', test: (r: CohortRow) => r.status === 'WON' },
 ] as const;

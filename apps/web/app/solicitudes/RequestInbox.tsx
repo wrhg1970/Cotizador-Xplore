@@ -4,18 +4,26 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
-import { fmtDate, STATUS_LABEL, type TravelRequestDto } from '../lib/types';
+import {
+  fmtDate,
+  requestLabel,
+  STATUS_LABEL,
+  type Stage as StageNo,
+  type TravelRequestDto,
+} from '../lib/types';
 import { can, canSeeQuotes, useMe } from '../lib/useMe';
 import { archiveRequest, purgeRequest, unarchiveRequest } from './archive';
 
 /** "Mi trabajo" stage from the API: 1 Solicitada, 2 Por aprobar, 3 Aprobada, 4 Enviada. */
-type Row = TravelRequestDto & { scenarios: number; stage: 1 | 2 | 3 | 4 };
+type Row = TravelRequestDto & { scenarios: number; stage: StageNo };
 
 interface Page {
   items: Row[];
   total: number;
   page: number;
   limit: number;
+  /** Requests per stage tab with the same search and filters. */
+  stageCounts: Record<string, number>;
 }
 
 /** V2 tabs; the API filters by `stage`. */
@@ -23,6 +31,7 @@ const TABS = [
   ['', 'Todas'],
   ['QUOTING', 'En cotización'],
   ['APPROVAL', 'Por aprobar'],
+  ['APPROVED', 'Aprobadas'],
   ['SENT', 'Enviadas / negociación'],
   ['WON', 'Aceptadas'],
 ] as const;
@@ -140,7 +149,13 @@ function Inbox({ basePath, title, subtitle }: InboxProps) {
                 onClick={() => setParam('stage', key)}
               >
                 {label}
-                {stage === key && !archivedTab && data ? ` (${data.total})` : ''}
+                {key && data?.stageCounts && !archivedTab ? (
+                  <span className="tab-count">{data.stageCounts[key] ?? 0}</span>
+                ) : stage === key && !archivedTab && data ? (
+                  ` (${data.total})`
+                ) : (
+                  ''
+                )}
               </button>
             ))}
             <button
@@ -255,13 +270,10 @@ function Inbox({ basePath, title, subtitle }: InboxProps) {
                 <tr>
                   <th>Folio</th>
                   <th>Grupo</th>
-                  <th>Oficina</th>
                   <th>Destino / fechas</th>
-                  <th>Participantes</th>
                   <th>Responsable</th>
-                  <th>Solicitud / límite</th>
                   <th>Etapa del proceso</th>
-                  <th className="num">Escenarios</th>
+                  <th className="num">Esc.</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -270,26 +282,22 @@ function Inbox({ basePath, title, subtitle }: InboxProps) {
                   <tr key={r.id}>
                     <td>
                       <Link href={`/solicitudes/${r.id}`}>{r.folio}</Link>
+                      <div>
+                        <span className="ofc-code">{r.office.code}</span>
+                      </div>
                     </td>
                     <td style={{ whiteSpace: 'normal', minWidth: 200 }}>
                       <Who r={r} />
                     </td>
-                    <td>{r.office.code}</td>
                     <td style={{ whiteSpace: 'normal', minWidth: 140 }}>
                       {r.city}, {r.countryCode}
                       <div className="muted">
                         {fmtDate(r.departureDate)} → {fmtDate(r.returnDate)}
                       </div>
-                    </td>
-                    <td>
-                      {r.participants} alum. · {r.chaperones} chap.
+                      {r.dueDate && <div className="muted">Entrega: {fmtDate(r.dueDate)}</div>}
                     </td>
                     <td style={{ whiteSpace: 'normal' }}>{(r.assignee ?? r.requester).name}</td>
-                    <td>
-                      Sol: {fmtDate(r.createdAt.slice(0, 10))}
-                      <div>Lím: {fmtDate(r.dueDate)}</div>
-                    </td>
-                    <td style={{ whiteSpace: 'normal', minWidth: 160 }}>
+                    <td style={{ whiteSpace: 'normal', minWidth: 150 }}>
                       <Stage r={r} />
                     </td>
                     <td className="num">{r.scenarios}</td>
@@ -368,7 +376,8 @@ function Who({ r }: { r: Row }) {
     <>
       <strong>{r.clientName ? `${r.clientName} — ${r.groupName}` : r.groupName}</strong>
       <div className="muted">
-        {r.program ? `${r.program} · ` : ''}Solicita: {r.requester.name}
+        {r.participants} alum. · {r.chaperones} chap. · {r.program ? `${r.program} · ` : ''}Solicita:{' '}
+        {r.requester.name}
         {r.budget &&
           ` · Presupuesto: ${r.budget.amount} ${r.budget.currency}${r.budget.basis === 'TOTAL' ? '' : ' por alumno'}`}
       </div>
@@ -464,7 +473,9 @@ function Stage({ r }: { r: Row }) {
           ))}
         </div>
       )}
-      <div className="muted">{STATUS_LABEL[r.status]}</div>
+      <span className={`badge st-${r.status === 'QUOTING' ? `q${r.stage}` : r.status.toLowerCase()}`}>
+        {requestLabel(r.status, r.stage)}
+      </span>
     </>
   );
 }

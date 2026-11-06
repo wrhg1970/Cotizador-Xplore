@@ -36,6 +36,8 @@ export interface TravelRequestDto {
   id: string;
   folio: string;
   status: RequestStatus;
+  /** Only on the detail and list endpoints: where the scenarios are (Por aprobar, Aprobada…). */
+  stage?: Stage;
   version: number;
   office: { id: string; code: string; name: string };
   requester: { id: string; name: string };
@@ -102,6 +104,17 @@ export const STATUS_LABEL: Record<RequestStatus, string> = {
   LOST: 'Perdida',
   CANCELLED: 'Cancelada',
 };
+
+/** Request step from the API: 1 Solicitada / en cotización, 2 Por aprobar, 3 Aprobada, 4 Enviada. */
+export type Stage = 1 | 2 | 3 | 4;
+
+/** Status as people follow it: "En cotización" splits into Por aprobar and Aprobada by its scenarios. */
+export const requestLabel = (status: RequestStatus, stage?: Stage) =>
+  status === 'QUOTING' && stage === 2
+    ? 'Por aprobar'
+    : status === 'QUOTING' && stage === 3
+      ? 'Aprobada'
+      : STATUS_LABEL[status];
 
 export const PRIORITY_LABEL = { LOW: 'Baja', NORMAL: 'Normal', HIGH: 'Alta' } as const;
 
@@ -258,6 +271,10 @@ export interface ScenarioDto {
   versions: { id: string; number: number; status: QuoteVersionStatus }[];
   latest: QuoteDto;
 }
+
+/** The selected scenario: an approved or already sent version (only one per request). */
+export const isPicked = (s: ScenarioDto) =>
+  s.versions.some((v) => v.status === 'APPROVED' || v.status === 'SENT');
 
 export const QUOTE_STATUS_LABEL: Record<QuoteVersionStatus, string> = {
   DRAFT: 'Borrador',

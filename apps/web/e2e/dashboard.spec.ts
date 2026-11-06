@@ -41,7 +41,7 @@ test('"Mi trabajo" lists what is waiting on the user and links to it', async ({ 
   await page.getByRole('button', { name: 'Tarjetas comprimidas' }).click();
   await expect(card.getByText('Requiere tu acción')).toBeHidden();
   await expect(page.getByRole('row', { name: `${office.code} Oficina E2E` })).toHaveText(
-    `${office.code} Oficina E2E0010000—`,
+    `${office.code} Oficina E2E001000000—`, // Borrador, Por asignar, En cotización, Por aprobar, Aprobada, Enviada…
   );
   // Only offices with Borrador / Por asignar / En cotización; the button and the picker widen or narrow it.
   const byOffice = page.getByRole('region', { name: 'Solicitudes por oficina' });

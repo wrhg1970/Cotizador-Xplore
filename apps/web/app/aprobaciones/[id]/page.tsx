@@ -6,6 +6,7 @@ import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { api, errorText } from '../../lib/api';
 import {
   fmtDateTime,
+  isPicked,
   QUOTE_STATUS_LABEL,
   type QuoteDto,
   type ScenarioDto,
@@ -18,6 +19,7 @@ type Item = ScenarioDto & { preparedBy: string; policy: string };
 
 const FREQUENCY: Record<string, string> = { MONTHLY: 'mensual', BIWEEKLY: 'quincenal', WEEKLY: 'semanal' };
 const REJECTED_PREFIX = 'Rechazada: '; // same marker as the API's quotes controller
+const REVOKED_PREFIX = 'Aprobación revocada: ';
 
 /** Effective margin over price, after Finance's rounding; null while FX is missing. */
 const marginOf = (v: QuoteDto) =>
@@ -52,12 +54,15 @@ export default function DecisionPage() {
   const [items, setItems] = useState<Item[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** The approved (or sent) scenario; only one per request, so the others can't be approved. */
+  const [pickedId, setPickedId] = useState<string | null>(null);
 
   const reload = useCallback(
     () =>
       Promise.all([api<TravelRequestDto>(`/requests/${id}`), api<Item[]>(`/requests/${id}/scenarios`)]).then(
         ([r, s]) => {
           setReq(r);
+          setPickedId(s.find(isPicked)?.id ?? null);
           setItems(s.filter((x) => x.latest.status !== 'DRAFT'));
         },
         (e) => setError(errorText(e)),
@@ -76,19 +81,21 @@ export default function DecisionPage() {
     ) &&
     me.id !== req.assignee?.id;
 
-  async function decide(v: QuoteDto, kind: 'approve' | 'changes' | 'reject') {
+  async function decide(v: QuoteDto, kind: 'approve' | 'changes' | 'reject' | 'revoke') {
     const ask =
       kind === 'approve'
         ? 'Comentario para el registro (opcional):'
         : kind === 'changes'
           ? '¿Qué cambios necesita? (obligatorio)'
-          : 'Motivo del rechazo (obligatorio):';
+          : kind === 'revoke'
+            ? 'Motivo para revocar la aprobación (obligatorio):'
+            : 'Motivo del rechazo (obligatorio):';
     const comment = window.prompt(ask)?.trim();
     if (comment === undefined || (kind !== 'approve' && !comment)) return;
     setError(null);
     setNotice(null);
     try {
-      await api(`/quotes/${v.id}/${kind === 'approve' ? 'approve' : 'return'}`, {
+      await api(`/quotes/${v.id}/${kind === 'approve' || kind === 'revoke' ? kind : 'return'}`, {
         method: 'POST',
         body: {
           rowVersion: v.rowVersion,
@@ -99,7 +106,9 @@ export default function DecisionPage() {
       setNotice(
         kind === 'approve'
           ? `${v.scenarioName} v${v.number}: firma registrada`
-          : `${v.scenarioName} v${v.number} regresó a cotización`,
+          : kind === 'revoke'
+            ? `${v.scenarioName} v${v.number}: aprobación revocada; ya puedes aprobar otro escenario`
+            : `${v.scenarioName} v${v.number} regresó a cotización`,
       );
       await reload();
     } catch (e) {
@@ -211,7 +220,11 @@ export default function DecisionPage() {
             const v = s.latest;
             const m = marginOf(v);
             return (
-              <section key={s.id} className="card decision" aria-label={`${s.name} v${v.number}`}>
+              <section
+                key={s.id}
+                className={s.id === pickedId ? 'card decision picked' : 'card decision'}
+                aria-label={`${s.name} v${v.number}`}
+              >
                 <div className="decision-head">
                   <div>
                     <div className="muted fine">
@@ -222,18 +235,32 @@ export default function DecisionPage() {
                       <Link href={`/cotizaciones/${v.id}`}>{s.name}</Link>: {v.participants} participantes +{' '}
                       {v.chaperones} chaperones — Estado:{' '}
                       <span className="state">{QUOTE_STATUS_LABEL[v.status]}</span>
+                      {s.id === pickedId && <span className="picked-tag">✓ Escenario aprobado</span>}
                     </h2>
+                    {pickedId && s.id !== pickedId && v.status === 'IN_REVIEW' && (
+                      <div className="muted fine">
+                        No se puede aprobar: ya hay un escenario aprobado. Revoca esa aprobación para elegir
+                        este.
+                      </div>
+                    )}
                     <div className="muted fine">
                       Precio/alumno: {amount(v.totals?.pricePerParticipant, v.saleCurrency)} · Total grupo:{' '}
                       {amount(v.totals?.groupPrice, v.saleCurrency)} · Margen:{' '}
                       {m === null ? '—' : rate(String(m))}
                     </div>
                   </div>
+                  {approver && v.status === 'APPROVED' && (
+                    <button className="secondary" onClick={() => void decide(v, 'revoke')}>
+                      Revocar aprobación
+                    </button>
+                  )}
                   {approver && v.status === 'IN_REVIEW' && (
                     <div className="row">
-                      <button className="approve" onClick={() => void decide(v, 'approve')}>
-                        Aprobar v{v.number}
-                      </button>
+                      {!(pickedId && s.id !== pickedId) && (
+                        <button className="approve" onClick={() => void decide(v, 'approve')}>
+                          Aprobar v{v.number}
+                        </button>
+                      )}
                       <button className="changes" onClick={() => void decide(v, 'changes')}>
                         Solicitar cambios
                       </button>
@@ -250,9 +277,20 @@ export default function DecisionPage() {
                   <ol className="decision-log">
                     {v.reviews.map((r) => {
                       const rejected = r.decision === 'RETURNED' && r.comment?.startsWith(REJECTED_PREFIX);
+                      const revoked = r.decision === 'RETURNED' && r.comment?.startsWith(REVOKED_PREFIX);
                       const label =
-                        r.decision === 'APPROVED' ? 'Aprobar' : rejected ? 'Rechazar' : 'Solicitar cambios';
-                      const comment = rejected ? r.comment!.slice(REJECTED_PREFIX.length) : r.comment;
+                        r.decision === 'APPROVED'
+                          ? 'Aprobar'
+                          : rejected
+                            ? 'Rechazar'
+                            : revoked
+                              ? 'Revocar aprobación'
+                              : 'Solicitar cambios';
+                      const comment = rejected
+                        ? r.comment!.slice(REJECTED_PREFIX.length)
+                        : revoked
+                          ? r.comment!.slice(REVOKED_PREFIX.length)
+                          : r.comment;
                       return (
                         <li key={r.at}>
                           <span>

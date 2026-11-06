@@ -2242,3 +2242,109 @@ table.office-table td a.count:hover {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+/* Request status chips: "En cotización" splits into Por aprobar (amber) and Aprobada (green). */
+.badge.st-q2 {
+  background: #fef3c7;
+  color: var(--warn);
+}
+.badge.st-q3,
+.badge.st-won {
+  background: #dcfce7;
+  color: var(--ok);
+}
+.badge.st-sent {
+  background: #dbeafe;
+  color: var(--ink);
+}
+.tabs .tab-count {
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--subtle);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.tabs [aria-pressed='true'] .tab-count,
+.tabs [aria-selected='true'] .tab-count {
+  background: rgba(255, 255, 255, 0.2);
+  color: inherit;
+}
+
+/* The approved scenario is the selected one (only one per request). */
+table.compare th.picked,
+table.compare td.picked {
+  background: #ecfdf3;
+  box-shadow:
+    inset 2px 0 0 var(--ok),
+    inset -2px 0 0 var(--ok);
+}
+table.compare thead th.picked {
+  box-shadow:
+    inset 2px 0 0 var(--ok),
+    inset -2px 0 0 var(--ok),
+    inset 0 2px 0 var(--ok);
+}
+.picked-tag {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ok);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.scenario-new {
+  align-items: flex-end;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.scenario-new label {
+  font-size: 0.8rem;
+}
+.ficha .stepper {
+  margin: 4px 0 14px;
+}
+@media (prefers-color-scheme: dark) {
+  .badge.st-q2 {
+    background: #3a2c0c;
+  }
+  .badge.st-q3,
+  .badge.st-won {
+    background: #0f3322;
+  }
+  .badge.st-sent {
+    background: #102a4d;
+    color: var(--text);
+  }
+  table.compare th.picked,
+  table.compare td.picked {
+    background: #0f2a1d;
+  }
+}
+.card.decision.picked {
+  box-shadow: inset 4px 0 0 var(--ok);
+}
+.decision h2 .picked-tag {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.picked-note {
+  background: #ecfdf3;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--ok);
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+}
+@media (prefers-color-scheme: dark) {
+  .picked-note {
+    background: #0f2a1d;
+  }
+}

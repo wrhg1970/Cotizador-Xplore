@@ -590,7 +590,7 @@ export class DashboardController {
   /** Same visibility as the inbox: other people's drafts are not counted. */
   private async officeCounts(user: AuthUser) {
     const scope = officeScope(user);
-    const [offices, groups] = await Promise.all([
+    const [offices, groups, quoting] = await Promise.all([
       this.prisma.office.findMany({
         where: { id: { in: scope } },
         select: { id: true, code: true, name: true },
@@ -605,12 +605,28 @@ export class DashboardController {
         },
         _count: { _all: true },
       }),
+      this.prisma.travelRequest.findMany({
+        where: { officeId: { in: scope }, archivedAt: null, status: 'QUOTING' },
+        select: { officeId: true, scenarios: { select: { versions: { select: { status: true } } } } },
+      }),
     ]);
-    return offices.map((o) => ({
-      ...o,
-      byStatus: Object.fromEntries(
+    return offices.map((o) => {
+      const byStatus: Partial<Record<RequestStatus | 'APPROVAL' | 'APPROVED', number>> = Object.fromEntries(
         groups.filter((g) => g.officeId === o.id).map((g) => [g.status, g._count._all]),
-      ) as Partial<Record<(typeof groups)[number]['status'], number>>,
-    }));
+      );
+      // "Por aprobar" and "Aprobada" are steps inside En cotización, split out like the request lists do.
+      for (const r of quoting.filter((x) => x.officeId === o.id)) {
+        const stage = stageOf(
+          'QUOTING',
+          r.scenarios.flatMap((s) => s.versions),
+        );
+        const key = stage === 2 ? 'APPROVAL' : stage === 3 ? 'APPROVED' : null;
+        if (!key) continue;
+        byStatus.QUOTING = (byStatus.QUOTING ?? 0) - 1;
+        byStatus[key] = (byStatus[key] ?? 0) + 1;
+      }
+      if (byStatus.QUOTING === 0) delete byStatus.QUOTING;
+      return { ...o, byStatus };
+    });
   }
 }
