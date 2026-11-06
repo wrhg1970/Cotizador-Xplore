@@ -43,13 +43,15 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
     [7, 'Costo envío de kits', '10'],
     [8, 'Operación', '40'],
     [14, 'Gastos por día', '50'],
-    [17, 'Kit', '50'],
     [18, 'Fondo de emergencia', '150'],
   ];
   for (const [i, name, cost] of costs) {
     await expect(page.getByLabel(`Concepto ${i}`, { exact: true })).toHaveValue(name);
     await page.getByLabel(`Costo ${i}`, { exact: true }).fill(cost);
   }
+  // The chaperone's kit copies the student's "Kit EE" and is locked (Will, 2026-11-06).
+  await expect(page.getByLabel('Costo 17', { exact: true })).toHaveValue('50');
+  await expect(page.getByLabel('Costo 17', { exact: true })).toBeDisabled();
   // Allowances start at the trip's days: return − departure + 1.
   await expect(page.getByLabel('Cantidad 14', { exact: true })).toHaveValue('17');
   await expect(page.getByText('este viaje: 17')).toBeVisible();
@@ -78,8 +80,8 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await expect(finalPrice).toContainText('5200.00');
 
   // Proposal extras: 15% registration + 6 monthly payments, free places, itinerary, exclusions.
-  await page.getByLabel('1 lugar por cada (estudiantes)').fill('5');
-  await expect(page.getByText('2 lugares liberados')).toBeVisible();
+  await page.getByLabel('1 gratuidad por cada (estudiantes)').fill('5');
+  await expect(page.getByText('2 gratuidades', { exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Plan de pagos' }).click();
   await page.getByLabel('Ofrecer plan de pagos').check();
   await page.getByLabel('Tipo de inscripción').selectOption('rate');
@@ -104,7 +106,7 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   const schedule = page.getByRole('table', { name: 'Plan de pagos por estudiante' });
   await expect(schedule.getByRole('row', { name: /Inscripción/ })).toContainText('780.00'); // 15% of 5200
   await expect(schedule.getByRole('row', { name: /Pago 6 de 6/ })).toContainText('736.70');
-  await expect(page.getByText('Lugares liberados: 2')).toBeVisible();
+  await expect(page.getByText('Gratuidades por ratio: 2')).toBeVisible();
 
   // Price edits and their saves show in the file's timeline, filterable by kind.
   await page.getByRole('button', { name: /^Bitácora/ }).click();

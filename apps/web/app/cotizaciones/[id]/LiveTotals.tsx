@@ -7,6 +7,7 @@ import {
   QuoteEngineError,
   type QuoteInput,
   roundMoney,
+  syncChaperoneLines,
 } from '@ee/quote-engine';
 import type { QuoteDto } from '../../lib/types';
 
@@ -44,8 +45,10 @@ export function preview(d: QuoteDto, marginPct: string, targetPrice: string, byP
       targetMarginRate: dec(marginPct.trim() || '0')
         .div(100)
         .toDecimalPlaces(6),
-      lines: d.lines.map((l) => ({
+      // Same chaperone seguro/kit/transfer copy the server applies on save.
+      lines: syncChaperoneLines(d.lines).map((l) => ({
         category: l.category,
+        description: l.description,
         quantity: dec(l.quantity || '0'),
         unitCost: dec(l.unitCost || '0'),
         currency: l.currency,
@@ -54,6 +57,8 @@ export function preview(d: QuoteDto, marginPct: string, targetPrice: string, byP
         d.fxRates.filter((f) => f.rate).map((f) => [f.fromCurrency, dec(f.rate)] as const),
       ),
       mxnRate: d.saleCurrency !== 'MXN' && d.mxnRate ? dec(d.mxnRate) : null,
+      studentsPerFreePlace: d.freeCourseByRatio ? d.studentsPerFreePlace : null,
+      freePlaceBenefit: d.freePlaceBenefit,
     };
     if (!d.participants) return { ok: false, reason: 'Captura el número de estudiantes' };
     let r = calculateQuote(input);

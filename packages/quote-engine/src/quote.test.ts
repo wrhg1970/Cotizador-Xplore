@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { D, dec } from './money.js';
 import { marginRateForPrice } from './pricing.js';
-import { atGroupSize, calculateQuote, type QuoteInput } from './quote.js';
+import {
+  atGroupSize,
+  calculateQuote,
+  chaperoneMirrors,
+  syncChaperoneLines,
+  type QuoteInput,
+} from './quote.js';
 
 /** One tab of Finance's "ITALIA SPRING BREAK 2027" sheet, expressed as quote lines. */
 function option(o: {
@@ -165,5 +171,92 @@ describe('atGroupSize', () => {
   it('keeps the quoted chaperones without a free-place rule or below it', () => {
     expect(atGroupSize(q, 35, null).chaperones).toBe(1);
     expect(atGroupSize({ ...q, chaperones: 4 }, 35, 10).chaperones).toBe(4);
+  });
+});
+
+describe('Gratuidades por ratio and chaperone concepts (Will, 2026-11-06)', () => {
+  const raw = [
+    {
+      category: 'PER_PARTICIPANT',
+      description: 'Seguro MSI',
+      quantity: '1',
+      unitCost: '30',
+      currency: 'EUR',
+    },
+    { category: 'PER_PARTICIPANT', description: 'Kit EE', quantity: '1', unitCost: '50', currency: 'EUR' },
+    {
+      category: 'PER_PARTICIPANT',
+      description: 'Costo envío de kits',
+      quantity: '1',
+      unitCost: '9',
+      currency: 'EUR',
+    },
+    { category: 'PER_PARTICIPANT', description: 'Transfer', quantity: '2', unitCost: '20', currency: 'EUR' },
+    {
+      category: 'PER_CHAPERONE',
+      description: 'Costo chaperón',
+      quantity: '1',
+      unitCost: '1000',
+      currency: 'EUR',
+    },
+    { category: 'PER_CHAPERONE', description: 'Seguro', quantity: '1', unitCost: '0', currency: 'EUR' },
+    { category: 'PER_CHAPERONE', description: 'Kit', quantity: '1', unitCost: '0', currency: 'EUR' },
+    { category: 'PER_CHAPERONE', description: 'Transfer', quantity: '1', unitCost: '0', currency: 'EUR' },
+    {
+      category: 'PER_STAFF',
+      description: 'Costo chaperón',
+      quantity: '1',
+      unitCost: '1000',
+      currency: 'EUR',
+    },
+    { category: 'PER_STAFF', description: 'Seguro', quantity: '1', unitCost: '0', currency: 'EUR' },
+  ] as const;
+  const lines = syncChaperoneLines(raw.map((l) => ({ ...l })));
+  const input = (over: Partial<QuoteInput>): QuoteInput => ({
+    saleCurrency: 'EUR',
+    participants: 10,
+    chaperones: 3,
+    staff: 0,
+    targetMarginRate: dec('0'),
+    fxRates: {},
+    lines: lines.map((l) => ({ ...l, quantity: dec(l.quantity), unitCost: dec(l.unitCost) })),
+    ...over,
+  });
+
+  it("copies the student's seguro, kit and transfer into chaperone lines, not 'envío de kits'", () => {
+    expect(lines.slice(5, 8).map((l) => [l.quantity, l.unitCost])).toEqual([
+      ['1', '30'],
+      ['1', '50'],
+      ['2', '20'],
+    ]);
+    expect(lines[9]!.unitCost).toBe('30');
+    expect([...chaperoneMirrors(lines).entries()]).toEqual([
+      [5, 0],
+      [6, 1],
+      [7, 3],
+      [9, 0],
+    ]);
+    const lone = [{ ...raw[5] }];
+    expect(syncChaperoneLines(lone)).toBe(lone);
+  });
+
+  it('1 gratuity and 3 chaperones: 2 courses but 3 of seguro, kit and transfer', () => {
+    const r = calculateQuote(input({ studentsPerFreePlace: 10, freePlaceBenefit: 'CHAPERONE' }));
+    expect(r.gratuities).toEqual({ total: 1, staff: 0, chaperones: 1 });
+    expect(r.byCategory.PER_CHAPERONE.toString()).toBe(String(2 * 1000 + 3 * (30 + 50 + 40)));
+  });
+
+  it('without a ratio, or for a student scholarship, every chaperone pays the course', () => {
+    const full = String(3 * 1000 + 3 * 120);
+    expect(calculateQuote(input({})).byCategory.PER_CHAPERONE.toString()).toBe(full);
+    const sch = calculateQuote(input({ studentsPerFreePlace: 10, freePlaceBenefit: 'STUDENT' }));
+    expect(sch.byCategory.PER_CHAPERONE.toString()).toBe(full);
+  });
+
+  it('frees EE staff first, then school chaperones, never below zero', () => {
+    const r = calculateQuote(input({ staff: 1, chaperones: 1, participants: 30, studentsPerFreePlace: 10 }));
+    expect(r.gratuities).toEqual({ total: 3, staff: 1, chaperones: 1 });
+    expect(r.byCategory.PER_STAFF.toString()).toBe('30'); // course free, seguro still paid
+    expect(r.byCategory.PER_CHAPERONE.toString()).toBe('120');
   });
 });

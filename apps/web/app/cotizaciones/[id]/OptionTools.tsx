@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { freePlaces } from '@ee/quote-engine';
+import { gratuities } from '@ee/quote-engine';
 import type { LineCategory } from '@ee/contracts';
 import { api, errorText } from '../../lib/api';
 import {
@@ -122,23 +122,25 @@ export function QuickLoad({
   );
 }
 
-/** "1 lugar liberado por cada N": counted live; informative only, it never lowers the price (Will, 2026-10-27). */
-export function FreePlaces({ draft, set, live }: { draft: QuoteDto; set: Set; live: Preview }) {
+/** "1 gratuidad por cada N": each one frees a chaperone's course, never seguro, kit or transfer (Will, 2026-11-06). */
+export function FreePlaces({ draft, set }: { draft: QuoteDto; set: Set; live: Preview }) {
   const ratio = draft.studentsPerFreePlace;
-  const count = ratio ? freePlaces(draft.participants, ratio) : 0;
+  const g = gratuities({ ...draft, freePlaceBenefit: draft.freePlaceBenefit ?? 'CHAPERONE' });
+  const count = g.total;
+  const prices = draft.freeCourseByRatio && draft.freePlaceBenefit !== 'STUDENT';
   const missing = ratio ? ratio - (draft.participants % ratio) : 0;
   return (
-    <section className="card compact" aria-labelledby="liberados">
-      <h2 id="liberados">Lugares liberados (gratuidades por ratio)</h2>
+    <section className="card compact" aria-labelledby="gratuidades">
+      <h2 id="gratuidades">Gratuidades por ratio</h2>
       <div className="row">
         <label>
-          1 lugar por cada (estudiantes)
+          1 gratuidad por cada (estudiantes)
           <input
             type="number"
             min={1}
             max={100}
             value={ratio ?? ''}
-            placeholder="Sin lugares liberados"
+            placeholder="Sin gratuidades"
             onChange={(e) =>
               set({
                 studentsPerFreePlace: e.target.value ? Number(e.target.value) : null,
@@ -154,7 +156,7 @@ export function FreePlaces({ draft, set, live }: { draft: QuoteDto; set: Set; li
               value={draft.freePlaceBenefit ?? 'CHAPERONE'}
               onChange={(e) => set({ freePlaceBenefit: e.target.value as 'CHAPERONE' | 'STUDENT' })}
             >
-              <option value="CHAPERONE">Chaperón de la escuela</option>
+              <option value="CHAPERONE">Curso del chaperón</option>
               <option value="STUDENT">Beca para estudiante</option>
             </select>
           </label>
@@ -164,16 +166,20 @@ export function FreePlaces({ draft, set, live }: { draft: QuoteDto; set: Set; li
         <p>
           Con <strong>{draft.participants}</strong> estudiantes y ratio 1:{ratio}:{' '}
           <strong>
-            {count} {count === 1 ? 'lugar liberado' : 'lugares liberados'}
+            {count} {count === 1 ? 'gratuidad' : 'gratuidades'}
           </strong>
-          {live.ok &&
+          {prices &&
             count > 0 &&
-            ` (equivale a ${(Number(live.price) * count).toFixed(2)} ${draft.saleCurrency})`}
+            ` (no se cobra el curso de ${g.staff + g.chaperones} chaperón(es): ${g.staff} EE, ${g.chaperones} de la escuela)`}
           . Faltan {missing} estudiantes para el siguiente ({draft.participants + missing}).
         </p>
       ) : null}
       <p className="muted" style={{ margin: 0 }}>
-        Se informa en la propuesta y no cambia el precio. El costo del chaperón ya está en su bloque.
+        {!draft.freeCourseByRatio
+          ? 'Versión anterior a la regla de gratuidades: al guardar se aplica la regla nueva.'
+          : draft.freePlaceBenefit === 'STUDENT'
+            ? 'Beca para estudiante: se informa en la propuesta y no cambia el precio.'
+            : 'Cada gratuidad descuenta solo el «Costo chaperón» (curso); seguro, kit, transfer y gastos se siguen cobrando.'}
       </p>
     </section>
   );

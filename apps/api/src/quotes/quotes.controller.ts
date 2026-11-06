@@ -45,6 +45,7 @@ import {
 import {
   atGroupSize,
   calculateQuote,
+  syncChaperoneLines,
   calculationHash,
   D,
   freePlaces,
@@ -143,6 +144,8 @@ export const engine = (v: QuoteVersion & { lines: QuoteLine[]; fxRates: QuoteFxR
     })),
     fxRates: Object.fromEntries(v.fxRates.map((f) => [f.fromCurrency, new D(f.rate.toString())])),
     mxnRate: v.mxnRate && v.saleCurrency !== 'MXN' ? new D(v.mxnRate.toString()) : null,
+    // Versions priced before gratuities freed the course keep it informative (see freeCourseByRatio).
+    studentsPerFreePlace: v.freeCourseByRatio ? v.studentsPerFreePlace : null,
   });
 
 /** Client-safe proposal (PRD §PDF): price, group, validity and included concepts; never costs or margin. */
@@ -336,6 +339,8 @@ export function snapshotHash(v: FullVersion) {
     volumePrices: _vp,
     paymentSchedule: _ps,
     freePlaces: _fp,
+    // Engine mode, already reflected in totals; kept out so older approvals keep their hash.
+    freeCourseByRatio: _fc,
     lines,
     ...rest
   } = toDto(v);
@@ -385,6 +390,7 @@ export function toDto(v: FullVersion) {
     paymentPlan: plan(v),
     studentsPerFreePlace: v.studentsPerFreePlace,
     freePlaceBenefit: v.freePlaceBenefit,
+    freeCourseByRatio: v.freeCourseByRatio,
     itinerary: v.itinerary ? ItineraryDay.array().parse(v.itinerary) : null,
     exclusions: v.exclusions,
     coverAttachmentId: v.coverAttachmentId,
@@ -461,7 +467,13 @@ async function copyVersion(tx: Tx, src: FullVersion, scenarioId: string, number:
       showVolumePrices: src.showVolumePrices,
       createdById: userId,
       lines: {
-        create: src.lines.map(({ id: _i, versionId: _v, ...l }) => l),
+        create: syncChaperoneLines(
+          src.lines.map(({ id: _i, versionId: _v, ...l }) => ({
+            ...l,
+            quantity: l.quantity.toFixed(),
+            unitCost: l.unitCost.toFixed(),
+          })),
+        ),
       },
       fxRates: {
         create: src.fxRates.map(({ id: _i, versionId: _v, createdAt: _c, ...f }) => f),
@@ -556,7 +568,7 @@ export class QuotesController {
       // Allowances count both travel days: return − departure + 1 (Finance, 2026-10-22).
       const tripDays = (r.returnDate.getTime() - r.departureDate.getTime()) / 86_400_000 + 1;
       const lines = template
-        ? QuoteLineInput.array().parse(template.lines)
+        ? syncChaperoneLines(QuoteLineInput.array().parse(template.lines))
         : (
             await tx.conceptTemplate.findMany({
               where: { agencyId: user.agencyId, active: true, isBase: true },
@@ -813,13 +825,16 @@ export class QuotesController {
           ...(paymentPlan !== undefined ? { paymentPlan: json(paymentPlan) } : {}),
           ...(itinerary !== undefined ? { itinerary: json(itinerary) } : {}),
           rowVersion: { increment: 1 },
+          // Editing (e.g. after being returned) moves the version to the current gratuities rule.
+          freeCourseByRatio: true,
         },
       });
       if (!count) throw conflict();
       if (lines) {
         await tx.quoteLine.deleteMany({ where: { versionId: id } });
         await tx.quoteLine.createMany({
-          data: lines.map((l, position) => ({
+          // Chaperones' seguro/kit/transfer always follow the student's (shared engine rule).
+          data: syncChaperoneLines(lines).map((l, position) => ({
             ...l,
             versionId: id,
             position,

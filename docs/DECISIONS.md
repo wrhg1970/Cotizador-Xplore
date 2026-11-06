@@ -47,7 +47,7 @@
 
 ## Sprint B — plan de pagos, lugares liberados, itinerario y plantillas (2026-10-27)
 - Plan de pagos por versión, calculado por el motor (no guardado); si deja de cuadrar con el precio, la versión no puede enviarse a autorización.
-- Lugares liberados solo informativos: no bajan el precio (confirmado por Will, 2026-10-27).
+- Lugares liberados solo informativos: no bajan el precio (confirmado por Will, 2026-10-27). **Reemplazado el 2026-11-06**: se llaman «Gratuidades por ratio» y descuentan solo el curso del chaperón (ver FORMULAS.md).
 - Plantillas por oficina (contienen costos internos: solo el lado cotizador las ve). No copian tipos de cambio ni fechas de pago.
 
 ## Sprint C — tablero, permisos por rol e importador con IA (2026-10-27)

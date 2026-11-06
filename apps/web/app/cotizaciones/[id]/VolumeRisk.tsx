@@ -165,7 +165,8 @@ export function VolumeMatrix({
           </h2>
           <p className="muted" style={{ margin: '4px 0 0' }}>
             Mismos costos y % de comisión; cambia entre cuántos se reparten los gastos de chaperones y del
-            grupo. Con lugares liberados, viaja un chaperón por cada lugar ganado (como en la V2).
+            grupo. Con gratuidades por ratio, viaja un chaperón por cada gratuidad ganada (como en la V2); la
+            gratuidad solo descuenta su curso.
           </p>
         </div>
         <button
@@ -177,7 +178,7 @@ export function VolumeMatrix({
                 'Rango de aforo',
                 'Estudiantes base',
                 'Chaperones',
-                'Lugares liberados',
+                'Gratuidades por ratio',
                 `Gasto líder prorrateado (${cur})`,
                 `Precio final (${cur})`,
                 ...(mxn ? ['Estimado por estudiante (MXN)', 'Total grupo (MXN)'] : []),
@@ -203,7 +204,7 @@ export function VolumeMatrix({
             <tr>
               <th>Rango de aforo</th>
               <th className="num">Estudiantes base</th>
-              <th>Chaperones / lugares liberados{ratio ? ` (1:${ratio})` : ''}</th>
+              <th>Chaperones / gratuidades{ratio ? ` (1:${ratio})` : ''}</th>
               <th className="num">Gasto líder prorrateado ({cur})</th>
               <th className="num">Precio final ({cur})</th>
               {mxn && <th className="num">Estimado / estudiante (MXN)</th>}
@@ -220,7 +221,7 @@ export function VolumeMatrix({
                 <td className="num">{r.n}</td>
                 <td>
                   {r.chaps}
-                  {r.free !== null && ` (${r.free} liberados)`}
+                  {r.free !== null && ` (${r.free} ${r.free === 1 ? 'gratuidad' : 'gratuidades'})`}
                 </td>
                 <td className="num">{n2(r.leader)}</td>
                 <td className="num strong">{n2(r.price)}</td>

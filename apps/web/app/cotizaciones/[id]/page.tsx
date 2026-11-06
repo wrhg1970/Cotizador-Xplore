@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { CurrencyCode, LineCategory } from '@ee/contracts';
+import { chaperoneMirrors, syncChaperoneLines } from '@ee/quote-engine';
 import { api, errorText } from '../../lib/api';
 import { preview, TotalsBar } from './LiveTotals';
 import { PaymentSchedule, ProposalContent } from './ProposalContent';
@@ -138,6 +139,9 @@ export default function QuoteEditorPage() {
   const foreign = [...new Set(draft.lines.map((l) => l.currency))].filter((c) => c !== draft.saleCurrency);
   const missingFx = foreign.filter((c) => !draft.fxRates.some((f) => f.fromCurrency === c && f.rate));
   const live = preview(draft, marginPct, targetPrice, byPrice);
+  // Chaperones' seguro/kit/transfer show (and save as) the student's; their inputs are locked.
+  const synced = syncChaperoneLines(draft.lines);
+  const mirrors = chaperoneMirrors(draft.lines);
   const dirty = draft !== q || byPrice || marginPct !== toPct(q.targetMarginRate);
   /** New rate row: the first currency still missing, with a source so the server accepts it. */
   const addFx = (from?: CurrencyCode) => {
@@ -362,11 +366,11 @@ export default function QuoteEditorPage() {
       {(q.paymentSchedule || q.freePlaces !== null) && (
         <section className="card" aria-labelledby="plan-guardado" style={{ marginTop: 16 }}>
           <h2 id="plan-guardado" style={{ marginTop: 0 }}>
-            Plan de pagos y lugares liberados (guardado)
+            Plan de pagos y gratuidades por ratio (guardado)
           </h2>
           {q.freePlaces !== null && (
             <p>
-              Lugares liberados: <strong>{q.freePlaces}</strong> (1 por cada {q.studentsPerFreePlace}{' '}
+              Gratuidades por ratio: <strong>{q.freePlaces}</strong> (1 por cada {q.studentsPerFreePlace}{' '}
               estudiantes, para {q.freePlaceBenefit === 'STUDENT' ? 'beca de estudiante' : 'chaperón'})
             </p>
           )}
@@ -662,7 +666,7 @@ export default function QuoteEditorPage() {
               </span>
             </div>
             {SHEET_BLOCKS.map((b) => {
-              const rows = draft.lines.map((l, i) => ({ l, i })).filter(({ l }) => l.category === b.category);
+              const rows = synced.map((l, i) => ({ l, i })).filter(({ l }) => l.category === b.category);
               const used = new Set(rows.map(({ l }) => l.description));
               const options = catalog.filter(
                 (c) => c.category === b.category && c.active && !used.has(c.label),
@@ -717,6 +721,8 @@ export default function QuoteEditorPage() {
                                   inputMode="decimal"
                                   size={5}
                                   value={l.quantity}
+                                  disabled={mirrors.has(i)}
+                                  title={mirrors.has(i) ? 'Igual que el del estudiante' : undefined}
                                   onChange={(e) => setLine(i, { quantity: e.target.value.trim() })}
                                 />
                               </td>
@@ -726,6 +732,8 @@ export default function QuoteEditorPage() {
                                   inputMode="decimal"
                                   size={9}
                                   value={l.unitCost}
+                                  disabled={mirrors.has(i)}
+                                  title={mirrors.has(i) ? 'Igual que el del estudiante' : undefined}
                                   onChange={(e) => setLine(i, { unitCost: e.target.value.trim() })}
                                 />
                               </td>
@@ -733,6 +741,7 @@ export default function QuoteEditorPage() {
                                 <select
                                   aria-label={`Moneda ${i + 1}`}
                                   value={l.currency}
+                                  disabled={mirrors.has(i)}
                                   onChange={(e) => setLine(i, { currency: e.target.value as CurrencyCode })}
                                 >
                                   {CurrencyCode.options.map((c) => (

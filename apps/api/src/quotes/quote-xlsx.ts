@@ -157,7 +157,7 @@ export async function quoteWorkbook(q: QuoteDto, req: { folio: string; groupName
   } else pay.addRow(['Sin plan de pagos']);
   if (q.freePlaces)
     pay.addRow([
-      'Lugares liberados',
+      'Gratuidades por ratio',
       q.freePlaces,
       `1 por cada ${q.studentsPerFreePlace} estudiantes, para ${q.freePlaceBenefit === 'STUDENT' ? 'beca de estudiante' : 'chaperón'}`,
     ]);

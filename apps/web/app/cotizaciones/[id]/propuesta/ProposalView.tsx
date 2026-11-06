@@ -126,7 +126,7 @@ export function ProposalView({
         </dd>
         {!!p.freePlaces?.count && (
           <>
-            <dt>Lugares liberados</dt>
+            <dt>Gratuidades por ratio</dt>
             <dd>
               {p.freePlaces.count} ({FREE_PLACE_LABEL[p.freePlaces.benefit]})
             </dd>
