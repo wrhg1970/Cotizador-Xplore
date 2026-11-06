@@ -122,10 +122,12 @@ const ROLE_LABEL: Record<WorkRequest['role'], string> = {
 type Filter = 'ALL' | 'MINE' | 'OWNER' | 'SUPPORT';
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'ALL', label: 'Todas' },
-  { key: 'MINE', label: 'Mi turno hoy' },
-  { key: 'OWNER', label: 'Soy titular' },
-  { key: 'SUPPORT', label: 'Comité / apoyo' },
+  { key: 'OWNER', label: 'Mías' },
+  { key: 'SUPPORT', label: 'Participando' },
+  { key: 'MINE', label: 'Pendientes' },
 ];
+/** The last tab swaps the request list for the office table. */
+type Tab = Filter | 'OFFICES';
 
 const money = (p: WorkRequest['price']) =>
   p &&
@@ -253,7 +255,7 @@ export function WorkPage({ initialView }: { initialView: View }) {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [filter, setFilter] = useState<Filter>('ALL');
+  const [filter, setFilter] = useState<Tab>('ALL');
   const [view, setView] = useState<View>(initialView);
   const [query, setQuery] = useState('');
   const [officeView, setOfficeView] = useState(DEFAULT_OFFICE_VIEW);
@@ -270,7 +272,7 @@ export function WorkPage({ initialView }: { initialView: View }) {
   );
   const q = query.trim().toLowerCase();
   const shown = (data?.requests ?? [])
-    .filter(PASSES[filter])
+    .filter(filter === 'OFFICES' ? () => false : PASSES[filter])
     .filter(
       (r) =>
         !q ||
@@ -372,116 +374,140 @@ export function WorkPage({ initialView }: { initialView: View }) {
                     {f.label} ({data.requests.filter(PASSES[f.key]).length})
                   </button>
                 ))}
+                <button
+                  type="button"
+                  aria-pressed={filter === 'OFFICES'}
+                  onClick={() => setFilter('OFFICES')}
+                >
+                  Por oficina
+                </button>
               </div>
-              <div className="tabs" role="group" aria-label="Vista" style={{ margin: 0 }}>
-                {(
-                  [
-                    ['ROWS', 'Filas'],
-                    ['COMPACT', 'Tarjetas comprimidas'],
-                    ['KANBAN', 'Tablero por etapa'],
-                  ] as const
-                ).map(([key, label]) => (
-                  <button key={key} type="button" aria-pressed={view === key} onClick={() => setView(key)}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <input
-              type="search"
-              aria-label="Buscar"
-              placeholder="Buscar folio, colegio, destino o tarea…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              style={{ width: '100%', margin: '12px 0' }}
-            />
-            {shown.length === 0 ? (
-              <p className="muted">
-                {data.requests.length ? 'Nada coincide con el filtro.' : 'No tienes solicitudes abiertas.'}
-              </p>
-            ) : view === 'KANBAN' ? (
-              <div className="kanban">
-                {STAGES.map((s) => {
-                  const col = shown.filter((r) => r.stage === s.stage);
-                  return (
-                    <section key={s.stage} aria-label={`Etapa ${s.name}`}>
-                      <h3>
-                        0{s.stage}. {s.name} <span className="muted">({col.length})</span>
-                      </h3>
-                      <div className="wcards compact">
-                        {col.map((r) => (
-                          <WorkCard key={r.id} r={r} tasks={tasksOf(r.id)} compact />
-                        ))}
-                      </div>
-                    </section>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className={view === 'COMPACT' ? 'wcards compact' : 'wcards'}>
-                {shown.map((r) => (
-                  <WorkCard key={r.id} r={r} tasks={tasksOf(r.id)} compact={view === 'COMPACT'} />
-                ))}
-              </div>
-            )}
-          </section>
-          <section className="card" aria-labelledby="oficinas">
-            <OfficeFilter
-              id="oficinas"
-              title="Solicitudes por oficina"
-              offices={data.offices}
-              value={officeView}
-              onChange={setOfficeView}
-            />
-            <div className="table-wrap">
-              <table className="office-table">
-                <thead>
-                  <tr>
-                    <th>Oficina</th>
-                    {STATUSES.map((s) => (
-                      <th key={s} className="num">
-                        {COLUMN_LABEL[s]}
-                      </th>
-                    ))}
-                    <th className="num">Conversión</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeOffices.length === 0 && (
-                    <tr>
-                      <td colSpan={STATUSES.length + 2} className="muted">
-                        Ninguna oficina tiene solicitudes en Borrador, Por asignar o En cotización.
-                      </td>
-                    </tr>
-                  )}
-                  {activeOffices.map((o) => (
-                    <tr key={o.id}>
-                      <th scope="row">
-                        <span className="ofc-code">{o.code}</span> {o.name}
-                      </th>
-                      {STATUSES.map((s) => (
-                        <td key={s} className={o.byStatus[s] ? 'num' : 'num zero'}>
-                          {o.byStatus[s] ? (
-                            <Link
-                              className="count"
-                              href={`/solicitudes?${COLUMN_QUERY[s] ?? `status=${s}`}&officeId=${o.id}`}
-                            >
-                              {o.byStatus[s]}
-                            </Link>
-                          ) : (
-                            0
-                          )}
-                        </td>
-                      ))}
-                      <td className="num">{conversion(o.byStatus)}</td>
-                    </tr>
+              {filter !== 'OFFICES' && (
+                <div className="tabs" role="group" aria-label="Vista" style={{ margin: 0 }}>
+                  {(
+                    [
+                      ['ROWS', 'Filas'],
+                      ['COMPACT', 'Tarjetas comprimidas'],
+                      ['KANBAN', 'Tablero por etapa'],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <button key={key} type="button" aria-pressed={view === key} onClick={() => setView(key)}>
+                      {label}
+                    </button>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
+            {filter === 'OFFICES' ? (
+              officeTable()
+            ) : (
+              <>
+                <input
+                  type="search"
+                  aria-label="Buscar"
+                  placeholder="Buscar folio, colegio, destino o tarea…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  style={{ width: '100%', margin: '12px 0' }}
+                />
+                {shown.length === 0 ? (
+                  <p className="muted">
+                    {data.requests.length
+                      ? 'Nada coincide con el filtro.'
+                      : 'No tienes solicitudes abiertas.'}
+                  </p>
+                ) : view === 'KANBAN' ? (
+                  <div className="kanban">
+                    {STAGES.map((s) => {
+                      const col = shown.filter((r) => r.stage === s.stage);
+                      return (
+                        <section key={s.stage} aria-label={`Etapa ${s.name}`}>
+                          <h3>
+                            0{s.stage}. {s.name} <span className="muted">({col.length})</span>
+                          </h3>
+                          <div className="wcards compact">
+                            {col.map((r) => (
+                              <WorkCard key={r.id} r={r} tasks={tasksOf(r.id)} compact />
+                            ))}
+                          </div>
+                        </section>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className={view === 'COMPACT' ? 'wcards compact' : 'wcards'}>
+                    {shown.map((r) => (
+                      <WorkCard key={r.id} r={r} tasks={tasksOf(r.id)} compact={view === 'COMPACT'} />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </section>
         </>
       )}
     </>
   );
+
+  /** Called, not rendered as a component, so the picker keeps focus across renders. */
+  function officeTable() {
+    if (!data) return null;
+    return (
+      <section className="card" aria-labelledby="oficinas" style={{ marginTop: 12 }}>
+        <OfficeFilter
+          id="oficinas"
+          title="Solicitudes por oficina"
+          offices={data.offices}
+          value={officeView}
+          onChange={setOfficeView}
+        />
+        <div className="table-wrap">
+          <table className="office-table">
+            <thead>
+              <tr>
+                <th>Oficina</th>
+                {STATUSES.map((s) => (
+                  <th key={s} className="num">
+                    {COLUMN_LABEL[s]}
+                  </th>
+                ))}
+                <th className="num">Conversión</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeOffices.length === 0 && (
+                <tr>
+                  <td colSpan={STATUSES.length + 2} className="muted">
+                    Ninguna oficina tiene solicitudes en Borrador, Por asignar o En cotización.
+                  </td>
+                </tr>
+              )}
+              {activeOffices.map((o) => (
+                <tr key={o.id}>
+                  <th scope="row">
+                    <span className="ofc-code">{o.code}</span> {o.name}
+                  </th>
+                  {STATUSES.map((s) => (
+                    <td key={s} className={o.byStatus[s] ? 'num' : 'num zero'}>
+                      {o.byStatus[s] ? (
+                        <Link
+                          className="count"
+                          href={`/solicitudes?${COLUMN_QUERY[s] ?? `status=${s}`}&officeId=${o.id}`}
+                        >
+                          {o.byStatus[s]}
+                        </Link>
+                      ) : (
+                        0
+                      )}
+                    </td>
+                  ))}
+                  <td className="num">{conversion(o.byStatus)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    );
+  }
 }

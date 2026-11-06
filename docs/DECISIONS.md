@@ -93,7 +93,7 @@
 - La bitácora guarda qué campos se llenaron, no sus valores (pueden traer nombres del colegio u otros datos del cliente).
 
 ## «Mi trabajo» por etapas (2026-10-28)
-- Formato pedido por Will: cuatro etapas (Solicitada, Cotizada, Aprobada, Enviada), filtros «Todas / Mi turno hoy / Soy titular / Comité o apoyo», buscador y vista en filas o tarjetas comprimidas.
+- Formato pedido por Will: cuatro etapas (Solicitada, Cotizada, Aprobada, Enviada), filtros «Todas / Mi turno hoy / Soy titular / Comité o apoyo» (2026-11-06: renombrados a «Todas / Mías / Participando / Pendientes» más la pestaña «Por oficina», que ahora contiene la tabla de solicitudes por oficina), buscador y vista en filas o tarjetas comprimidas.
 - Etapa: Solicitada = borrador, por asignar o cotizando sin nada en revisión; Cotizada = alguna versión en revisión o devuelta; Aprobada = alguna autorizada; Enviada = enviada o ganada (las ganadas se quedan hasta la salida).
 - El precio mostrado es el precio al cliente por alumno de la versión ganadora o la más avanzada; nunca costos ni margen.
 - No se agregó el botón «Pasar a Aprobada»: autorizar sigue siendo una acción del autorizador dentro de la cotización.
