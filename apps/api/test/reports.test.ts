@@ -238,6 +238,18 @@ describe('global approvals and sent proposals', () => {
     ).body as { id: string }[];
     expect(other.some((v) => v.id === q.versionId)).toBe(false); // other office
   });
+
+  it('lists sold proposals (Propuestas vendidas) only in the user offices', async () => {
+    const q = await won('Ya vendida');
+    const list = (await api().get('/api/v1/reports/versions?status=WON').set('Cookie', c.advisor).expect(200))
+      .body as { id: string; request: { closedAt: string | null; canRecordOutcome: boolean } }[];
+    const row = list.find((v) => v.id === q.versionId);
+    expect(row?.request.closedAt).toBeTruthy();
+    expect(row?.request.canRecordOutcome).toBe(false); // already sold
+    const other = (await api().get('/api/v1/reports/versions?status=WON').set('Cookie', c.adminB).expect(200))
+      .body as { id: string }[];
+    expect(other.some((v) => v.id === q.versionId)).toBe(false);
+  });
 });
 
 describe('financial report', () => {
@@ -251,7 +263,7 @@ describe('financial report', () => {
     expect(res.headers['content-disposition']).toContain('reporte-financiero-2027-01-01-2027-12-31.xlsx');
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(res.body as ExcelJS.Buffer);
-    const rows = wb.getWorksheet('Ganadas')!.getSheetValues() as unknown[][];
+    const rows = wb.getWorksheet('Vendidas')!.getSheetValues() as unknown[][];
     const row = rows.find((x) => x?.[3] === 'Reporte financiero')!;
     // [folio, office, group, departure, proposal, students, currency, price, sale, cost, commission, %]
     expect(row.slice(6)).toEqual([10, 'EUR', 1220, 12200, 10000, 2200, 0.1803]);
@@ -267,8 +279,10 @@ describe('financial report', () => {
     );
     const wb2 = new ExcelJS.Workbook();
     await wb2.xlsx.load(other.body as ExcelJS.Buffer);
-    expect(JSON.stringify(wb2.getWorksheet('Ganadas')!.getSheetValues())).not.toContain(q.requestId);
-    expect(JSON.stringify(wb2.getWorksheet('Ganadas')!.getSheetValues())).not.toContain('Reporte financiero');
+    expect(JSON.stringify(wb2.getWorksheet('Vendidas')!.getSheetValues())).not.toContain(q.requestId);
+    expect(JSON.stringify(wb2.getWorksheet('Vendidas')!.getSheetValues())).not.toContain(
+      'Reporte financiero',
+    );
   });
 });
 

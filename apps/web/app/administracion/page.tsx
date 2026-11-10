@@ -623,7 +623,7 @@ export default function AdminPage() {
       <section aria-labelledby="metas">
         <h2 id="metas">Meta anual por oficina</h2>
         <p className="muted">
-          Venta ganada en pesos por año (por fecha de cierre). Se ve en el Dashboard ejecutivo; cada oficina
+          Venta en pesos por año (por fecha de cierre). Se ve en el Dashboard ejecutivo; cada oficina
           ve la suya. Vacío = sin meta.
         </p>
         <label>

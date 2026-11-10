@@ -65,7 +65,7 @@ const COPY: Record<Notice['kind'], { subject: string; line: string }> = {
   },
   ACCEPTED: {
     subject: 'El colegio aceptó la propuesta',
-    line: 'El colegio aceptó la propuesta en línea; la solicitud quedó como ganada.',
+    line: 'El colegio aceptó la propuesta en línea; la propuesta quedó como vendida.',
   },
 };
 

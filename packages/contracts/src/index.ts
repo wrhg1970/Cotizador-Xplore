@@ -272,7 +272,7 @@ export const ListRequestsQuery = z.strictObject({
   officeId: z.uuid().optional(),
   status: RequestStatus.optional(),
   assignedToMe: z.enum(['true', 'false']).optional(),
-  /** V2 tabs: En cotización, Por aprobar, Aprobadas, Enviadas / negociación, Aceptadas. */
+  /** V2 tabs: En cotización, Por aprobar, Aprobadas, Enviadas / negociación, Vendidas. */
   stage: z.enum(['QUOTING', 'APPROVAL', 'APPROVED', 'SENT', 'WON']).optional(),
   /** "true" lists only archived requests; by default they are hidden. */
   archived: z.enum(['true', 'false']).optional(),
@@ -620,7 +620,7 @@ export type ExecutiveDashboardQuery = z.infer<typeof ExecutiveDashboardQuery>;
 /** No status = "Cotizaciones": every live version (working copies only where internal costs are visible). */
 /** APPROVAL = the approvals tray: versions in review plus those already authorized and not yet sent. */
 export const VersionListQuery = z.strictObject({
-  status: z.enum(['IN_REVIEW', 'APPROVAL', 'SENT']).optional(),
+  status: z.enum(['IN_REVIEW', 'APPROVAL', 'SENT', 'WON']).optional(),
 });
 export type VersionListQuery = z.infer<typeof VersionListQuery>;
 

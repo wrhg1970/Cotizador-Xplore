@@ -100,7 +100,7 @@ export const STATUS_LABEL: Record<RequestStatus, string> = {
   SUBMITTED: 'Por asignar',
   QUOTING: 'En cotización',
   SENT: 'Enviada',
-  WON: 'Ganada',
+  WON: 'Vendida',
   LOST: 'Perdida',
   CANCELLED: 'Cancelada',
 };
@@ -128,7 +128,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'request.archived': 'Archivó la solicitud',
   'request.unarchived': 'Desarchivó la solicitud',
   'request.purged': 'Borró definitivamente la solicitud',
-  'request.won': 'Registró la solicitud como ganada',
+  'request.won': 'Marcó la propuesta como vendida',
   'request.lost': 'Registró la solicitud como perdida',
   'request.wetravel_link': 'Creó la liga de pago en WeTravel',
   'request.commented': 'Comentó',

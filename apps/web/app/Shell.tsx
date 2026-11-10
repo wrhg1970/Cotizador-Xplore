@@ -38,6 +38,7 @@ const groups = (me: Me | null): Item[][] => {
       { label: 'Cotizaciones', href: '/cotizaciones' },
       { label: 'Aprobaciones', href: '/aprobaciones' },
       { label: 'Propuestas enviadas', href: '/enviadas' },
+      { label: 'Propuestas vendidas', href: '/vendidas' },
       { label: 'Reportes', href: '/reportes', roles: LEADS },
     ],
     [

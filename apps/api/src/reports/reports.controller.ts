@@ -15,6 +15,7 @@ import {
   officeScope,
 } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
+import { canRecordOutcome } from '../requests/request-policy.js';
 import { ENV, type Env } from '../env.js';
 import { PRISMA } from '../prisma.service.js';
 import { engine } from '../quotes/quotes.controller.js';
@@ -52,12 +53,14 @@ export class ReportsController {
         // "Enviadas" traces every delivery, also of versions replaced since.
         ...(q.status === 'SENT'
           ? { deliveries: { some: {} } }
-          : {
-              status:
-                q.status === 'APPROVAL'
-                  ? { in: ['IN_REVIEW', 'APPROVED'] }
-                  : (q.status ?? { not: 'SUPERSEDED' as const }),
-            }),
+          : q.status === 'WON'
+            ? { wonFor: { isNot: null } }
+            : {
+                status:
+                  q.status === 'APPROVAL'
+                    ? { in: ['IN_REVIEW', 'APPROVED'] }
+                    : (q.status ?? { not: 'SUPERSEDED' as const }),
+              }),
         scenario: {
           request: { ...inOffices(officeScope(user)), status: { not: 'CANCELLED' }, archivedAt: null },
         },
@@ -86,8 +89,13 @@ export class ReportsController {
                 contactName: true,
                 status: true,
                 wonVersionId: true,
+                version: true,
+                closedAt: true,
+                wetravelUrl: true,
                 officeId: true,
+                requesterId: true,
                 assigneeId: true,
+                archivedAt: true,
                 departureDate: true,
                 office: { select: { code: true, name: true } },
               },
@@ -116,6 +124,11 @@ export class ReportsController {
           contactName: r.contactName,
           status: r.status,
           wonVersionId: r.wonVersionId,
+          version: r.version,
+          closedAt: r.closedAt?.toISOString() ?? null,
+          wetravelUrl: r.wetravelUrl,
+          // Lets "Propuestas enviadas" offer Vendida / Perdida only to who may record it.
+          canRecordOutcome: canRecordOutcome(user, r),
           officeCode: r.office.code,
           officeName: r.office.name,
           departureDate: day(r.departureDate),
@@ -187,7 +200,7 @@ export class ReportsController {
     });
 
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Ganadas');
+    const ws = wb.addWorksheet('Vendidas');
     ws.addRow([`USO INTERNO: contiene costos y comisión · salidas del ${from} al ${to}`]).font = {
       bold: true,
     };

@@ -41,7 +41,7 @@ const HASH_TAB: Record<string, Tab> = {
 };
 
 /** The path a request follows, as Will reads it; lost and cancelled requests show only their status. */
-const STEPS = ['Solicitada', 'En cotización', 'Por aprobar', 'Aprobada', 'Enviada', 'Aceptada'];
+const STEPS = ['Solicitada', 'En cotización', 'Por aprobar', 'Aprobada', 'Enviada', 'Vendida'];
 const stepIndex = (status: RequestStatus, stage?: Stage): number | null =>
   status === 'LOST' || status === 'CANCELLED'
     ? null
@@ -309,7 +309,7 @@ export default function RequestDetailPage() {
             }}
           >
             <label>
-              Propuesta aceptada
+              Propuesta vendida
               {/* Remount once proposals load so the single sent option is preselected. */}
               <select
                 key={sent.length}
@@ -327,7 +327,7 @@ export default function RequestDetailPage() {
                 ))}
               </select>
             </label>
-            <button disabled={busy}>Ganada</button>
+            <button disabled={busy}>Vendida</button>
             <button
               type="button"
               className="secondary"
@@ -382,7 +382,7 @@ export default function RequestDetailPage() {
           <RequestFactRows r={r} />
           {r.status === 'WON' && (
             <>
-              <dt>Propuesta ganadora</dt>
+              <dt>Propuesta vendida</dt>
               <dd>{winner ? `${winner.scenarioName} · v${winner.number}` : 'Registrada'}</dd>
               <dt>Liga de pago WeTravel</dt>
               <dd>

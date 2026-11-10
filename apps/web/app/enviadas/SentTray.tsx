@@ -9,6 +9,7 @@ interface Row {
   id: string;
   number: number;
   scenarioName: string;
+  status: string;
   request: {
     id: string;
     folio: string;
@@ -17,6 +18,8 @@ interface Row {
     contactName: string | null;
     status: keyof typeof STATUS_LABEL;
     wonVersionId: string | null;
+    version: number;
+    canRecordOutcome: boolean;
   };
   sentOn: string | null;
   channel: keyof typeof CHANNEL_LABEL | null;
@@ -43,7 +46,7 @@ const channel = (v: Row) => (v.channel ? `${CHANNEL_TEXT[v.channel]} (${VIA_TEXT
 const outcome = (s: Sent) => {
   const r = s.first.request;
   if (r.status === 'WON')
-    return s.versions.some((v) => v.id === r.wonVersionId) ? 'Aceptada · ganada' : 'Ganada con otra versión';
+    return s.versions.some((v) => v.id === r.wonVersionId) ? 'Vendida' : 'Vendida con otra versión';
   if (r.status === 'LOST') return 'Perdida';
   return 'En revisión con escuela';
 };
@@ -53,9 +56,9 @@ export function SentTray() {
   const [rows, setRows] = useState<Sent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'ROWS' | 'COMPACT'>('ROWS');
-  useEffect(() => {
-    // Phones start on cards: the seven-column table only fits sideways.
-    if (window.matchMedia('(max-width: 700px)').matches) setView('COMPACT');
+  const [busy, setBusy] = useState(false);
+  const [pick, setPick] = useState<Record<string, string>>({});
+  const load = () =>
     api<Row[]>('/reports/versions?status=SENT').then(
       (r) => {
         const byKey = new Map<string, Sent>();
@@ -75,7 +78,80 @@ export function SentTray() {
       },
       (e) => setError(errorText(e)),
     );
+  useEffect(() => {
+    // Phones start on cards: the seven-column table only fits sideways.
+    if (window.matchMedia('(max-width: 700px)').matches) setView('COMPACT');
+    void load();
   }, []);
+  const record = async (
+    s: Sent,
+    body: { outcome: 'WON'; versionId: string } | { outcome: 'LOST'; reason: string },
+  ) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/requests/${s.first.request.id}/outcome`, {
+        method: 'POST',
+        body: { ...body, version: s.first.request.version },
+      });
+      await load();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  // Vendida / Perdida only on the newest delivery of a request still in negotiation.
+  const latest = new Set<string>();
+  const seen = new Set<string>();
+  for (const s of rows ?? [])
+    if (!seen.has(s.first.request.id)) {
+      seen.add(s.first.request.id);
+      latest.add(s.key);
+    }
+  const actions = (s: Sent) => {
+    const r = s.first.request;
+    if (r.status !== 'SENT' || !r.canRecordOutcome || !latest.has(s.key)) return null;
+    const open = s.versions.filter((v) => v.status === 'SENT');
+    const chosen = pick[s.key] ?? open[0]?.id;
+    return (
+      <div className="row outcome-actions" style={{ marginTop: 4, gap: 6 }}>
+        {open.length > 1 && (
+          <select
+            aria-label="Propuesta vendida"
+            value={chosen}
+            onChange={(e) => setPick({ ...pick, [s.key]: e.target.value })}
+          >
+            {open.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.scenarioName} · v{v.number}
+              </option>
+            ))}
+          </select>
+        )}
+        {chosen && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void record(s, { outcome: 'WON', versionId: chosen })}
+          >
+            Marcar vendida
+          </button>
+        )}
+        <button
+          type="button"
+          className="secondary"
+          disabled={busy}
+          onClick={() => {
+            const reason = window.prompt('¿Por qué no aceptó el cliente? (obligatorio)')?.trim();
+            if (reason) void record(s, { outcome: 'LOST', reason });
+          }}
+        >
+          Perdida
+        </button>
+      </div>
+    );
+  };
   const scenarios = (s: Sent) =>
     [...s.versions]
       .sort((a, b) => a.scenarioName.localeCompare(b.scenarioName))
@@ -149,7 +225,10 @@ export function SentTray() {
                   </td>
                   <td className="wrap">{channel(s.first)}</td>
                   <td>{fmtDate(s.first.sentOn)}</td>
-                  <td className="wrap">{outcome(s)}</td>
+                  <td className="wrap">
+                    {outcome(s)}
+                    {actions(s)}
+                  </td>
                   <td className="num">{detail(s)}</td>
                 </tr>
               ))}
@@ -177,6 +256,7 @@ export function SentTray() {
                 <span title={scenarios(s)}>{scenarios(s)}</span>
                 <span className="badge">{outcome(s)}</span>
               </div>
+              {actions(s)}
               <div className="foot">
                 <span />
                 {detail(s)}

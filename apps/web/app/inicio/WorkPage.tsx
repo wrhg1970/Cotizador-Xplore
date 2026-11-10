@@ -107,7 +107,7 @@ const STAGES: { stage: Stage; name: string; about: string; waiting: string }[] =
   {
     stage: 4,
     name: 'Enviada',
-    about: 'Propuestas con el colegio y viajes ganados.',
+    about: 'Propuestas con el colegio y viajes vendidos.',
     waiting: 'En espera de la respuesta del colegio.',
   },
 ];
@@ -221,7 +221,7 @@ function WorkCard({ r, tasks, compact }: { r: WorkRequest; tasks: Task[]; compac
               </div>
             ) : (
               <div className="muted">
-                {r.status === 'WON' ? 'Viaje ganado.' : stage.waiting} Sin acción tuya por ahora.
+                {r.status === 'WON' ? 'Viaje vendido.' : stage.waiting} Sin acción tuya por ahora.
               </div>
             )}
           </div>

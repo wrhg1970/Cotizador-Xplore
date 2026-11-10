@@ -34,7 +34,7 @@ const TRANSITION: Record<string, [string, string]> = {
   'quote.approved': ['En revisión', 'Aprobada'],
   'quote.rejected_for_changes': ['En revisión', 'Devuelta'],
   'quote.sent': ['Aprobada', 'Enviada'],
-  'request.won': ['Enviada', 'Ganada'],
+  'request.won': ['Enviada', 'Vendida'],
   'request.lost': ['Enviada', 'Perdida'],
   'request.cancelled': ['Abierta', 'Cancelada'],
 };

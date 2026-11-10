@@ -18,7 +18,7 @@ export const GUIDES: RoleGuide[] = [
       'Adjunta los archivos que mandó el colegio y pulsa "Enviar a cotización".',
       'En Mi trabajo ves en qué etapa va cada solicitud: Solicitada, Cotizada, Aprobada y Enviada.',
       'Cuando la propuesta esté autorizada, compártela con la liga para el colegio o regístrala como enviada.',
-      'Al final marca la solicitud como Ganada (con la propuesta que aceptó el colegio) o Perdida, con el motivo.',
+      'Al final marca la propuesta como Vendida (con la que aceptó el colegio) o Perdida, con el motivo, desde Propuestas enviadas o la ficha. Las vendidas quedan en Propuestas vendidas.',
     ],
   },
   {

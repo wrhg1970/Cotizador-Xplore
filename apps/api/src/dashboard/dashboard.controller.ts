@@ -108,7 +108,7 @@ const mxnPerParticipant = (v: Parameters<typeof engine>[0]): Dec | null => {
   }
 };
 
-/** V2 commercial funnel: Nueva → En cotización → Aprobada → Enviada → Aceptada; the furthest step a request reached. */
+/** V2 commercial funnel: Nueva → En cotización → Aprobada → Enviada → Vendida; the furthest step a request reached. */
 type Reached = 1 | 2 | 3 | 4 | 5;
 const reachedOf = (status: RequestStatus, versions: { status: string }[]): Reached => {
   if (status === 'WON') return 5;

@@ -175,14 +175,14 @@ export default function HistoryPage() {
                         value={r.outcome}
                         onChange={(e) => patch(i, { outcome: e.target.value as Row['outcome'] })}
                       >
-                        <option value="WON">Ganada</option>
+                        <option value="WON">Vendida</option>
                         <option value="LOST">Perdida</option>
                         <option value="SENT">Enviada, sin resultado</option>
                       </select>
                     </label>
                     {r.outcome === 'WON' && (
                       <label>
-                        Opción ganadora
+                        Opción vendida
                         <select
                           value={r.wonOption}
                           onChange={(e) => patch(i, { wonOption: Number(e.target.value) })}
