@@ -573,73 +573,39 @@ button.secondary:not(:disabled):hover,
   color: var(--accent-strong);
 }
 
-/* Client proposal: one white sheet, big title and price. */
+/* Client proposal ("Pasaporte"): always a white sheet, so screen, link and PDF look the same in any theme. */
 article.proposal {
+  --pv-navy: #00457f;
+  --pv-accent: #ec6206;
+  --pv-gold: #ffa723;
+  --pv-ink: #0f2233;
+  --pv-muted: #5b6b7a;
+  --pv-line: #e3e9f0;
+  --pv-soft: #f3f7fb;
+  --pv-pad: clamp(16px, 5vw, 44px);
   max-width: 880px;
   margin: 0 auto;
-  background: var(--surface);
-  border-radius: 28px;
-  padding: clamp(24px, 5vw, 48px);
+  background: #ffffff;
+  color: var(--pv-ink);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 10px 40px #00457f1a;
+  padding: 0 0 32px;
 }
-article.proposal .kicker {
-  color: var(--accent-strong);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-size: 0.85rem;
-  margin: 24px 0 8px;
+article.proposal > .no-print,
+article.proposal > .legend {
+  margin: 16px var(--pv-pad);
 }
-article.proposal h1 {
-  font-size: clamp(2.5rem, 7vw, 4.25rem);
-  line-height: 0.95;
-  letter-spacing: -0.04em;
+article.proposal .muted {
+  color: var(--pv-muted);
 }
+article.proposal h1,
+article.proposal h2,
 article.proposal .price {
   font-family: var(--font-head);
-  font-size: clamp(2rem, 5vw, 3rem);
-  font-weight: 800;
-  color: var(--accent-strong);
 }
-article.proposal h2 {
-  border-top: 1px solid var(--border);
-  padding-top: 24px;
-}
-/* Itinerary: numbered day badges on a brand-colored line. */
-article.proposal ol.timeline {
-  list-style: none;
-  padding: 0;
-}
-article.proposal ol.timeline li {
-  border: 0;
-  border-left: 3px solid var(--ink);
-  margin-left: 18px;
-  padding: 4px 0 20px 32px;
-  position: relative;
-}
-article.proposal ol.timeline li:last-child {
-  border-left-color: transparent;
-}
-article.proposal ol.timeline .day {
-  position: absolute;
-  left: -20px;
-  top: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  background: #ec6206;
-  color: #ffffff;
-}
-/* Cover: destination photo with the brand navy band over it. */
 article.proposal .hero {
-  position: relative;
-  /* Bleeds to the sheet's sides; the top stays below the actions row (print hides it, see @media print). */
-  margin: 0 calc(-1 * clamp(24px, 5vw, 48px)) 24px;
-  border-radius: 28px 28px 0 0;
-  overflow: hidden;
-  background: #00457f;
+  background: var(--pv-navy);
   color: #ffffff;
 }
 /* The navy band always takes the logo made for dark backgrounds. */
@@ -656,19 +622,295 @@ article.proposal .hero > img {
   object-fit: cover;
 }
 article.proposal .hero-text {
-  padding: 24px clamp(24px, 5vw, 48px) 28px;
+  padding: 28px var(--pv-pad) 92px;
 }
-article.proposal .hero .kicker {
-  color: #ffa723;
-  margin-top: 12px;
+article.proposal .hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
 }
-article.proposal .hero h1 {
+article.proposal .hero-ref {
+  font-size: 12px;
+  opacity: 0.8;
+  text-align: right;
+}
+article.proposal .kicker {
+  color: var(--pv-gold);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.85rem;
+  margin: 28px 0 6px;
+}
+article.proposal h1 {
   color: #ffffff;
   margin: 0;
+  font-size: clamp(2.1rem, 7vw, 3.3rem);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+article.proposal .hero-for {
+  margin: 10px 0 0;
+  opacity: 0.9;
+}
+article.proposal .pv-label {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--pv-muted);
+  font-weight: 700;
+}
+/* Price card overlapping the navy band. */
+article.proposal .pv-price {
+  margin: -64px var(--pv-pad) 0;
+  position: relative;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 8px 28px #00457f22;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  overflow: hidden;
+}
+article.proposal .pv-price-main {
+  padding: 22px 26px;
+}
+article.proposal .pv-price-main p {
+  margin: 4px 0 0;
+}
+article.proposal .price {
+  font-size: clamp(2.2rem, 6vw, 3rem);
+  font-weight: 800;
+  color: var(--pv-accent);
+  line-height: 1.05;
+}
+article.proposal .price small {
+  font-size: 0.42em;
+  color: var(--pv-ink);
+  font-weight: 600;
+}
+article.proposal .pv-price-aside {
+  padding: 22px 26px;
+  background: var(--pv-soft);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+}
+article.proposal .pv-price-aside strong {
+  display: block;
+  font-size: 17px;
+}
+article.proposal .pv-pay {
+  margin: 20px var(--pv-pad) 0;
 }
 article.proposal .pay {
-  background: #ec6206;
+  background: var(--pv-accent);
   color: #ffffff;
+}
+article.proposal .pv-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 24px var(--pv-pad) 0;
+}
+article.proposal .pv-facts > div {
+  border: 1px solid var(--pv-line);
+  border-radius: 14px;
+  padding: 14px;
+}
+article.proposal .pv-facts dt {
+  font-size: 13px;
+  color: var(--pv-muted);
+}
+article.proposal .pv-facts dd {
+  margin: 4px 0 0;
+  font-weight: 700;
+}
+article.proposal section {
+  margin: 32px var(--pv-pad) 0;
+}
+article.proposal h2 {
+  font-size: 22px;
+  margin: 0 0 14px;
+  color: var(--pv-navy);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  padding: 0;
+}
+article.proposal h2::before {
+  content: '';
+  width: 6px;
+  height: 22px;
+  border-radius: 3px;
+  background: var(--pv-accent);
+}
+article.proposal .pv-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+}
+article.proposal .pv-box {
+  border-radius: 14px;
+  padding: 18px 20px;
+  background: #eef6ff;
+}
+article.proposal .pv-no {
+  background: #fbf3ee;
+}
+article.proposal .pv-box h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+article.proposal .pv-box ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+article.proposal .pv-box li {
+  padding: 5px 0 5px 28px;
+  position: relative;
+}
+article.proposal .pv-box li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--pv-navy);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+article.proposal .pv-no li::before {
+  content: '✕';
+  background: #d9c5b8;
+  font-size: 11px;
+}
+/* Itinerary: a navy "Día n" tag per day on a light line. */
+article.proposal ol.timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+article.proposal ol.timeline li {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 14px;
+  padding: 0 0 18px;
+  border: 0;
+  margin: 0;
+  position: relative;
+}
+article.proposal ol.timeline li::after {
+  content: '';
+  position: absolute;
+  left: 31px;
+  top: 58px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--pv-line);
+}
+article.proposal ol.timeline li:last-child::after {
+  display: none;
+}
+article.proposal ol.timeline .day {
+  text-align: center;
+  background: var(--pv-navy);
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 6px 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  height: fit-content;
+}
+article.proposal ol.timeline .day b {
+  display: block;
+  font-size: 20px;
+  letter-spacing: 0;
+  font-family: var(--font-head);
+}
+article.proposal ol.timeline strong {
+  display: block;
+  margin-top: 4px;
+}
+article.proposal ol.timeline p {
+  margin: 2px 0 0;
+  color: var(--pv-muted);
+}
+article.proposal table {
+  width: 100%;
+  border-collapse: collapse;
+  background: transparent;
+  color: var(--pv-ink);
+}
+article.proposal th {
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pv-muted);
+  background: transparent;
+  padding: 8px 12px;
+  border-bottom: 2px solid var(--pv-navy);
+}
+article.proposal td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--pv-line);
+}
+article.proposal .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+article.proposal tr.pv-total td {
+  font-weight: 700;
+  border-bottom: 0;
+  background: var(--pv-soft);
+}
+article.proposal .pv-cond {
+  color: var(--pv-muted);
+  font-size: 14px;
+  white-space: pre-wrap;
+  margin: 0;
+}
+article.proposal .pv-contact {
+  margin: 32px var(--pv-pad) 0;
+  background: var(--pv-navy);
+  color: #ffffff;
+  border-radius: 18px;
+  padding: 22px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+article.proposal .pv-contact .pv-label {
+  color: #ffffffaa;
+}
+article.proposal .pv-contact strong {
+  font-size: 18px;
+}
+article.proposal .pv-contact a {
+  color: var(--pv-gold);
+  overflow-wrap: anywhere;
+}
+article.proposal .pv-footer {
+  margin: 28px var(--pv-pad) 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--pv-line);
+  font-size: 12px;
+  color: var(--pv-muted);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 24px;
 }
 .sr-only {
   position: absolute;
@@ -686,14 +928,18 @@ article.proposal .pay {
     background: #ffffff;
   }
   article.proposal {
-    padding: 0;
     border-radius: 0;
+    box-shadow: none;
+    max-width: none;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
-  article.proposal .hero {
-    margin: 0 0 24px;
-    border-radius: 0;
+  article.proposal section,
+  article.proposal .pv-price,
+  article.proposal .pv-contact,
+  article.proposal ol.timeline li,
+  article.proposal tr {
+    break-inside: avoid;
   }
   .print-only {
     display: inline;

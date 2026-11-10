@@ -148,8 +148,27 @@ export const engine = (v: QuoteVersion & { lines: QuoteLine[]; fxRates: QuoteFxR
     studentsPerFreePlace: v.freeCourseByRatio ? v.studentsPerFreePlace : null,
   });
 
+export type ProposalContact = { name: string | null; email: string | null; office: string | null };
+
+/** Who the school talks to: the request's executive (or whoever asked for it) and their office. */
+export async function proposalContact(prisma: PrismaClient, r: TravelRequest): Promise<ProposalContact> {
+  const [office, user] = await Promise.all([
+    prisma.office.findUnique({ where: { id: r.officeId }, select: { name: true } }),
+    prisma.user.findUnique({
+      where: { id: r.assigneeId ?? r.requesterId },
+      select: { name: true, email: true },
+    }),
+  ]);
+  return { name: user?.name ?? null, email: user?.email ?? null, office: office?.name ?? null };
+}
+
 /** Client-safe proposal (PRD §PDF): price, group, validity and included concepts; never costs or margin. */
-export function clientProposal(v: FullVersion, r: TravelRequest, brand: AgencyBrand) {
+export function clientProposal(
+  v: FullVersion,
+  r: TravelRequest,
+  brand: AgencyBrand,
+  contact: ProposalContact | null = null,
+) {
   const dto = toDto(v);
   const { totals, validUntil, assumptions } = dto;
   return {
@@ -165,7 +184,10 @@ export function clientProposal(v: FullVersion, r: TravelRequest, brand: AgencyBr
       countryCode: r.countryCode,
       departureDate: day(r.departureDate),
       returnDate: day(r.returnDate),
+      clientName: r.clientName,
+      contactName: r.contactName,
     },
+    contact,
     participants: v.participants,
     chaperones: v.chaperones,
     saleCurrency: v.saleCurrency,
@@ -718,7 +740,12 @@ export class QuotesController {
     const r = v && (await this.prisma.travelRequest.findUnique({ where: { id: v.scenario.requestId } }));
     if (!v || !r || !canView(user, r) || r.status === 'DRAFT')
       throw new NotFoundException('Cotización no encontrada');
-    return clientProposal(v, r, toBrand(await agencyOfOffice(this.prisma, r.officeId)));
+    return clientProposal(
+      v,
+      r,
+      toBrand(await agencyOfOffice(this.prisma, r.officeId)),
+      await proposalContact(this.prisma, r),
+    );
   }
 
   /** Changes against the previous version of the same scenario (null when this is v1). */
