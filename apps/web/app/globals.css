@@ -1097,7 +1097,7 @@ fieldset.editor {
   color: var(--muted);
   width: 1em;
 }
-.editor .block > [hidden] {
+.editor .block [hidden] {
   display: none;
 }
 .editor .block-head {

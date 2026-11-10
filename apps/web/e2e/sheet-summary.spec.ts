@@ -76,3 +76,79 @@ test('the saved sheet hides concepts at 0 but keeps them in the editor', async (
   await expect(page.locator('input[value="Gastos del viaje"]')).toHaveCount(1);
   await ctx.close();
 });
+
+test('an approved version still switches concept tabs and folds blocks, with fields locked', async ({
+  browser,
+}) => {
+  const office = await newOffice();
+  const advisor = await userWithSession(office.id, 'ADVISOR', 'Ana');
+  const quoter = await userWithSession(office.id, 'QUOTER', 'Quique');
+  const req = await prisma.travelRequest.create({
+    data: {
+      folio: `EE-2027-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+      officeId: office.id,
+      requesterId: advisor.user.id,
+      assigneeId: quoter.user.id,
+      status: 'QUOTING',
+      groupName: 'Aprobada en solo lectura',
+      city: 'Toronto',
+      countryCode: 'CA',
+      departureDate: new Date('2027-03-19'),
+      returnDate: new Date('2027-03-25'),
+      participants: 12,
+    },
+  });
+  const scenario = await prisma.quoteScenario.create({
+    data: { requestId: req.id, name: 'Opción 1', createdById: quoter.user.id },
+  });
+  const v = await prisma.quoteVersion.create({
+    data: {
+      scenarioId: scenario.id,
+      number: 1,
+      status: 'APPROVED',
+      saleCurrency: 'MXN',
+      participants: 12,
+      chaperones: 0,
+      staff: 1,
+      createdById: quoter.user.id,
+      lines: {
+        create: [
+          {
+            position: 0,
+            category: 'PER_PARTICIPANT',
+            description: 'Precio neto',
+            quantity: 1,
+            unitCost: 2404,
+            currency: 'MXN',
+          },
+          {
+            position: 1,
+            category: 'PER_STAFF',
+            description: 'Costo chaperón',
+            quantity: 1,
+            unitCost: 1260,
+            currency: 'MXN',
+          },
+        ],
+      },
+    },
+  });
+
+  const ctx = await browser.newContext();
+  await ctx.addCookies([quoter.cookie]);
+  const page = await ctx.newPage();
+  await page.goto(`/cotizaciones/${v.id}`);
+  await expect(page.locator('input[value="Precio neto"]')).toBeDisabled();
+  const chaperonesTab = page.getByRole('tab', { name: /Chaperones EE/ });
+  await chaperonesTab.click();
+  await expect(chaperonesTab).toHaveAttribute('aria-selected', 'true');
+  const staffLine = page.locator('input[value="Costo chaperón"]');
+  await expect(staffLine).toBeVisible();
+  await expect(staffLine).toBeDisabled();
+  const fold = page.getByRole('button', { name: 'Chaperones EE', exact: true });
+  await fold.click();
+  await expect(fold).toHaveAttribute('aria-expanded', 'false');
+  await expect(staffLine).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Agregar concepto: Chaperones EE' })).toBeHidden();
+  await ctx.close();
+});
