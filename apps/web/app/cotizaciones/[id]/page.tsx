@@ -98,6 +98,7 @@ export default function QuoteEditorPage() {
   const [tab, setTab] = useState<Tab | null>(null);
   const [flowTab, setFlowTab] = useState<FlowTab | null>(null);
   const [block, setBlock] = useState<LineCategory>(SHEET_BLOCKS[0]!.category);
+  const [folded, setFolded] = useState<LineCategory[]>([]);
 
   const load = useCallback((v: QuoteDto) => {
     // Every save or step adds audit events: keep the timeline in step.
@@ -666,7 +667,7 @@ export default function QuoteEditorPage() {
                 redondea hacia arriba al número entero.
               </span>
             </div>
-            <div role="tablist" aria-label="Bloques de conceptos" className="tabs">
+            <div role="tablist" aria-label="Bloques de conceptos" className="tabs block-tabs">
               {SHEET_BLOCKS.map((b, n) => (
                 <button
                   key={b.category}
@@ -684,8 +685,10 @@ export default function QuoteEditorPage() {
                     document.getElementById(`block-tab-${next.category}`)?.focus();
                   }}
                 >
-                  {b.title}
-                  {live.ok && <span className="tab-count">{live.byCategory[b.category]}</span>}
+                  <span className="tab-name">{b.title}</span>
+                  <span className="tab-amount">
+                    {live.ok ? `${live.byCategory[b.category]} ${draft.saleCurrency}` : '—'}
+                  </span>
                 </button>
               ))}
             </div>
@@ -710,7 +713,23 @@ export default function QuoteEditorPage() {
                   className="card compact block"
                 >
                   <div className="block-head">
-                    <h3>{b.title}</h3>
+                    <h3>
+                      <button
+                        type="button"
+                        className="fold"
+                        aria-expanded={!folded.includes(b.category)}
+                        onClick={() =>
+                          setFolded((f) =>
+                            f.includes(b.category) ? f.filter((c) => c !== b.category) : [...f, b.category],
+                          )
+                        }
+                      >
+                        <span aria-hidden="true" className="chevron">
+                          {folded.includes(b.category) ? '▸' : '▾'}
+                        </span>
+                        {b.title}
+                      </button>
+                    </h3>
                     <span className="muted">
                       {rows.length} {rows.length === 1 ? 'concepto' : 'conceptos'} · {b.hint}
                     </span>
@@ -721,7 +740,7 @@ export default function QuoteEditorPage() {
                     )}
                   </div>
                   {rows.length > 0 && (
-                    <div className="table-wrap">
+                    <div className="table-wrap" hidden={folded.includes(b.category)}>
                       <table>
                         <thead>
                           <tr>
@@ -813,7 +832,7 @@ export default function QuoteEditorPage() {
                       </table>
                     </div>
                   )}
-                  <div className="row" style={{ marginTop: 8 }}>
+                  <div className="row" style={{ marginTop: 8 }} hidden={folded.includes(b.category)}>
                     {options.length > 0 && (
                       <select
                         aria-label={`Rubro del catálogo: ${b.title}`}
