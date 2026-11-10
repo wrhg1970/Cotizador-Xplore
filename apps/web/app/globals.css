@@ -2734,6 +2734,19 @@ table.compare thead th.picked {
   color: var(--text);
   font-family: var(--font-head);
 }
+.approved-quote.sent {
+  border-left-color: var(--ink);
+}
+.approved-quote.sent .picked-tag {
+  background: var(--ink);
+  color: var(--ink-text);
+}
+.approved-quote.lost {
+  border-left-color: var(--muted);
+}
+.approved-quote.lost .picked-tag {
+  background: var(--muted);
+}
 .approved-quote .acts {
   grid-column: 1 / -1;
 }

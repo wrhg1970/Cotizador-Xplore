@@ -2,11 +2,20 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import type { RequestStatus } from '@ee/contracts';
 import { api } from '../lib/api';
 import { fmtDate, type QuoteDto, type ScenarioDto } from '../lib/types';
 
 /** The request's approved (or sent) quote, on top of its ficha (Will, 2026-11-10). */
-export function ApprovedQuote({ requestId, canExport }: { requestId: string; canExport: boolean }) {
+export function ApprovedQuote({
+  requestId,
+  requestStatus,
+  canExport,
+}: {
+  requestId: string;
+  requestStatus: RequestStatus;
+  canExport: boolean;
+}) {
   const [q, setQ] = useState<QuoteDto | null>(null);
 
   useEffect(() => {
@@ -29,10 +38,19 @@ export function ApprovedQuote({ requestId, canExport }: { requestId: string; can
   const t = q.totals;
   const cur = q.saleCurrency;
   const sent = q.status === 'SENT';
+  // The tag follows the request: Aprobada → Enviada → Vendida (or Perdida) (Will, 2026-11-10).
+  const [stage, tag] =
+    requestStatus === 'WON'
+      ? ['won', '✓ Propuesta vendida']
+      : requestStatus === 'LOST'
+        ? ['lost', 'Propuesta perdida']
+        : sent
+          ? ['sent', 'Cotización enviada']
+          : ['approved', '✓ Cotización aprobada'];
   return (
-    <section className="card approved-quote" aria-labelledby="cotizacion-aprobada">
+    <section className={`card approved-quote ${stage}`} aria-labelledby="cotizacion-aprobada">
       <div>
-        <span className="picked-tag">✓ Cotización {sent ? 'enviada' : 'aprobada'}</span>
+        <span className="picked-tag">{tag}</span>
         <h2 id="cotizacion-aprobada">
           {q.scenarioName} · v{q.number}
         </h2>
@@ -63,7 +81,7 @@ export function ApprovedQuote({ requestId, canExport }: { requestId: string; can
       )}
       <div className="row acts">
         <Link className="button" href={`/cotizaciones/${q.id}/propuesta`}>
-          {sent ? 'Ver propuesta enviada' : 'Vista previa'}
+          {stage === 'won' ? 'Ver propuesta vendida' : sent ? 'Ver propuesta enviada' : 'Vista previa'}
         </Link>
         <Link className="button secondary" href={`/cotizaciones/${q.id}`}>
           {sent ? 'Abrir cotización' : 'Abrir cotización y enviar al colegio'}

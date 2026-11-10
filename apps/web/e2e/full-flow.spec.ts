@@ -83,9 +83,12 @@ test('full flow: login, quote, authorize, send and win', async ({ browser, page 
 
   // 6. The school says yes.
   await quo.goto(requestUrl);
+  await expect(quo.getByText('Cotización enviada', { exact: true })).toBeVisible();
   await expect(quo.getByLabel('Propuesta vendida')).toHaveValue(/.+/);
   await quo.getByRole('button', { name: 'Vendida' }).click();
   await expect(quo.locator('.badge')).toHaveText('Vendida');
+  // The quote card on top follows the request's status.
+  await expect(quo.getByText('✓ Propuesta vendida')).toBeVisible();
 
   // The advisor sees it closed as won.
   await adv.reload();
