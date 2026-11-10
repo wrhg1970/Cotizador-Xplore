@@ -75,7 +75,7 @@ test('admin grants "Autorizar viaje"; legend shows until the trip is authorized'
   await expect(adv.getByRole('cell', { name: 'Viaje con autorización pendiente' })).toBeVisible();
   await adv.getByRole('link', { name: 'Opción 1 · v1' }).click();
   await expect(adv.getByText('Viaje con autorización pendiente')).toHaveCount(2);
-  await expect(adv.getByText('5000.00 EUR')).toBeVisible();
+  await expect(adv.getByText('5,000.00 EUR')).toBeVisible();
 
   // Quoter submits.
   const quoCtx = await browser.newContext();

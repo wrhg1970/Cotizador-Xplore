@@ -67,7 +67,7 @@ test('quoter creates a school link; the school opens it without an account; revo
   const school = await (await browser.newContext()).newPage();
   await school.goto(url);
   await expect(school.getByRole('heading', { name: 'Liga para el colegio' })).toBeVisible();
-  await expect(school.getByText('5000.00 EUR')).toBeVisible();
+  await expect(school.getByText('5,000.00 EUR')).toBeVisible();
   await expect(school.getByText(/Liga vigente hasta/)).toBeVisible();
   await expect(school.getByRole('button', { name: 'Cerrar sesión' })).toHaveCount(0);
   await expect(school).toHaveURL(url);
