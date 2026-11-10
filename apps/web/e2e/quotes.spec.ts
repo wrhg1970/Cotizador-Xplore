@@ -37,20 +37,24 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
 
   // The scenario starts with the EE sheet's base concepts; fill Finance's "Opción 1" costs.
   await expect(page.getByLabel('Concepto 1', { exact: true })).toHaveValue('Precio neto');
-  const costs: [number, string, string][] = [
-    [1, 'Precio neto', '3900'],
-    [4, 'Kit EE', '50'],
-    [6, 'Promoción', '20'],
-    [7, 'Costo envío de kits', '10'],
-    [8, 'Operación', '40'],
-    [14, 'Gastos por día', '50'],
-    [18, 'Fondo de emergencia', '150'],
+  // Each block of concepts is its own tab (Will, 2026-11-10).
+  const costs: [string, number, string, string][] = [
+    ['Conceptos por estudiante', 1, 'Precio neto', '3900'],
+    ['Conceptos por estudiante', 4, 'Kit EE', '50'],
+    ['Conceptos por estudiante', 6, 'Promoción', '20'],
+    ['Conceptos por estudiante', 7, 'Costo envío de kits', '10'],
+    ['Conceptos por estudiante', 8, 'Operación', '40'],
+    ['Chaperones EE', 14, 'Gastos por día', '50'],
+    ['Fondo de emergencia', 18, 'Fondo de emergencia', '150'],
   ];
-  for (const [i, name, cost] of costs) {
+  for (const [block, i, name, cost] of costs) {
+    await page.getByRole('tab', { name: block }).click();
     await expect(page.getByLabel(`Concepto ${i}`, { exact: true })).toHaveValue(name);
     await page.getByLabel(`Costo ${i}`, { exact: true }).fill(cost);
   }
   // The chaperone's kit copies the student's "Kit EE" and is locked (Will, 2026-11-06).
+  await page.getByRole('tab', { name: 'Chaperones EE' }).click();
+  await expect(page.getByLabel('Concepto 1', { exact: true })).toBeHidden();
   await expect(page.getByLabel('Costo 17', { exact: true })).toHaveValue('50');
   await expect(page.getByLabel('Costo 17', { exact: true })).toBeDisabled();
   // Allowances start at the trip's days: return − departure + 1.

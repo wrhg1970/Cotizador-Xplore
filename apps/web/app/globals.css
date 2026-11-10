@@ -1055,28 +1055,24 @@ fieldset.editor {
     grid-template-columns: 1fr 1fr;
   }
 }
-.editor details.block > summary {
+.editor .block-head {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 12px;
-  cursor: pointer;
-  list-style-position: inside;
+  margin-bottom: 8px;
 }
-.editor details.block > summary h3 {
+.editor .block-head h3 {
   display: inline;
   font-size: 1rem;
   margin: 0;
 }
-.editor details.block > summary .muted {
+.editor .block-head .muted {
   font-size: 0.85rem;
 }
-.editor details.block > summary .subtotal {
+.editor .block-head .subtotal {
   margin-left: auto;
   font-weight: 700;
-}
-.editor details.block[open] > summary {
-  margin-bottom: 8px;
 }
 .editor th,
 .editor td {
