@@ -74,15 +74,15 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   const sheetTab = page.getByRole('tab', { name: 'Cotización' });
   await expect(sheetTab).toHaveAttribute('aria-selected', 'true');
   const finalPrice = page.getByRole('row', { name: /PRECIO FINAL/ });
-  await expect(finalPrice).toContainText('5141.00');
+  await expect(finalPrice).toContainText('5,141.00');
   await expect(page.getByRole('row', { name: /Gastos del líder/ })).toContainText('195.00');
-  await expect(page.getByRole('cell', { name: '104825.00 MXN' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: '104,825.00 MXN' })).toBeVisible();
 
   // Typing the final price derives the %.
   await page.getByLabel('Precio final por estudiante').fill('5200');
   await page.getByRole('button', { name: 'Guardar y calcular' }).click();
   await expect(page.getByLabel('% Comisión (sobre el precio final)')).toHaveValue('18.9423');
-  await expect(finalPrice).toContainText('5200.00');
+  await expect(finalPrice).toContainText('5,200.00');
 
   // Proposal extras: 15% registration + 6 monthly payments, free places, itinerary, exclusions.
   await page.getByLabel('1 gratuidad por cada (estudiantes)').fill('5');
