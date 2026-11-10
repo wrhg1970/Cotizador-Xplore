@@ -97,6 +97,7 @@ export default function QuoteEditorPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab | null>(null);
   const [flowTab, setFlowTab] = useState<FlowTab | null>(null);
+  const [block, setBlock] = useState<LineCategory>(SHEET_BLOCKS[0]!.category);
 
   const load = useCallback((v: QuoteDto) => {
     // Every save or step adds audit events: keep the timeline in step.
@@ -665,6 +666,29 @@ export default function QuoteEditorPage() {
                 redondea hacia arriba al número entero.
               </span>
             </div>
+            <div role="tablist" aria-label="Bloques de conceptos" className="tabs">
+              {SHEET_BLOCKS.map((b, n) => (
+                <button
+                  key={b.category}
+                  id={`block-tab-${b.category}`}
+                  role="tab"
+                  aria-selected={block === b.category}
+                  aria-controls={`block-panel-${b.category}`}
+                  tabIndex={block === b.category ? 0 : -1}
+                  onClick={() => setBlock(b.category)}
+                  onKeyDown={(e) => {
+                    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+                    if (!step) return;
+                    const next = SHEET_BLOCKS[(n + step + SHEET_BLOCKS.length) % SHEET_BLOCKS.length]!;
+                    setBlock(next.category);
+                    document.getElementById(`block-tab-${next.category}`)?.focus();
+                  }}
+                >
+                  {b.title}
+                  {live.ok && <span className="tab-count">{live.byCategory[b.category]}</span>}
+                </button>
+              ))}
+            </div>
             {SHEET_BLOCKS.map((b) => {
               const rows = synced.map((l, i) => ({ l, i })).filter(({ l }) => l.category === b.category);
               const used = new Set(rows.map(({ l }) => l.description));
@@ -677,8 +701,15 @@ export default function QuoteEditorPage() {
                   .map((r) => ({ ...r, supplier: sup.name })),
               );
               return (
-                <details key={b.category} className="card compact block" open>
-                  <summary>
+                <div
+                  key={b.category}
+                  id={`block-panel-${b.category}`}
+                  role="tabpanel"
+                  aria-labelledby={`block-tab-${b.category}`}
+                  hidden={block !== b.category}
+                  className="card compact block"
+                >
+                  <div className="block-head">
                     <h3>{b.title}</h3>
                     <span className="muted">
                       {rows.length} {rows.length === 1 ? 'concepto' : 'conceptos'} · {b.hint}
@@ -688,7 +719,7 @@ export default function QuoteEditorPage() {
                         {live.byCategory[b.category]} {draft.saleCurrency}
                       </span>
                     )}
-                  </summary>
+                  </div>
                   {rows.length > 0 && (
                     <div className="table-wrap">
                       <table>
@@ -847,7 +878,7 @@ export default function QuoteEditorPage() {
                       + Agregar otro concepto
                     </button>
                   </div>
-                </details>
+                </div>
               );
             })}
           </section>
