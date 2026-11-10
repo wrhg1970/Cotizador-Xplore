@@ -13,6 +13,7 @@ import { VersionChanges } from './VersionChanges';
 import { SheetImport } from './SheetImport';
 import { SheetSummary } from './SheetSummary';
 import { QuoteHeader, type Role } from './QuoteHeader';
+import { Icon, ScenarioBar } from './ScenarioBar';
 import { PaymentPlan } from './PaymentPlan';
 import { Sensitivity, VolumeMatrix } from './VolumeRisk';
 import { Timeline, type TimelineData } from './Timeline';
@@ -24,7 +25,6 @@ import {
   isAuthorized,
   isPicked,
   PENDING_LEGEND,
-  QUOTE_STATUS_LABEL,
   SHEET_BLOCKS,
   type ConceptTemplateDto,
   type FxRateDto,
@@ -383,6 +383,102 @@ export default function QuoteEditorPage() {
 
   return (
     <>
+      <ScenarioBar
+        scenarios={scenarios}
+        currentId={q.scenarioId}
+        tools={
+          <>
+            {works && req?.status === 'QUOTING' && (
+              <>
+                <Link
+                  className="ib ghost"
+                  href={`/solicitudes/${q.requestId}#escenarios`}
+                  aria-label="Nuevo escenario"
+                  data-tip="Nuevo escenario"
+                >
+                  <Icon name="plus" />
+                </Link>
+                <button
+                  type="button"
+                  className="ib"
+                  onClick={() => void duplicatePlus5()}
+                  aria-label="Duplicar escenario (+5 estudiantes)"
+                  data-tip="Duplicar escenario (+5 estudiantes)"
+                >
+                  <Icon name="copy" />
+                </button>
+              </>
+            )}
+            {scenarios.length > 1 && (
+              <Link
+                className="ib"
+                href={`/solicitudes/${q.requestId}#escenarios`}
+                aria-label={`Comparar ${scenarios.length} escenarios en columnas`}
+                data-tip={`Comparar ${scenarios.length} escenarios en columnas`}
+              >
+                <Icon name="columns" />
+              </Link>
+            )}
+          </>
+        }
+        actions={
+          <>
+            <Link
+              className="pb"
+              href={`/cotizaciones/${q.id}/propuesta`}
+              aria-label={isAuthorized(q.status) ? 'Propuesta PDF' : 'Vista previa de la propuesta'}
+            >
+              <Icon name="eye" />
+              <span className="lbl" aria-hidden="true">
+                {isAuthorized(q.status) ? 'Propuesta PDF' : 'Vista previa'}
+              </span>
+            </Link>
+            <button
+              type="button"
+              className="ib"
+              onClick={() => setTab('bitacora')}
+              aria-label={`Bitácora${eventCount !== null ? ` (${eventCount})` : ''}`}
+              data-tip={`Bitácora${eventCount !== null ? ` (${eventCount} eventos)` : ''}`}
+            >
+              <Icon name="clock" />
+              {!!eventCount && <span className="n">{eventCount}</span>}
+            </button>
+            {editable && (
+              <button
+                type="button"
+                className="ib"
+                onClick={() => setTab('importar')}
+                aria-label="Importar Excel / Sheets con IA"
+                data-tip="Importar Excel / Sheets con IA"
+              >
+                <Icon name="upload" />
+              </button>
+            )}
+            {/* Plain link: same-origin download carries the session cookie. */}
+            {req && canExportXlsx(me, req.office.id) && (
+              <a
+                className="ib"
+                href={`/api/v1/quotes/${q.id}/export.xlsx`}
+                aria-label="Descargar Excel interno"
+                data-tip="Descargar Excel interno"
+              >
+                <Icon name="download" />
+              </a>
+            )}
+            {editable && (
+              <button
+                type="button"
+                className="ib warn"
+                onClick={renew}
+                aria-label="Renovar vigencia (+15 d)"
+                data-tip="Renovar vigencia (+15 días)"
+              >
+                <Icon name="renew" />
+              </button>
+            )}
+          </>
+        }
+      />
       <QuoteHeader
         q={q}
         req={req}
@@ -394,37 +490,6 @@ export default function QuoteEditorPage() {
           else if (i === 1) setTab('hoja');
           else toApproval();
         }}
-        actions={
-          <>
-            <Link className="button" href={`/cotizaciones/${q.id}/propuesta`}>
-              {isAuthorized(q.status) ? 'Propuesta PDF' : 'Vista previa de la propuesta'}
-            </Link>
-            <button type="button" className="secondary" onClick={() => setTab('bitacora')}>
-              Bitácora{eventCount !== null ? ` (${eventCount})` : ''}
-            </button>
-            {scenarios.length > 1 && (
-              <Link className="button secondary" href={`/solicitudes/${q.requestId}#escenarios`}>
-                Comparar {scenarios.length} opciones
-              </Link>
-            )}
-            {editable && (
-              <button type="button" className="secondary" onClick={() => setTab('importar')}>
-                Importar Excel / Sheets con IA
-              </button>
-            )}
-            {/* Plain link: same-origin download carries the session cookie. */}
-            {req && canExportXlsx(me, req.office.id) && (
-              <a className="button secondary" href={`/api/v1/quotes/${q.id}/export.xlsx`}>
-                Descargar Excel interno
-              </a>
-            )}
-            {editable && (
-              <button type="button" className="secondary warn" onClick={renew}>
-                Renovar vigencia (+15 d)
-              </button>
-            )}
-          </>
-        }
         expiredAction={
           editable ? (
             <button type="button" className="secondary" onClick={renew}>
@@ -1027,40 +1092,6 @@ export default function QuoteEditorPage() {
       </fieldset>
 
       <div className="ficha flow">
-        {scenarios.length > 0 && (
-          <section className="card compact scenario-chips" aria-label="Escenarios de la solicitud">
-            <div className="chips">
-              {scenarios.map((s, i) => (
-                <Link
-                  key={s.id}
-                  href={`/cotizaciones/${s.latest.id}`}
-                  className={s.id === q.scenarioId ? 'chip active' : 'chip'}
-                  aria-current={s.id === q.scenarioId ? 'page' : undefined}
-                >
-                  Escenario {String.fromCharCode(65 + (i % 26))}: {s.latest.participants} est. +{' '}
-                  {s.latest.chaperones + s.latest.staff} chap. (v{s.latest.number} ·{' '}
-                  {QUOTE_STATUS_LABEL[s.latest.status]})
-                </Link>
-              ))}
-            </div>
-            {works && req?.status === 'QUOTING' && (
-              <div className="row">
-                <button type="button" className="secondary small" onClick={() => void duplicatePlus5()}>
-                  Duplicar escenario (+5 estudiantes)
-                </button>
-                <Link className="button secondary small" href={`/solicitudes/${q.requestId}#escenarios`}>
-                  Nuevo escenario
-                </Link>
-                {scenarios.length > 1 && (
-                  <Link className="button secondary small" href={`/solicitudes/${q.requestId}#escenarios`}>
-                    Comparar en columnas ({scenarios.length})
-                  </Link>
-                )}
-              </div>
-            )}
-          </section>
-        )}
-
         <section className="card" aria-labelledby="autorizacion">
           <h2 id="autorizacion">Autorización y envío</h2>
           <div role="tablist" aria-label="Autorización, envío y expediente" className="tabs">
