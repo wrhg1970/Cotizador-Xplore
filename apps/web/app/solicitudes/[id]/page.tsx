@@ -370,8 +370,13 @@ export default function RequestDetailPage() {
         )}
       </div>
 
-      {quotes && ['QUOTING', 'SENT', 'WON'].includes(r.status) && (
-        <ApprovedQuote key={r.version} requestId={r.id} canExport={canExportXlsx(me, r.office.id)} />
+      {quotes && ['QUOTING', 'SENT', 'WON', 'LOST'].includes(r.status) && (
+        <ApprovedQuote
+          key={r.version}
+          requestId={r.id}
+          requestStatus={r.status}
+          canExport={canExportXlsx(me, r.office.id)}
+        />
       )}
 
       <section className="card" aria-labelledby="datos">
