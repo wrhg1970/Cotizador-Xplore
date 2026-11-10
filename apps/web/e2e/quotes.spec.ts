@@ -21,6 +21,7 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
       returnDate: new Date('2027-04-04'),
       participants: 10,
       staff: 2,
+      specifications: { accommodation: 'Hotel 3 estrellas' },
     },
   });
 
@@ -116,6 +117,11 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await page.getByRole('tab', { name: 'Grupo y conceptos' }).click();
   await expect(page.getByRole('heading', { name: 'Datos de la solicitud' })).toBeVisible();
   await expect(page.getByText('Roma, IT').first()).toBeVisible();
+  // Its trip specifications sit in their own tab, hidden until picked.
+  await expect(page.getByText('Hotel 3 estrellas')).toBeHidden();
+  await page.getByRole('tab', { name: 'Especificaciones del viaje' }).click();
+  await expect(page.getByText('Hotel 3 estrellas')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Requerimientos y notas' })).toHaveCount(0);
   // Not authorized yet: only a preview, which cannot be printed.
   await page.getByRole('link', { name: 'Vista previa de la propuesta' }).last().click();
   await expect(page.getByRole('button', { name: 'Imprimir o guardar PDF' })).toBeDisabled();
