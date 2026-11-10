@@ -190,8 +190,8 @@ export default function ExecutivePage() {
               <div className="eyebrow">Monto vendido (precio al cliente)</div>
               <div className="count">{amounts(t.wonAmount)}</div>
               <div className="muted">
-                {t.won} vendidas · {t.wonStudents} alumnos. Cada moneda por separado; no se convierten tipos de
-                cambio.
+                {t.won} vendidas · {t.wonStudents} alumnos. Cada moneda por separado; no se convierten tipos
+                de cambio.
               </div>
             </div>
             <section className="card" aria-labelledby="salidas">
