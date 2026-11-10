@@ -13,13 +13,14 @@ import {
   type Stage,
   type TravelRequestDto,
 } from '../../lib/types';
-import { can, canSeeQuotes, isOfficeAdmin, useMe } from '../../lib/useMe';
+import { can, canExportXlsx, canSeeQuotes, isOfficeAdmin, useMe } from '../../lib/useMe';
 import { type ProposalRow, Proposals } from '../Proposals';
 import { RequestFactRows, RequestNotes } from '../RequestFacts';
 import { RequestFiles } from '../RequestFiles';
 import { RequestTeam } from '../RequestTeam';
 import { WeTravelPayments } from '../WeTravelPayments';
 import { Scenarios } from '../Scenarios';
+import { ApprovedQuote } from '../ApprovedQuote';
 import { archiveRequest, purgeRequest, unarchiveRequest } from '../archive';
 
 interface Timeline {
@@ -368,6 +369,10 @@ export default function RequestDetailPage() {
           </>
         )}
       </div>
+
+      {quotes && ['QUOTING', 'SENT', 'WON'].includes(r.status) && (
+        <ApprovedQuote key={r.version} requestId={r.id} canExport={canExportXlsx(me, r.office.id)} />
+      )}
 
       <section className="card" aria-labelledby="datos">
         <h2 id="datos" style={{ marginTop: 0 }}>

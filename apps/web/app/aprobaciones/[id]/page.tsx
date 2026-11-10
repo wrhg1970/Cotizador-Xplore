@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { api, errorText } from '../../lib/api';
 import {
@@ -49,6 +49,7 @@ function Delta({ children }: { children: ReactNode }) {
 /** V2 "Dictaminar": committee comparison of a request's options, then approve / ask changes / reject each one. */
 export default function DecisionPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const me = useMe();
   const [req, setReq] = useState<TravelRequestDto | null>(null);
   const [items, setItems] = useState<Item[] | null>(null);
@@ -95,14 +96,19 @@ export default function DecisionPage() {
     setError(null);
     setNotice(null);
     try {
-      await api(`/quotes/${v.id}/${kind === 'approve' || kind === 'revoke' ? kind : 'return'}`, {
-        method: 'POST',
-        body: {
-          rowVersion: v.rowVersion,
-          ...(comment ? { comment } : {}),
-          ...(kind === 'reject' ? { reject: true } : {}),
+      const next = await api<QuoteDto>(
+        `/quotes/${v.id}/${kind === 'approve' || kind === 'revoke' ? kind : 'return'}`,
+        {
+          method: 'POST',
+          body: {
+            rowVersion: v.rowVersion,
+            ...(comment ? { comment } : {}),
+            ...(kind === 'reject' ? { reject: true } : {}),
+          },
         },
-      });
+      );
+      // Fully approved (last signature): the request's ficha shows it on top (Will, 2026-11-10).
+      if (kind === 'approve' && next.status === 'APPROVED') return router.push(`/solicitudes/${v.requestId}`);
       setNotice(
         kind === 'approve'
           ? `${v.scenarioName} v${v.number}: firma registrada`
