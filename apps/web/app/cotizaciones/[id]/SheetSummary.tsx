@@ -1,6 +1,9 @@
 import { type QuoteDto, SHEET_BLOCKS } from '../../lib/types';
 
 const pct = (rate: string) => `${Number((Number(rate) * 100).toFixed(2))}%`;
+/** "42828.00" → "42,828.00": thousands with commas, on the exact string (Will, 2026-11-10). */
+export const thousands = (x: string) => x.replace(/^(-?\d+)/, (int) => int.replace(/\B(?=(\d{3})+$)/g, ','));
+const n = thousands;
 
 /** Saved figures laid out like Finance's EE sheet: concepts on the left, chaperones on the right. */
 export function SheetSummary({ q }: { q: QuoteDto }) {
@@ -28,13 +31,13 @@ export function SheetSummary({ q }: { q: QuoteDto }) {
             {l.description}
             {l.internalOnly && <span className="muted"> (interno)</span>}
           </td>
-          <td className="num">{total}</td>
+          <td className="num">{n(total)}</td>
         </tr>
       ));
   const total = (label: string, value: string, strong = false) => (
     <tr className={strong ? 'total strong' : 'total'}>
       <th scope="row">{label}</th>
-      <td className="num">{value}</td>
+      <td className="num">{n(value)}</td>
     </tr>
   );
   const title = (c: string) => SHEET_BLOCKS.find((b) => b.category === c)!.title;
@@ -48,7 +51,7 @@ export function SheetSummary({ q }: { q: QuoteDto }) {
         {q.participants} estudiantes · {q.chaperones} chaperones de la escuela · {q.staff} chaperones EE ·
         cifras en {cur}
       </p>
-      <div className="sheet">
+      <div className="sheet sheet-3">
         <table aria-label="Conceptos por estudiante">
           <tbody>
             <tr>
@@ -58,12 +61,12 @@ export function SheetSummary({ q }: { q: QuoteDto }) {
             {total('SubTotal 1', t.directPerParticipant)}
             <tr>
               <td>Gastos del líder (total chaperones ÷ estudiantes)</td>
-              <td className="num">{s.leaderPerParticipant}</td>
+              <td className="num">{n(s.leaderPerParticipant)}</td>
             </tr>
             {Number(s.groupFixedTotal) > 0 && (
               <tr>
                 <td>Fijos del grupo ÷ estudiantes</td>
-                <td className="num">{s.groupFixedPerParticipant}</td>
+                <td className="num">{n(s.groupFixedPerParticipant)}</td>
               </tr>
             )}
             {total('SubTotal 2', t.costPerParticipant)}
@@ -74,24 +77,24 @@ export function SheetSummary({ q }: { q: QuoteDto }) {
             <tr>
               <td>Comisión por estudiante · grupo</td>
               <td className="num">
-                {t.marginPerParticipant} · {t.groupMargin}
+                {n(t.marginPerParticipant)} · {n(t.groupMargin)}
               </td>
             </tr>
             {total(`PRECIO FINAL (${cur})`, t.pricePerParticipant, true)}
             <tr>
               <td>Total del grupo</td>
-              <td className="num">{t.groupPrice}</td>
+              <td className="num">{n(t.groupPrice)}</td>
             </tr>
             {t.pricePerParticipantMxn && (
               <tr>
                 <td>Estimado en pesos por estudiante</td>
-                <td className="num">{t.pricePerParticipantMxn} MXN</td>
+                <td className="num">{n(t.pricePerParticipantMxn)} MXN</td>
               </tr>
             )}
             {t.groupMarginMxn && (
               <tr>
                 <td>Comisión del grupo en pesos</td>
-                <td className="num">{t.groupMarginMxn} MXN</td>
+                <td className="num">{n(t.groupMarginMxn)} MXN</td>
               </tr>
             )}
           </tbody>
@@ -113,7 +116,7 @@ export function SheetSummary({ q }: { q: QuoteDto }) {
             {Number(s.emergencyFund) !== 0 && (
               <tr>
                 <td>{title('CONTINGENCY')}</td>
-                <td className="num">{s.emergencyFund}</td>
+                <td className="num">{n(s.emergencyFund)}</td>
               </tr>
             )}
             {total('Total chaperones', s.totalChaperones, true)}
@@ -128,45 +131,55 @@ export function SheetSummary({ q }: { q: QuoteDto }) {
             )}
           </tbody>
         </table>
-        <div className="sheet-side">
-          <div className="group-total" role="group" aria-label="Total del grupo">
-            <span className="group-total-label">Total del grupo</span>
-            <strong className="group-total-value">
-              {t.groupPrice} {cur}
-            </strong>
-            <span>
-              {t.pricePerParticipant} {cur} por estudiante × {q.participants} estudiantes
-            </span>
-            {t.pricePerParticipantMxn && <span>≈ {t.pricePerParticipantMxn} MXN por estudiante</span>}
-            {t.groupMarginMxn && (
-              <span>
-                Comisión del grupo: {t.groupMargin} {cur} · {t.groupMarginMxn} MXN
-              </span>
-            )}
-          </div>
-          {q.volumePrices && (
-            <table aria-label="Precio por volumen">
-              <tbody>
-                <tr>
-                  <th colSpan={2}>Precio por estudiante según tamaño del grupo</th>
-                </tr>
-                {q.volumePrices.map((p) => (
-                  <tr key={p.participants}>
-                    <td>{p.participants} estudiantes</td>
-                    <td className="num">
-                      {p.pricePerParticipant} {q.saleCurrency}
-                    </td>
-                  </tr>
-                ))}
-                <tr>
-                  <td colSpan={2} className="muted">
-                    Mismos costos, chaperones y comisión; solo cambia entre cuántos se reparten los gastos de
-                    chaperones y del grupo.
+        {q.volumePrices && (
+          <table aria-label="Precio por volumen">
+            <tbody>
+              <tr>
+                <th colSpan={2}>Precio por estudiante según tamaño del grupo</th>
+              </tr>
+              {q.volumePrices.map((p) => (
+                <tr key={p.participants}>
+                  <td>{p.participants} estudiantes</td>
+                  <td className="num">
+                    {n(p.pricePerParticipant)} {q.saleCurrency}
                   </td>
                 </tr>
-              </tbody>
-            </table>
+              ))}
+              <tr>
+                <td colSpan={2} className="muted">
+                  Mismos costos, chaperones y comisión; solo cambia entre cuántos se reparten los gastos de
+                  chaperones y del grupo.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        )}
+        <div className="group-total" role="group" aria-label="Precio por estudiante y total del grupo">
+          <span className="group-total-label">Precio por estudiante</span>
+          <strong className="group-total-value">
+            {n(t.pricePerParticipant)} {cur}
+          </strong>
+          {t.pricePerParticipantMxn && (
+            <span className="group-total-mxn">≈ {n(t.pricePerParticipantMxn)} MXN</span>
           )}
+          <div className="group-total-foot">
+            <div>
+              <small>Total del grupo</small>
+              <strong>
+                {n(t.groupPrice)} {cur}
+              </strong>
+              <span>
+                {n(t.pricePerParticipant)} {cur} × {q.participants} estudiantes
+              </span>
+            </div>
+            <div>
+              <small>Comisión del grupo</small>
+              <strong>
+                {n(t.groupMargin)} {cur}
+              </strong>
+              {t.groupMarginMxn && <span>≈ {n(t.groupMarginMxn)} MXN</span>}
+            </div>
+          </div>
         </div>
       </div>
     </section>
