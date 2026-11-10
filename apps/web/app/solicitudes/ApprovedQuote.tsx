@@ -6,7 +6,16 @@ import { api } from '../lib/api';
 import { fmtDate, type QuoteDto, type ScenarioDto } from '../lib/types';
 
 /** The request's approved (or sent) quote, on top of its ficha (Will, 2026-11-10). */
-export function ApprovedQuote({ requestId, canExport }: { requestId: string; canExport: boolean }) {
+export function ApprovedQuote({
+  requestId,
+  canExport,
+  wonVersionId,
+}: {
+  requestId: string;
+  canExport: boolean;
+  /** Set once sold: that version is shown and labelled "vendida". */
+  wonVersionId: string | null;
+}) {
   const [q, setQ] = useState<QuoteDto | null>(null);
 
   useEffect(() => {
@@ -17,22 +26,28 @@ export function ApprovedQuote({ requestId, canExport }: { requestId: string; can
         .flatMap((s) =>
           s.versions.filter((v) => v.status === 'APPROVED' || v.status === 'SENT').map((v) => ({ s, v })),
         )
-        .sort((a, b) => b.v.number - a.v.number)[0];
+        .sort(
+          (a, b) =>
+            Number(b.v.id === wonVersionId) - Number(a.v.id === wonVersionId) || b.v.number - a.v.number,
+        )[0];
       if (!picked) return setQ(null);
       setQ(
         picked.s.latest.id === picked.v.id ? picked.s.latest : await api<QuoteDto>(`/quotes/${picked.v.id}`),
       );
     })().catch(() => setQ(null));
-  }, [requestId]);
+  }, [requestId, wonVersionId]);
 
   if (!q) return null;
   const t = q.totals;
   const cur = q.saleCurrency;
   const sent = q.status === 'SENT';
+  const state = q.id === wonVersionId ? 'vendida' : sent ? 'enviada' : null;
   return (
     <section className="card approved-quote" aria-labelledby="cotizacion-aprobada">
       <div>
-        <span className="picked-tag">✓ Cotización {sent ? 'enviada' : 'aprobada'}</span>
+        <span className="picked-tag">
+          ✓ {state === 'vendida' ? 'Propuesta vendida' : `Cotización ${state ?? 'aprobada'}`}
+        </span>
         <h2 id="cotizacion-aprobada">
           {q.scenarioName} · v{q.number}
         </h2>
@@ -63,7 +78,7 @@ export function ApprovedQuote({ requestId, canExport }: { requestId: string; can
       )}
       <div className="row acts">
         <Link className="button" href={`/cotizaciones/${q.id}/propuesta`}>
-          {sent ? 'Ver propuesta enviada' : 'Vista previa'}
+          {state ? `Ver propuesta ${state}` : 'Vista previa'}
         </Link>
         <Link className="button secondary" href={`/cotizaciones/${q.id}`}>
           {sent ? 'Abrir cotización' : 'Abrir cotización y enviar al colegio'}

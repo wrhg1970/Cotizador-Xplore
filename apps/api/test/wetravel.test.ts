@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PaymentLinkBody, WeTravel } from '../src/integrations/wetravel.js';
-import { sumPayments, WeTravelError } from '../src/integrations/wetravel.js';
+import { sumPayments, WeTravelError, wetravelReason } from '../src/integrations/wetravel.js';
 import { loginAs, makeApp, makeOffice, makeUser, prisma, uniq } from './helpers.js';
 
 class FakeWeTravel implements WeTravel {
@@ -199,5 +199,17 @@ describe('payments read from WeTravel', () => {
     wt.fail = true;
     await pay(c.quoter).expect(502);
     wt.fail = false;
+  });
+});
+
+describe('WeTravel error reason', () => {
+  const res = (body: unknown) => new Response(JSON.stringify(body), { status: 400 });
+  it('keeps the first error line WeTravel gives, short, and nothing when the body is not JSON', async () => {
+    expect(await wetravelReason(res({ message: 'Invalid  filter\ntrip_uuids' }))).toBe(
+      'Invalid filter trip_uuids',
+    );
+    expect(await wetravelReason(res({ errors: [{ field: 'trip_uuids' }] }))).toBe('{"field":"trip_uuids"}');
+    expect(await wetravelReason(res({ error: 'x'.repeat(500) }))).toHaveLength(200);
+    expect(await wetravelReason(new Response('<html>', { status: 400 }))).toBe('');
   });
 });

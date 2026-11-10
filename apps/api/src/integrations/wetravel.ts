@@ -69,6 +69,16 @@ export function sumPayments(txs: Transaction[]): LinkPayments {
 }
 export const WETRAVEL = Symbol('WETRAVEL');
 
+/** First error text in a WeTravel error body, one line, at most 200 chars; never the whole payload. */
+export async function wetravelReason(res: Response): Promise<string> {
+  const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+  const errors = body?.errors;
+  const first = Array.isArray(errors) ? errors[0] : errors;
+  const raw =
+    body?.message ?? body?.error ?? (typeof first === 'object' && first ? JSON.stringify(first) : first);
+  return typeof raw === 'string' ? raw.replace(/\s+/g, ' ').slice(0, 200) : '';
+}
+
 export class WeTravelError extends Error {
   constructor(
     readonly status: number,
@@ -171,7 +181,7 @@ export class HttpWeTravel implements WeTravel {
     return { uuid: link.uuid, checkoutUrl: link.checkout_url };
   }
 
-  private async call(url: string, init: { method?: string; body?: unknown } = {}) {
+  private async call(url: string, step: string, init: { method?: string; body?: unknown } = {}) {
     const res = await fetch(url, {
       method: init.method ?? 'GET',
       headers: {
@@ -184,7 +194,12 @@ export class HttpWeTravel implements WeTravel {
     });
     if (!res.ok) {
       if (res.status === 401) this.token = null;
-      throw new WeTravelError(res.status, `WeTravel respondió ${res.status} al leer los pagos`);
+      // WeTravel's own reason (e.g. a rejected filter) is what tells us what to fix.
+      const why = await wetravelReason(res);
+      throw new WeTravelError(
+        res.status,
+        `WeTravel respondió ${res.status} al ${step}${why ? `: ${why}` : ''}`,
+      );
     }
     const json = (await res.json()) as Record<string, unknown>;
     return json;
@@ -196,14 +211,17 @@ export class HttpWeTravel implements WeTravel {
    * type `payment` gives what was collected. Amounts are integers in minor units.
    */
   async linkPayments(linkUuid: string): Promise<LinkPayments> {
-    const link = await this.call(`${this.baseUrl}/payment_links/${encodeURIComponent(linkUuid)}`);
+    const link = await this.call(
+      `${this.baseUrl}/payment_links/${encodeURIComponent(linkUuid)}`,
+      'leer la liga de pago',
+    );
     const trip = ((link.data ?? link) as { trip?: { uuid?: string } }).trip;
     const tripUuid = trip?.uuid ?? linkUuid;
     const transactions = `${new URL(this.baseUrl).origin}/v2/transactions`;
     const all: Transaction[] = [];
     // shortcut: at most 5 pages of 1000; a single school group never gets close.
     for (let page = 1; page <= 5; page++) {
-      const res = await this.call(transactions, {
+      const res = await this.call(transactions, 'leer las transacciones', {
         method: 'POST',
         body: { page, per_page: 1000, filters: { trip_uuids: [tripUuid], transaction_type: 'payment' } },
       });
