@@ -474,6 +474,7 @@ export default function RequestDetailPage() {
             <Scenarios
               requestId={r.id}
               officeId={r.office.id}
+              wonVersionId={r.wonVersionId}
               canWork={
                 r.status === 'QUOTING' &&
                 can(me, r.office.id, 'canEdit') &&

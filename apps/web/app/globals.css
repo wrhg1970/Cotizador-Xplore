@@ -2408,19 +2408,168 @@ table.office-table td a.count:hover {
   color: inherit;
 }
 
+/* Scenario comparison (Will, 2026-11-10): narrow centered columns, sticky header, Δ vs the approved one. */
+.cmp-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: center;
+  font-size: 0.78rem;
+  margin: 0 0 8px;
+}
+.cmp-legend,
+table.compare td.diff {
+  background: #fff4e0;
+  color: var(--warn);
+}
+.cmp-legend {
+  padding: 0 5px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.cmp-wrap {
+  overflow: auto;
+  max-height: 80vh;
+}
+table.compare {
+  width: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.78rem;
+}
+table.compare th,
+table.compare td {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--subtle);
+}
+table.compare td {
+  width: 130px;
+  min-width: 130px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+table.compare tbody th {
+  min-width: 190px;
+  text-align: left;
+}
+table.compare thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  vertical-align: top;
+  text-align: center;
+  font-weight: 400;
+  background: var(--surface);
+  border-bottom: 2px solid var(--border);
+  padding: 8px 10px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.cmp-acts .button {
+  text-transform: none;
+  letter-spacing: normal;
+}
+.cmp-name {
+  display: block;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+.cmp-chip {
+  display: inline-block;
+  margin: 3px 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.cmp-chip.ok {
+  background: #dcfce7;
+  color: var(--ok);
+}
+.cmp-chip.won {
+  background: #dbeafe;
+  color: var(--ink);
+}
+.cmp-chip.rev {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.cmp-chip.draft {
+  background: var(--subtle);
+  color: var(--muted);
+}
+.cmp-group {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.cmp-price {
+  margin-top: 4px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.cmp-price small {
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.cmp-acts {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 6px;
+}
+.cmp-acts .button,
+.cmp-acts button {
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  min-height: 0;
+}
+table.compare tr.cmp-sec th,
+table.compare tr.cmp-sec td {
+  background: var(--subtle);
+  font-weight: 600;
+}
+table.compare tr.cmp-sec td.diff {
+  background: #fff4e0;
+}
+tr.cmp-sec button {
+  all: unset;
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 600;
+}
+tr.cmp-sec button:focus-visible {
+  outline: 2px solid var(--focus);
+}
+.delta {
+  display: block;
+  font-size: 0.65rem;
+}
+table.compare td.diff {
+  font-weight: 600;
+}
+tr.cmp-hidden td {
+  text-align: left;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+table.compare tr.cmp-total th,
+table.compare tr.cmp-total td {
+  font-weight: 700;
+  font-size: 0.85rem;
+  border-top: 2px solid var(--border);
+}
 /* The approved scenario is the selected one (only one per request). */
 table.compare th.picked,
-table.compare td.picked {
-  background: #ecfdf3;
-  box-shadow:
-    inset 2px 0 0 var(--ok),
-    inset -2px 0 0 var(--ok);
+table.compare td.picked:not(.diff) {
+  background: #f3fbf6;
 }
 table.compare thead th.picked {
-  box-shadow:
-    inset 2px 0 0 var(--ok),
-    inset -2px 0 0 var(--ok),
-    inset 0 2px 0 var(--ok);
+  background: #ecfdf3;
+  box-shadow: inset 0 3px 0 var(--ok);
 }
 .picked-tag {
   display: inline-block;
@@ -2469,8 +2618,21 @@ table.compare thead th.picked {
     color: var(--text);
   }
   table.compare th.picked,
-  table.compare td.picked {
+  table.compare td.picked:not(.diff) {
     background: #0f2a1d;
+  }
+  .cmp-legend,
+  table.compare td.diff,
+  table.compare tr.cmp-sec td.diff {
+    background: #3a2a12;
+    color: #fbbf77;
+  }
+  .cmp-chip.ok {
+    background: #0f2a1d;
+  }
+  .cmp-chip.won {
+    background: #12305a;
+    color: #bcd8ff;
   }
 }
 .card.decision.picked {
