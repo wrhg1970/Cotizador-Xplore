@@ -36,7 +36,7 @@ import {
   type TravelRequestDto,
 } from '../../lib/types';
 import { can, canExportXlsx, isOfficeAdmin, useMe } from '../../lib/useMe';
-import { RequestFactRows, RequestNotes } from '../../solicitudes/RequestFacts';
+import { RequestDataTabs } from '../../solicitudes/RequestFacts';
 import { RequestFiles } from '../../solicitudes/RequestFiles';
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -950,14 +950,7 @@ export default function QuoteEditorPage() {
               <h2 id="datos-solicitud">Datos de la solicitud</h2>
               {req && <Link href={`/solicitudes/${req.id}`}>Ver o editar en la solicitud</Link>}
             </div>
-            {req && (
-              <>
-                <dl className="facts">
-                  <RequestFactRows r={req} />
-                </dl>
-                <RequestNotes r={req} />
-              </>
-            )}
+            {req && <RequestDataTabs r={req} />}
           </section>
           {editable && req && (
             <QuickLoad
