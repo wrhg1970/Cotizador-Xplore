@@ -147,7 +147,7 @@ export class PaymentRemindersController {
     if (!to)
       throw new BadRequestException({
         code: 'NO_SCHOOL_EMAIL',
-        message: 'La propuesta ganadora no se envió por correo; no hay a quién recordarle',
+        message: 'La propuesta vendida no se envió por correo; no hay a quién recordarle',
       });
     const today = iso(new Date());
     const next = (toDto(r.wonVersion!).paymentSchedule ?? []).find((p) => p.dueDate >= today);

@@ -83,11 +83,11 @@ test('full flow: login, quote, authorize, send and win', async ({ browser, page 
 
   // 6. The school says yes.
   await quo.goto(requestUrl);
-  await expect(quo.getByLabel('Propuesta aceptada')).toHaveValue(/.+/);
-  await quo.getByRole('button', { name: 'Ganada' }).click();
-  await expect(quo.locator('.badge')).toHaveText('Ganada');
+  await expect(quo.getByLabel('Propuesta vendida')).toHaveValue(/.+/);
+  await quo.getByRole('button', { name: 'Vendida' }).click();
+  await expect(quo.locator('.badge')).toHaveText('Vendida');
 
   // The advisor sees it closed as won.
   await adv.reload();
-  await expect(adv.locator('.badge')).toHaveText('Ganada');
+  await expect(adv.locator('.badge')).toHaveText('Vendida');
 });

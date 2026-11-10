@@ -7,7 +7,7 @@ export default function ReportsPage() {
       <div className="wcards compact">
         <section className="card">
           <h2 style={{ marginTop: 0 }}>Reporte financiero (Excel)</h2>
-          <p className="muted">Costos, comisión y precio de los viajes ganados, por periodo y oficina.</p>
+          <p className="muted">Costos, comisión y precio de los viajes vendidos, por periodo y oficina.</p>
           <Link className="button" href="/tablero">
             Ir a descargarlo
           </Link>

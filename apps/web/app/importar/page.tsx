@@ -19,7 +19,9 @@ export default function ImportPage() {
         {me?.roles.some((r) => r.role === 'SYSTEM_ADMIN') && (
           <section className="card">
             <h2 style={{ marginTop: 0 }}>Histórico de cotizaciones (Excel EE)</h2>
-            <p className="muted">Cada Excel del año pasado entra como solicitud ganada, perdida o enviada.</p>
+            <p className="muted">
+              Cada Excel del año pasado entra como solicitud vendida, perdida o enviada.
+            </p>
             <Link className="button" href="/historico">
               Importar histórico
             </Link>

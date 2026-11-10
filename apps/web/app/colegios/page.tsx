@@ -68,7 +68,7 @@ function SchoolList() {
               <th>Colegio</th>
               <th>Oficina</th>
               <th className="num">Solicitudes</th>
-              <th className="num">Ganadas</th>
+              <th className="num">Vendidas</th>
               <th className="num">Conversión</th>
               <th>Último viaje</th>
             </tr>
@@ -153,7 +153,7 @@ function SchoolDetail({ officeId, schoolKey }: { officeId: string; schoolKey: st
       </p>
       <h1>{d.name}</h1>
       <p className="muted">
-        {d.trips.length} solicitudes · {won} ganadas · conversión {pct(d.conversion)}
+        {d.trips.length} solicitudes · {won} vendidas · conversión {pct(d.conversion)}
       </p>
       {error && (
         <p className="error" role="alert">

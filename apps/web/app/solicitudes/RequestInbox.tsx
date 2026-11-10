@@ -33,7 +33,7 @@ const TABS = [
   ['APPROVAL', 'Por aprobar'],
   ['APPROVED', 'Aprobadas'],
   ['SENT', 'Enviadas / negociación'],
-  ['WON', 'Aceptadas'],
+  ['WON', 'Vendidas'],
 ] as const;
 /** Pseudo-tab: archived requests only, where they can be unarchived or purged. */
 const ARCHIVED = 'ARCHIVED';
@@ -46,7 +46,7 @@ const VIEWS = [
 type View = (typeof VIEWS)[number][0];
 
 /** Process steps (Kanban columns); lost and cancelled requests go to the last one. */
-const STEPS = ['Solicitada', 'Por aprobar', 'Aprobada', 'Enviada / negociación', 'Aceptada', 'Cerrada'];
+const STEPS = ['Solicitada', 'Por aprobar', 'Aprobada', 'Enviada / negociación', 'Vendida', 'Cerrada'];
 const stepOf = (r: Row) =>
   r.status === 'WON'
     ? 5

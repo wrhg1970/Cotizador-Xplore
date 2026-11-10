@@ -1151,7 +1151,7 @@ export class QuotesController {
     if (!(r.assigneeId === user.id || hasOfficeRole(user, r.officeId, ['OFFICE_ADMIN'])))
       throw new ForbiddenException('Solo el cotizador asignado o el coordinador');
     if (r.status !== 'WON' || r.wonVersionId !== v.id)
-      throw new ForbiddenException('Solo la propuesta ganadora se publica en WeTravel');
+      throw new ForbiddenException('Solo la propuesta vendida se publica en WeTravel');
     if (r.wetravelUrl)
       throw new ConflictException({
         code: 'WETRAVEL_EXISTS',

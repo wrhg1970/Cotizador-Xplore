@@ -533,7 +533,7 @@ export class RequestsController {
         select: { id: true, number: true, scenario: { select: { name: true } } },
       });
       if (!v)
-        throw new BadRequestException('La propuesta ganadora debe ser una versión enviada de esta solicitud');
+        throw new BadRequestException('La propuesta vendida debe ser una versión enviada de esta solicitud');
       return {
         status: 'WON',
         wonVersionId: v.id,

@@ -508,7 +508,7 @@ export default function QuoteEditorPage() {
           <>
             {q.status === 'SENT' ? (
               <Link className="button" href={`/solicitudes/${q.requestId}`}>
-                Ir a la solicitud (ganada o perdida)
+                Ir a la solicitud (vendida o perdida)
               </Link>
             ) : (
               <button type="button" onClick={toApproval}>

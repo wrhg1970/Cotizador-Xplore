@@ -174,7 +174,7 @@ export default function ExecutivePage() {
             </label>
             <button className="secondary">Descargar Excel</button>
           </form>
-          <p className="muted">Viajes ganados por fecha de salida; si no eliges fechas, el año en curso.</p>
+          <p className="muted">Viajes vendidos por fecha de salida; si no eliges fechas, el año en curso.</p>
         </details>
       )}
       {error && (
@@ -187,16 +187,16 @@ export default function ExecutivePage() {
           <Panel rows={data.requests} to={data.period.to} />
           <div className="dx-two">
             <div className="card stage">
-              <div className="eyebrow">Monto ganado (precio al cliente)</div>
+              <div className="eyebrow">Monto vendido (precio al cliente)</div>
               <div className="count">{amounts(t.wonAmount)}</div>
               <div className="muted">
-                {t.won} ganadas · {t.wonStudents} alumnos. Cada moneda por separado; no se convierten tipos de
-                cambio.
+                {t.won} vendidas · {t.wonStudents} alumnos. Cada moneda por separado; no se convierten tipos
+                de cambio.
               </div>
             </div>
             <section className="card" aria-labelledby="salidas">
               <h2 id="salidas" style={{ marginTop: 0 }}>
-                Salidas ganadas en 60 días
+                Salidas vendidas en 60 días
               </h2>
               {data.upcoming.length === 0 ? (
                 <p className="muted">Ninguna.</p>
@@ -229,7 +229,7 @@ export default function ExecutivePage() {
                     <tr>
                       <th>Oficina</th>
                       <th className="num">Meta (MXN)</th>
-                      <th className="num">Ganado (MXN)</th>
+                      <th className="num">Vendido (MXN)</th>
                       <th>Avance</th>
                     </tr>
                   </thead>
@@ -288,10 +288,10 @@ export default function ExecutivePage() {
                     <th>Oficina</th>
                     <th className="num">Solicitudes</th>
                     <th className="num">Abiertas</th>
-                    <th className="num">Ganadas</th>
+                    <th className="num">Vendidas</th>
                     <th className="num">Perdidas</th>
                     <th className="num">Conversión</th>
-                    <th>Monto ganado</th>
+                    <th>Monto vendido</th>
                   </tr>
                 </thead>
                 <tbody>

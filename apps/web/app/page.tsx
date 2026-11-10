@@ -20,7 +20,7 @@ const STEPS = [
   ],
   [
     'Propuesta al colegio',
-    'PDF o liga sin costos ni comisiones, registro del envío y resultado: ganada o perdida.',
+    'PDF o liga sin costos ni comisiones, registro del envío y resultado: vendida o perdida.',
   ],
 ] as const;
 

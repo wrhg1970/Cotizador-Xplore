@@ -26,7 +26,7 @@ export interface CohortRow {
   status: RequestStatus;
   /** "Mi trabajo" stage: 1 Solicitada, 2 Cotizada (in review), 3 Aprobada, 4 Enviada. */
   stage: 1 | 2 | 3 | 4;
-  /** Furthest funnel step: 1 Nueva, 2 En cotización, 3 Aprobada, 4 Enviada, 5 Aceptada. */
+  /** Furthest funnel step: 1 Nueva, 2 En cotización, 3 Aprobada, 4 Enviada, 5 Vendida. */
   reached: 1 | 2 | 3 | 4 | 5;
   budgetMxn: string | null;
   volumeMxn: string | null;
@@ -39,7 +39,7 @@ const FUNNEL = [
   { name: 'En cotización', about: 'Con escenarios y hoja EE en trabajo' },
   { name: 'Aprobada', about: 'Autorizada por quien aprueba' },
   { name: 'Propuesta enviada', about: 'Presentada al colegio' },
-  { name: 'Aceptada', about: 'Grupo confirmado (ganada)' },
+  { name: 'Vendida', about: 'Grupo confirmado (vendida)' },
 ] as const;
 
 const OPEN: RequestStatus[] = ['SUBMITTED', 'QUOTING', 'SENT'];
@@ -56,7 +56,7 @@ const STATES = [
   { key: 'APPROVAL', label: 'Pendiente de aprobación', test: pendingApproval },
   { key: 'APPROVED', label: 'Aprobada (por enviar)', test: approved },
   { key: 'SENT', label: 'Enviada / en negociación', test: (r: CohortRow) => r.status === 'SENT' },
-  { key: 'WON', label: 'Ganada', test: (r: CohortRow) => r.status === 'WON' },
+  { key: 'WON', label: 'Vendida', test: (r: CohortRow) => r.status === 'WON' },
   { key: 'LOST', label: 'Perdida', test: (r: CohortRow) => r.status === 'LOST' },
 ] as const;
 
@@ -66,13 +66,13 @@ const FILTERS = [
   { key: 'APPROVAL', label: 'Por aprobar', test: pendingApproval },
   { key: 'APPROVED', label: 'Aprobadas', test: approved },
   { key: 'SENT', label: 'Enviadas / negociación', test: (r: CohortRow) => r.status === 'SENT' },
-  { key: 'WON', label: 'Aceptadas', test: (r: CohortRow) => r.status === 'WON' },
+  { key: 'WON', label: 'Vendidas', test: (r: CohortRow) => r.status === 'WON' },
 ] as const;
 type FilterKey = (typeof FILTERS)[number]['key'] | `STEP${1 | 2 | 3 | 4 | 5}`;
 
 const STAGE_LABEL = (r: CohortRow) =>
   r.status === 'WON'
-    ? '05 · Aceptada'
+    ? '05 · Vendida'
     : r.status === 'LOST'
       ? 'Perdida'
       : r.status === 'CANCELLED'
@@ -141,7 +141,7 @@ export function Panel({ rows, to }: { rows: CohortRow[]; to: string }) {
     ['En cotización', rows.filter(quoting).length, 'Análisis y escenarios'],
     ['Pendientes de aprobación', rows.filter(pendingApproval).length, 'Esperan autorización', 'warn'],
     ['Propuestas enviadas', sent, 'Llegaron a enviarse'],
-    ['Propuestas aceptadas', won, 'Cierre comercial', 'ok'],
+    ['Propuestas vendidas', won, 'Cierre comercial', 'ok'],
     ['Propuestas rechazadas', lost, 'Con motivo registrado'],
     ['Vencidas o por vencer', late, 'Entrega en 5 días o menos', late ? 'bad' : undefined],
     [
@@ -181,7 +181,7 @@ export function Panel({ rows, to }: { rows: CohortRow[]; to: string }) {
           </div>
           <Stack
             parts={[
-              { label: 'Aceptadas', value: won, cls: 's-won' },
+              { label: 'Vendidas', value: won, cls: 's-won' },
               { label: 'Enviadas', value: rows.filter((r) => r.status === 'SENT').length, cls: 's-sent' },
               { label: 'Por aprobar', value: rows.filter(pendingApproval).length, cls: 's-approve' },
             ]}
@@ -237,7 +237,7 @@ export function Panel({ rows, to }: { rows: CohortRow[]; to: string }) {
         <div className="dx-sechead">
           <div>
             <div className="eyebrow">Embudo de conversión comercial</div>
-            <h2 id="embudo">De nueva solicitud a propuesta aceptada</h2>
+            <h2 id="embudo">De nueva solicitud a propuesta vendida</h2>
             <p className="muted">Toca una etapa para ver sus expedientes en la tabla de abajo.</p>
           </div>
           <div className="row" style={{ alignItems: 'center' }}>
