@@ -124,7 +124,7 @@ test('executive dashboard: office admins see the indicators, advisors get no lin
   await page.getByRole('link', { name: 'Dashboard ejecutivo' }).click();
   await expect(page.getByRole('heading', { name: 'Dashboard ejecutivo' })).toBeVisible();
   await expect(page.getByLabel('Indicadores')).toContainText('Tasa de aceptación');
-  await expect(page.getByRole('heading', { name: 'De nueva solicitud a propuesta aceptada' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'De nueva solicitud a propuesta vendida' })).toBeVisible();
   await page.getByLabel('Creadas desde').fill('2020-01-01');
   await page.getByLabel('hasta', { exact: true }).fill('2020-12-31');
   await page.getByRole('button', { name: 'Aplicar' }).click();

@@ -50,7 +50,7 @@ test('the quoter records which sent proposal the client accepted', async ({ brow
   await expect(page.getByLabel('Propuesta vendida')).toHaveValue(/.+/);
   await page.getByRole('button', { name: 'Vendida' }).click();
   await expect(page.locator('.badge')).toHaveText('Vendida');
-  await expect(page.getByText('Opción 1 · v1')).toBeVisible();
+  await expect(page.getByText('Opción 1 · v1').first()).toBeVisible();
   await page.getByRole('tab', { name: 'Bitácora' }).click();
   await expect(page.getByText('Marcó la propuesta como vendida')).toBeVisible();
   await ctx.close();
