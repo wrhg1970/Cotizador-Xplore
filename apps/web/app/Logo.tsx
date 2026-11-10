@@ -1,4 +1,4 @@
-const HEX = /^#[0-9a-fA-F]{6}$/;
+export const HEX = /^#[0-9a-fA-F]{6}$/;
 
 /**
  * The agency's own logo when it uploaded one; otherwise the official Xplore Together logo

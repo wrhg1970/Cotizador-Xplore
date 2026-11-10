@@ -27,7 +27,7 @@ import { PRISMA } from '../prisma.service.js';
 import { canView } from '../requests/request-policy.js';
 import { ZodPipe } from '../zod.pipe.js';
 import { Notifier } from '../notify/notifier.js';
-import { clientProposal, full } from './quotes.controller.js';
+import { clientProposal, full, proposalContact } from './quotes.controller.js';
 import { agencyOfOffice, toBrand } from '../agency/brand.js';
 
 const uuid = new ParseUUIDPipe({ version: '4' });
@@ -198,7 +198,11 @@ export class ProposalShareController {
       data: { viewCount: { increment: 1 }, lastViewAt: new Date() },
     });
     const brand = toBrand(await agencyOfOffice(this.prisma, r.officeId));
-    const { request, id: _id, ...proposal } = clientProposal(s.version, r, brand);
+    const {
+      request,
+      id: _id,
+      ...proposal
+    } = clientProposal(s.version, r, brand, await proposalContact(this.prisma, r));
     const { id: _rid, ...publicRequest } = request;
     const a = s.version.acceptance;
     return {

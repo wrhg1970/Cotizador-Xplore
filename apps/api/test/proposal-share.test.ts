@@ -5,6 +5,7 @@ import { loginAs, makeApp, makeOffice, makeUser, prisma } from './helpers.js';
 let ctx: Awaited<ReturnType<typeof makeApp>>;
 const c: Record<'advisor' | 'quoter' | 'approver' | 'adminA' | 'adminB', string> = {} as never;
 const ids: Record<string, string> = {};
+const emails: Record<string, string> = {};
 let requestId: string;
 let officeA: string;
 
@@ -25,6 +26,7 @@ beforeAll(async () => {
   ) => {
     const u = await makeUser([{ officeId, role }]);
     ids[key] = u.id;
+    emails[key] = u.email;
     c[key] = (await loginAs(ctx, u.email)).cookie!;
   };
   await login('advisor', officeA, 'ADVISOR');
@@ -125,6 +127,8 @@ describe('school share link', () => {
       authorized: true,
       saleCurrency: 'EUR',
       request: { groupName: 'Liga colegio 2027' },
+      // The school's contact is the executive assigned to the request.
+      contact: { email: emails.quoter, office: expect.any(String) },
     });
     expect(p.expiresAt).toBe(s.expiresAt);
     const body = JSON.stringify(p);
