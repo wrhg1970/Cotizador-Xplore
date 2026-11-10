@@ -2661,3 +2661,38 @@ table.compare thead th.picked {
     padding: 0 10px;
   }
 }
+
+/* Ficha: the approved (or sent) quote on top, before Datos (Will, 2026-11-10). */
+.approved-quote {
+  border-left: 6px solid var(--ok);
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px 20px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.ficha .approved-quote h2 {
+  margin: 6px 0 2px;
+}
+.approved-quote p {
+  margin: 0;
+  font-size: 0.82rem;
+}
+.approved-quote .price {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.approved-quote .price strong {
+  display: block;
+  font-size: 1.25rem;
+  color: var(--text);
+  font-family: var(--font-head);
+}
+.approved-quote .acts {
+  grid-column: 1 / -1;
+}
+@media (max-width: 760px) {
+  .approved-quote {
+    grid-template-columns: 1fr;
+  }
+}

@@ -263,12 +263,14 @@ export default function QuoteEditorPage() {
     try {
       const saved = action === 'submit' && editable ? await save() : q;
       if (!saved) return;
-      load(
-        await api<QuoteDto>(`/quotes/${q.id}/${action}`, {
-          method: 'POST',
-          body: { ...body, rowVersion: saved.rowVersion },
-        }),
-      );
+      const next = await api<QuoteDto>(`/quotes/${q.id}/${action}`, {
+        method: 'POST',
+        body: { ...body, rowVersion: saved.rowVersion },
+      });
+      // Fully approved (last signature): the request's ficha shows it on top (Will, 2026-11-10).
+      if (action === 'approve' && next.status === 'APPROVED')
+        return router.push(`/solicitudes/${q.requestId}`);
+      load(next);
     } catch (e) {
       setError(errorText(e));
     }

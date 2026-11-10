@@ -96,6 +96,11 @@ test('admin grants "Autorizar viaje"; legend shows until the trip is authorized'
   const apr = await aprCtx.newPage();
   await apr.goto(`/cotizaciones/${version.id}`);
   await apr.getByRole('button', { name: 'Autorizar viaje' }).click();
+  // Approved: the request's ficha opens with the approved quote on top.
+  await expect(apr).toHaveURL(/\/solicitudes\//);
+  const approved = apr.getByRole('region', { name: /v1/ }).filter({ hasText: 'Cotización aprobada' });
+  await expect(approved).toBeVisible();
+  await approved.getByRole('link', { name: 'Abrir cotización y enviar al colegio' }).click();
   await expect(apr.locator('.badge')).toHaveText('Aprobada');
   await expect(apr.getByText('Autorizó · Aurora Autoriza')).toBeVisible();
 

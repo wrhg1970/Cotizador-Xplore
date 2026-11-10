@@ -76,6 +76,9 @@ test('approvals list, Kanban by stage and integrations status', async ({ browser
   await expect(card).toContainText('Una firma de «Autorizar viaje»');
   page.once('dialog', (d) => void d.accept('Rentabilidad verificada'));
   await card.getByRole('button', { name: 'Aprobar v1' }).click();
+  await expect(page).toHaveURL(/\/solicitudes\//);
+  await expect(page.getByText('✓ Cotización aprobada')).toBeVisible();
+  await page.goBack();
   await expect(card).toContainText('Estado: Aprobada');
   await expect(card.getByRole('listitem')).toContainText('Aprobar (v1) por Aurora · Rentabilidad verificada');
 

@@ -71,7 +71,8 @@ test('full flow: login, quote, authorize, send and win', async ({ browser, page 
   const apr = await as(browser, approver.cookie);
   await apr.goto(quoteUrl);
   await apr.getByRole('button', { name: 'Autorizar viaje' }).click();
-  await expect(apr.locator('.badge')).toHaveText('Aprobada');
+  await expect(apr).toHaveURL(/\/solicitudes\//);
+  await expect(apr.getByText('✓ Cotización aprobada')).toBeVisible();
 
   // 5. Quoter records the send.
   await quo.reload();
