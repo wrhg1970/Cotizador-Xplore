@@ -1055,6 +1055,51 @@ fieldset.editor {
     grid-template-columns: 1fr 1fr;
   }
 }
+/* Concept blocks: one row of equal tabs, name above and block total below. */
+.tabs.block-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 14px;
+}
+.tabs.block-tabs [role='tab'] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  text-align: center;
+}
+.block-tabs .tab-name {
+  font-size: 0.85rem;
+}
+.block-tabs .tab-amount {
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+.editor .block-head .fold {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.editor .block-head .fold:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.editor .block-head .chevron {
+  display: inline-block;
+  color: var(--muted);
+  width: 1em;
+}
+.editor .block > [hidden] {
+  display: none;
+}
 .editor .block-head {
   display: flex;
   flex-wrap: wrap;
