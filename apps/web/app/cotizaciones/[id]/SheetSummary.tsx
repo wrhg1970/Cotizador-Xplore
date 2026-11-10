@@ -128,29 +128,46 @@ export function SheetSummary({ q }: { q: QuoteDto }) {
             )}
           </tbody>
         </table>
-        {q.volumePrices && (
-          <table aria-label="Precio por volumen">
-            <tbody>
-              <tr>
-                <th colSpan={2}>Precio por estudiante según tamaño del grupo</th>
-              </tr>
-              {q.volumePrices.map((p) => (
-                <tr key={p.participants}>
-                  <td>{p.participants} estudiantes</td>
-                  <td className="num">
-                    {p.pricePerParticipant} {q.saleCurrency}
+        <div className="sheet-side">
+          <div className="group-total" role="group" aria-label="Total del grupo">
+            <span className="group-total-label">Total del grupo</span>
+            <strong className="group-total-value">
+              {t.groupPrice} {cur}
+            </strong>
+            <span>
+              {t.pricePerParticipant} {cur} por estudiante × {q.participants} estudiantes
+            </span>
+            {t.pricePerParticipantMxn && <span>≈ {t.pricePerParticipantMxn} MXN por estudiante</span>}
+            {t.groupMarginMxn && (
+              <span>
+                Comisión del grupo: {t.groupMargin} {cur} · {t.groupMarginMxn} MXN
+              </span>
+            )}
+          </div>
+          {q.volumePrices && (
+            <table aria-label="Precio por volumen">
+              <tbody>
+                <tr>
+                  <th colSpan={2}>Precio por estudiante según tamaño del grupo</th>
+                </tr>
+                {q.volumePrices.map((p) => (
+                  <tr key={p.participants}>
+                    <td>{p.participants} estudiantes</td>
+                    <td className="num">
+                      {p.pricePerParticipant} {q.saleCurrency}
+                    </td>
+                  </tr>
+                ))}
+                <tr>
+                  <td colSpan={2} className="muted">
+                    Mismos costos, chaperones y comisión; solo cambia entre cuántos se reparten los gastos de
+                    chaperones y del grupo.
                   </td>
                 </tr>
-              ))}
-              <tr>
-                <td colSpan={2} className="muted">
-                  Mismos costos, chaperones y comisión; solo cambia entre cuántos se reparten los gastos de
-                  chaperones y del grupo.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        )}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </section>
   );
