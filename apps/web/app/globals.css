@@ -380,6 +380,31 @@ ol.timeline li {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   align-items: start;
 }
+.sheet-side {
+  display: grid;
+  gap: 12px;
+}
+/* Saved sheet: the group total stands out in the right column (Will, 2026-11-10). */
+.group-total {
+  display: grid;
+  gap: 2px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--ink-text);
+  border-left: 6px solid var(--brand-yellow);
+  font-size: 0.85rem;
+}
+.group-total-label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.group-total-value {
+  font-family: var(--font-head);
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+}
 .sheet td,
 .sheet th {
   white-space: normal;
