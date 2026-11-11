@@ -35,6 +35,12 @@ export function compareVersions(prev: QuoteDto, cur: QuoteDto) {
     const to = cur[field] as string | number | null;
     if (from !== to) fields.push({ field, label, from, to });
   }
+  const flight = (q: QuoteDto) =>
+    q.flight
+      ? `neto ${q.flight.netCost} · final ${q.flight.finalPrice} ${q.flight.currency} · prorrateo escuela ${q.flight.shareChaperones ? 'Sí' : 'No'} · EE ${q.flight.shareStaff ? 'Sí' : 'No'}`
+      : null;
+  if (flight(prev) !== flight(cur))
+    fields.push({ field: 'flight', label: 'Avión', from: flight(prev), to: flight(cur) });
   for (const [field, label] of [
     ['pricePerParticipant', 'Precio por estudiante'],
     ['groupPrice', 'Precio del grupo'],

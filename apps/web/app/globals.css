@@ -389,7 +389,7 @@ ol.timeline li {
   .sheet-3 > [aria-label='Gastos de chaperones'] {
     grid-area: chaperones;
   }
-  .sheet-3 > [aria-label='Precio por volumen'] {
+  .sheet-3 > .sheet-side {
     grid-area: volume;
   }
   .sheet-3 > .group-total {
@@ -1344,7 +1344,7 @@ fieldset.editor {
 /* Concept blocks: one row of equal tabs, name above and block total below. */
 .tabs.block-tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  grid-template-columns: repeat(6, minmax(110px, 1fr));
   width: 100%;
   overflow-x: auto;
   border-radius: 14px;
@@ -3434,4 +3434,47 @@ table.compare thead th.picked {
 .cfg input.switch:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* Avión tab: Sí/No toggles and the ticket math. */
+.flight-share {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8rem;
+}
+.seg {
+  display: inline-flex;
+  width: max-content;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.editor .seg button {
+  min-height: 32px;
+  padding: 4px 14px;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--text);
+}
+.editor .seg button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--ink-text);
+}
+.sheet-side {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+.flight-calc {
+  margin: 8px 0;
+  max-width: 640px;
+  font-size: 0.85rem;
+}
+.flight-calc .b td {
+  font-weight: 700;
+}
+.flight-calc .accent td {
+  color: var(--accent);
 }

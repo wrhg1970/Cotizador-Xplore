@@ -21,6 +21,7 @@ import { randomBytes } from 'node:crypto';
 import type { Request, Response } from 'express';
 import {
   CreateScenario,
+  FlightInput,
   ItineraryDay,
   PaymentPlanInput,
   QuoteLineInput,
@@ -50,7 +51,7 @@ import {
   D,
   freePlaces,
   paymentSchedule,
-  marginRateForPrice,
+  marginForPrice,
   QuoteEngineError,
   roundMoney,
   safeDivide,
@@ -146,7 +147,15 @@ export const engine = (v: QuoteVersion & { lines: QuoteLine[]; fxRates: QuoteFxR
     mxnRate: v.mxnRate && v.saleCurrency !== 'MXN' ? new D(v.mxnRate.toString()) : null,
     // Versions priced before gratuities freed the course keep it informative (see freeCourseByRatio).
     studentsPerFreePlace: v.freeCourseByRatio ? v.studentsPerFreePlace : null,
+    flight: flightOf(v),
   });
+
+/** The stored plane ticket with exact decimals, or null. */
+function flightOf(v: Pick<QuoteVersion, 'flight'>) {
+  if (!v.flight) return null;
+  const f = FlightInput.parse(v.flight);
+  return { ...f, netCost: new D(f.netCost), finalPrice: new D(f.finalPrice) };
+}
 
 export type ProposalContact = { name: string | null; email: string | null; office: string | null };
 
@@ -216,7 +225,8 @@ export function clientProposal(
       .filter(
         (l) => !l.internalOnly && l.category === 'PER_PARTICIPANT' && l.unitCost.gt(0) && l.quantity.gt(0),
       )
-      .map((l) => l.description),
+      .map((l) => l.description)
+      .concat(v.flight ? ['Boleto de avión'] : []),
   };
 }
 
@@ -298,6 +308,8 @@ function calculate(v: FullVersion) {
   return {
     directPerParticipant: money(r.directPerParticipant),
     sharedPerParticipant: money(r.sharedPerParticipant),
+    /** SubTotal 2: what the % comisión applies to (all but the plane ticket). */
+    programCostPerParticipant: money(r.programCostPerParticipant),
     costPerParticipant: money(r.costPerParticipant),
     marginPerParticipant: money(r.marginPerParticipant),
     pricePerParticipant: money(r.pricePerParticipant),
@@ -305,6 +317,14 @@ function calculate(v: FullVersion) {
     groupMargin: money(r.groupMargin),
     pricePerParticipantMxn: r.pricePerParticipantMxn && money(r.pricePerParticipantMxn),
     groupMarginMxn: r.groupMarginMxn && money(r.groupMarginMxn),
+    /** Avión in sale currency: tickets the group pays, its cost and final price per student. */
+    flight: r.flight && {
+      tickets: r.flight.tickets,
+      groupCost: money(r.flight.groupCost),
+      costPerParticipant: money(r.flight.costPerParticipant),
+      pricePerParticipant: money(r.flight.pricePerParticipant),
+      marginPerParticipant: money(r.flight.marginPerParticipant),
+    },
     /** Per line, in sale currency and already multiplied by headcount where it applies. */
     lineTotals: r.lineTotals.map(money),
   };
@@ -373,6 +393,7 @@ export function snapshotHash(v: FullVersion) {
     'freePlaceBenefit',
     'itinerary',
     'coverAttachmentId',
+    'flight',
   ] as const;
   for (const k of added) if (rest[k] === null) delete rest[k];
   if (!rest.showVolumePrices) delete (rest as { showVolumePrices?: boolean }).showVolumePrices;
@@ -389,9 +410,10 @@ export type QuoteDto = ReturnType<typeof toDto>;
 
 export function toDto(v: FullVersion) {
   const rated = new Set(v.fxRates.map((f) => f.fromCurrency));
-  const missingFx = [...new Set(v.lines.map((l) => l.currency))].filter(
-    (c) => c !== v.saleCurrency && !rated.has(c),
-  );
+  const flight = v.flight ? FlightInput.parse(v.flight) : null;
+  const missingFx = [
+    ...new Set([...v.lines.map((l) => l.currency), ...(flight ? [flight.currency] : [])]),
+  ].filter((c) => c !== v.saleCurrency && !rated.has(c));
   const pay = schedule(v, missingFx.length ? null : engine(v).pricePerParticipant);
   return {
     id: v.id,
@@ -417,6 +439,7 @@ export function toDto(v: FullVersion) {
     exclusions: v.exclusions,
     coverAttachmentId: v.coverAttachmentId,
     showVolumePrices: v.showVolumePrices,
+    flight,
     paymentSchedule: pay.payments,
     freePlaces: v.studentsPerFreePlace ? freePlaces(v.participants, v.studentsPerFreePlace) : null,
     lines: v.lines.map((l) => ({
@@ -487,6 +510,7 @@ async function copyVersion(tx: Tx, src: FullVersion, scenarioId: string, number:
       exclusions: src.exclusions,
       coverAttachmentId: src.coverAttachmentId,
       showVolumePrices: src.showVolumePrices,
+      flight: src.flight ?? Prisma.DbNull,
       createdById: userId,
       lines: {
         create: syncChaperoneLines(
@@ -838,8 +862,15 @@ export class QuotesController {
             message: 'La portada debe ser una imagen JPG o PNG adjunta a esta solicitud',
           });
       }
-      const { targetMarginRate, targetPricePerParticipant, mxnRate, paymentPlan, itinerary, ...rest } =
-        fields;
+      const {
+        targetMarginRate,
+        targetPricePerParticipant,
+        mxnRate,
+        paymentPlan,
+        itinerary,
+        flight,
+        ...rest
+      } = fields;
       const { count } = await tx.quoteVersion.updateMany({
         where: { id, rowVersion },
         data: {
@@ -851,6 +882,7 @@ export class QuotesController {
           ...(validUntil !== undefined ? { validUntil: validUntil ? toDate(validUntil) : null } : {}),
           ...(paymentPlan !== undefined ? { paymentPlan: json(paymentPlan) } : {}),
           ...(itinerary !== undefined ? { itinerary: json(itinerary) } : {}),
+          ...(flight !== undefined ? { flight: json(flight) } : {}),
           rowVersion: { increment: 1 },
           // Editing (e.g. after being returned) moves the version to the current gratuities rule.
           freeCourseByRatio: true,
@@ -912,11 +944,10 @@ export class QuotesController {
         code: 'FX_REQUIRED',
         message: 'Registra los tipos de cambio antes de fijar el precio final',
       });
-    const cost = engine(v).costPerParticipant;
     const price = new D(target);
     let rate: Dec;
     try {
-      rate = marginRateForPrice(cost, price);
+      rate = marginForPrice(engine(v), price);
     } catch (e) {
       if (!(e instanceof QuoteEngineError)) throw e;
       throw new BadRequestException({

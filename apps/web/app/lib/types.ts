@@ -186,6 +186,15 @@ export interface FxRateDto {
   source: string;
 }
 
+export interface FlightDto {
+  netCost: string;
+  finalPrice: string;
+  currency: CurrencyCode;
+  /** Sí = these chaperones' tickets are shared among the students. */
+  shareChaperones: boolean;
+  shareStaff: boolean;
+}
+
 export interface QuoteDto {
   id: string;
   scenarioId: string;
@@ -208,6 +217,7 @@ export interface QuoteDto {
     | (Record<
         | 'directPerParticipant'
         | 'sharedPerParticipant'
+        | 'programCostPerParticipant'
         | 'costPerParticipant'
         | 'marginPerParticipant'
         | 'pricePerParticipant'
@@ -219,6 +229,13 @@ export interface QuoteDto {
         groupMarginMxn: string | null;
         /** Per line, in sale currency, headcount applied. */
         lineTotals: string[];
+        /** Avión in sale currency; null without one. */
+        flight:
+          | (Record<
+              'groupCost' | 'costPerParticipant' | 'pricePerParticipant' | 'marginPerParticipant',
+              string
+            > & { tickets: number })
+          | null;
       })
     | null;
   paymentPlan: PaymentPlanDto | null;
@@ -230,6 +247,8 @@ export interface QuoteDto {
   exclusions: string[];
   coverAttachmentId: string | null;
   showVolumePrices: boolean;
+  /** Plane ticket ("Avión"), in its own currency; finalPrice is per student and skips the % comisión. */
+  flight: FlightDto | null;
   /** Per student, computed from the rounded price; null without a plan or totals. */
   paymentSchedule: PaymentDto[] | null;
   freePlaces: number | null;

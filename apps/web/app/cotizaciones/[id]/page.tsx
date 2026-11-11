@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { CurrencyCode, LineCategory } from '@ee/contracts';
+import { FlightPanel } from './Flight';
 import { chaperoneMirrors, syncChaperoneLines } from '@ee/quote-engine';
 import { api, errorText } from '../../lib/api';
 import { preview, TotalsBar } from './LiveTotals';
@@ -76,6 +77,14 @@ const FLOW_TABS: FlowTab[] = ['autorizacion', 'envio', 'expediente'];
 const TABS = ['hoja', 'conceptos', 'pagos', 'volumen', 'propuesta', 'importar'] as const;
 
 /** Quote version editor (US-031, US-055) laid out like the V2 model: header, stages, tabs, live bar. */
+/** The sheet's block tabs: the line blocks plus "Avión" after the chaperones (Will, 2026-11-11). */
+type BlockTab = LineCategory | 'FLIGHT';
+const BLOCK_TABS: { category: BlockTab; title: string }[] = [
+  ...SHEET_BLOCKS.slice(0, 3),
+  { category: 'FLIGHT', title: '✈ Avión' },
+  ...SHEET_BLOCKS.slice(3),
+];
+
 export default function QuoteEditorPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -97,7 +106,7 @@ export default function QuoteEditorPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab | null>(null);
   const [flowTab, setFlowTab] = useState<FlowTab | null>(null);
-  const [block, setBlock] = useState<LineCategory>(SHEET_BLOCKS[0]!.category);
+  const [block, setBlock] = useState<BlockTab>(SHEET_BLOCKS[0]!.category);
   const [folded, setFolded] = useState<LineCategory[]>([]);
 
   const load = useCallback((v: QuoteDto) => {
@@ -138,7 +147,9 @@ export default function QuoteEditorPage() {
   const set = (patch: Partial<QuoteDto>) => setDraft({ ...draft, ...patch });
   const setLine = (i: number, patch: Partial<QuoteLineDto>) =>
     set({ lines: draft.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
-  const foreign = [...new Set(draft.lines.map((l) => l.currency))].filter((c) => c !== draft.saleCurrency);
+  const foreign = [
+    ...new Set([...draft.lines.map((l) => l.currency), ...(draft.flight ? [draft.flight.currency] : [])]),
+  ].filter((c) => c !== draft.saleCurrency);
   const missingFx = foreign.filter((c) => !draft.fxRates.some((f) => f.fromCurrency === c && f.rate));
   const live = preview(draft, marginPct, targetPrice, byPrice);
   // Chaperones' seguro/kit/transfer show (and save as) the student's; their inputs are locked.
@@ -333,6 +344,11 @@ export default function QuoteEditorPage() {
           itinerary: draft.itinerary?.map((d) => ({ ...d, details: d.details?.trim() || undefined })) ?? null,
           exclusions: draft.exclusions.map((x) => x.trim()).filter(Boolean),
           coverAttachmentId: draft.coverAttachmentId,
+          flight: draft.flight && {
+            ...draft.flight,
+            netCost: draft.flight.netCost || '0',
+            finalPrice: draft.flight.finalPrice || '0',
+          },
           // Server-only fields would fail strict validation.
           lines: draft.lines.map(({ id: _id, lineTotal: _t, ...l }) => ({
             ...l,
@@ -738,7 +754,7 @@ export default function QuoteEditorPage() {
               </span>
             </div>
             <div role="tablist" aria-label="Bloques de conceptos" className="tabs block-tabs">
-              {SHEET_BLOCKS.map((b, n) => (
+              {BLOCK_TABS.map((b, n) => (
                 <button
                   key={b.category}
                   id={`block-tab-${b.category}`}
@@ -750,17 +766,49 @@ export default function QuoteEditorPage() {
                   onKeyDown={(e) => {
                     const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
                     if (!step) return;
-                    const next = SHEET_BLOCKS[(n + step + SHEET_BLOCKS.length) % SHEET_BLOCKS.length]!;
+                    const next = BLOCK_TABS[(n + step + BLOCK_TABS.length) % BLOCK_TABS.length]!;
                     setBlock(next.category);
                     document.getElementById(`block-tab-${next.category}`)?.focus();
                   }}
                 >
                   <span className="tab-name">{b.title}</span>
                   <span className="tab-amount">
-                    {live.ok ? `${live.byCategory[b.category]} ${draft.saleCurrency}` : '—'}
+                    {!live.ok
+                      ? '—'
+                      : b.category !== 'FLIGHT'
+                        ? `${live.byCategory[b.category]} ${draft.saleCurrency}`
+                        : live.flight
+                          ? `${live.flight.price} ${draft.saleCurrency} / est.`
+                          : 'Sin avión'}
                   </span>
                 </button>
               ))}
+            </div>
+            <div
+              id="block-panel-FLIGHT"
+              role="tabpanel"
+              aria-labelledby="block-tab-FLIGHT"
+              hidden={block !== 'FLIGHT'}
+              className="card compact block"
+            >
+              <div className="block-head">
+                <h3>✈ Avión</h3>
+                <span className="muted">
+                  Boleto por persona; puede ir en otra moneda y se convierte con los tipos de cambio de esta
+                  cotización.
+                </span>
+                {live.ok && live.flight && (
+                  <span className="num subtotal">
+                    {live.flight.price} {draft.saleCurrency} / est.
+                  </span>
+                )}
+              </div>
+              <FlightPanel
+                draft={draft}
+                live={live}
+                editable={editable}
+                onChange={(flight) => set({ flight })}
+              />
             </div>
             {SHEET_BLOCKS.map((b) => {
               const rows = synced.map((l, i) => ({ l, i })).filter(({ l }) => l.category === b.category);

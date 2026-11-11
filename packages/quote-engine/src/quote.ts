@@ -1,5 +1,5 @@
 import { D, type Dec, QuoteEngineError, safeDivide } from './money.js';
-import { lineTotal, priceFromTargetMargin } from './pricing.js';
+import { lineTotal, marginRateForPrice, priceFromTargetMargin } from './pricing.js';
 import { freePlaces } from './schedule.js';
 
 /**
@@ -26,6 +26,17 @@ export interface QuoteInput {
   studentsPerFreePlace?: number | null;
   /** STUDENT = a scholarship, informative only; anything else frees chaperones' course. */
   freePlaceBenefit?: 'CHAPERONE' | 'STUDENT' | null;
+  /** Plane ticket ("Avión"), in its own currency; finalPrice is per student and skips the % comisión. */
+  flight?: FlightInput | null;
+}
+
+export interface FlightInput {
+  netCost: Dec;
+  finalPrice: Dec;
+  currency: string;
+  /** Sí = the school chaperones' tickets are shared among the students; No = not charged to the group. */
+  shareChaperones: boolean;
+  shareStaff: boolean;
 }
 
 const plain = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
@@ -104,12 +115,34 @@ export function atGroupSize<T extends Pick<QuoteInput, 'participants' | 'chapero
   return { ...q, participants, chaperones: Math.max(q.chaperones, earned - q.staff) };
 }
 
+function fx(q: QuoteInput, currency: string) {
+  const rate = currency === q.saleCurrency ? new D(1) : q.fxRates[currency];
+  if (!rate) throw new QuoteEngineError('MISSING_FX', `Falta tipo de cambio ${currency} → ${q.saleCurrency}`);
+  return rate;
+}
+
+/** Avión (Will, 2026-11-11): students' tickets plus the chaperones' marked Sí, shared among students. */
+function flightTotals(q: QuoteInput) {
+  const f = q.flight;
+  if (!f) return null;
+  const rate = fx(q, f.currency);
+  const tickets = q.participants + (f.shareChaperones ? q.chaperones : 0) + (f.shareStaff ? q.staff : 0);
+  const groupCost = f.netCost.mul(rate).mul(tickets);
+  const costPerParticipant = safeDivide(groupCost, new D(q.participants));
+  const pricePerParticipant = f.finalPrice.mul(rate);
+  return {
+    tickets,
+    groupCost,
+    costPerParticipant,
+    pricePerParticipant,
+    marginPerParticipant: pricePerParticipant.minus(costPerParticipant),
+  };
+}
+
 export function calculateQuote(q: QuoteInput) {
   const free = gratuities(q);
   const lineTotals = q.lines.map((l) => {
-    const rate = l.currency === q.saleCurrency ? new D(1) : q.fxRates[l.currency];
-    if (!rate)
-      throw new QuoteEngineError('MISSING_FX', `Falta tipo de cambio ${l.currency} → ${q.saleCurrency}`);
+    const rate = fx(q, l.currency);
     // Per-participant lines stay per head; everything else is the line's total for the group.
     return lineTotal(l.quantity, l.unitCost)
       .mul(rate)
@@ -121,9 +154,13 @@ export function calculateQuote(q: QuoteInput) {
   const directPerParticipant = sum((c) => c === 'PER_PARTICIPANT');
   const sharedTotal = sum((c) => c !== 'PER_PARTICIPANT');
   const sharedPerParticipant = safeDivide(sharedTotal, new D(q.participants));
-  const costPerParticipant = directPerParticipant.plus(sharedPerParticipant);
+  const programCostPerParticipant = directPerParticipant.plus(sharedPerParticipant);
+  const flight = flightTotals(q);
+  const costPerParticipant = programCostPerParticipant.plus(flight?.costPerParticipant ?? 0);
   // Finance rounds the price up to the next whole unit; the margin absorbs the difference.
-  const pricePerParticipant = priceFromTargetMargin(costPerParticipant, q.targetMarginRate).ceil();
+  const pricePerParticipant = priceFromTargetMargin(programCostPerParticipant, q.targetMarginRate)
+    .plus(flight?.pricePerParticipant ?? 0)
+    .ceil();
   const marginPerParticipant = pricePerParticipant.minus(costPerParticipant);
   const groupMargin = marginPerParticipant.mul(q.participants);
   const categories: Category[] = [
@@ -142,6 +179,9 @@ export function calculateQuote(q: QuoteInput) {
     directPerParticipant,
     sharedTotal,
     sharedPerParticipant,
+    /** Cost the % comisión applies to: everything but the plane ticket. */
+    programCostPerParticipant,
+    flight,
     costPerParticipant,
     marginPerParticipant,
     pricePerParticipant,
@@ -151,3 +191,7 @@ export function calculateQuote(q: QuoteInput) {
     groupMarginMxn: q.mxnRate ? groupMargin.mul(q.mxnRate) : null,
   };
 }
+
+/** The % comisión that makes the price hit `price`; the plane ticket's final price is fixed, not grossed up. */
+export const marginForPrice = (r: ReturnType<typeof calculateQuote>, price: Dec) =>
+  marginRateForPrice(r.programCostPerParticipant, price.minus(r.flight?.pricePerParticipant ?? 0));

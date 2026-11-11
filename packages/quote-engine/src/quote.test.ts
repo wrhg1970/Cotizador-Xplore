@@ -5,6 +5,7 @@ import {
   atGroupSize,
   calculateQuote,
   chaperoneMirrors,
+  marginForPrice,
   syncChaperoneLines,
   type QuoteInput,
 } from './quote.js';
@@ -258,5 +259,60 @@ describe('Gratuidades por ratio and chaperone concepts (Will, 2026-11-06)', () =
     expect(r.gratuities).toEqual({ total: 3, staff: 1, chaperones: 1 });
     expect(r.byCategory.PER_STAFF.toString()).toBe('30'); // course free, seguro still paid
     expect(r.byCategory.PER_CHAPERONE.toString()).toBe('120');
+  });
+});
+
+describe('Avión (Will, 2026-11-11)', () => {
+  const base: QuoteInput = {
+    saleCurrency: 'CAD',
+    participants: 30,
+    chaperones: 3,
+    staff: 2,
+    targetMarginRate: dec('0.2'),
+    fxRates: { USD: dec('1.4') },
+    lines: [{ category: 'PER_PARTICIPANT', quantity: dec('1'), unitCost: dec('1000'), currency: 'CAD' }],
+  };
+  const flight = (shareChaperones: boolean, shareStaff: boolean) => ({
+    netCost: dec('500'),
+    finalPrice: dec('600'),
+    currency: 'USD',
+    shareChaperones,
+    shareStaff,
+  });
+
+  it('shares the tickets marked Sí among students and adds the final price without % comisión', () => {
+    const r = calculateQuote({ ...base, flight: flight(true, true) });
+    expect(r.flight!.tickets).toBe(35);
+    expect(r.flight!.groupCost.toFixed(2)).toBe('24500.00'); // 500 USD × 1.4 × 35
+    expect(r.flight!.costPerParticipant.toFixed(2)).toBe('816.67');
+    expect(r.flight!.pricePerParticipant.toFixed(2)).toBe('840.00');
+    expect(r.pricePerParticipant.toFixed(0)).toBe('2090'); // 1000 / 0.8 + 840
+    expect(r.costPerParticipant.toFixed(2)).toBe('1816.67');
+  });
+
+  it('a chaperone type marked No does not add tickets', () => {
+    expect(calculateQuote({ ...base, flight: flight(false, true) }).flight!.tickets).toBe(32);
+    expect(calculateQuote({ ...base, flight: flight(false, false) }).flight!.tickets).toBe(30);
+  });
+
+  it('needs the exchange rate of the ticket currency', () => {
+    expect(() => calculateQuote({ ...base, fxRates: {}, flight: flight(true, true) })).toThrow(/USD/);
+  });
+
+  it('without Avión the price is unchanged', () => {
+    expect(calculateQuote(base).pricePerParticipant.toFixed(0)).toBe('1250');
+    expect(calculateQuote(base).flight).toBeNull();
+  });
+
+  it('a typed final price leaves the plane ticket out of the % comisión', () => {
+    const r = calculateQuote({ ...base, flight: flight(true, true) });
+    const rate = marginForPrice(r, dec('2100'));
+    expect(
+      calculateQuote({
+        ...base,
+        flight: flight(true, true),
+        targetMarginRate: rate,
+      }).pricePerParticipant.toFixed(0),
+    ).toBe('2100');
   });
 });

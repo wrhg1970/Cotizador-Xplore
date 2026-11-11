@@ -361,6 +361,8 @@ model QuoteVersion {
   coverAttachment      RequestAttachment?  @relation("cover", fields: [coverAttachmentId], references: [id], onDelete: Restrict)
   /// Shows the price-per-group-size table (prices only, no costs) on the client's proposal.
   showVolumePrices     Boolean             @default(false) @map("show_volume_prices")
+  /// Plane ticket "Avión" (contracts FlightInput): net cost, final price per student, currency, shares.
+  flight               Json?
   /// Optimistic concurrency token for edits.
   rowVersion           Int                 @default(1) @map("row_version")
   createdById          String              @map("created_by_id") @db.Uuid
