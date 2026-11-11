@@ -101,6 +101,13 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   // Volume ladder and stress test come from the same engine; the 10-student group sits below 15.
   await page.getByRole('tab', { name: 'Volumen y riesgo' }).click();
   await expect(page.getByRole('table', { name: 'Precio por volumen' }).getByRole('row')).toHaveCount(6);
+  // Simulator: starts on today's price; at 20% the price follows the sheet (4215 / 0.8 = 5268.75 → 5269).
+  const sim = page.getByRole('region', { name: 'Variación de aforo y de % de comisión' });
+  await expect(sim).toContainText('Igual al precio actual');
+  await sim.getByLabel('% de comisión').fill('20');
+  await expect(sim).toContainText('5,269.00 EUR');
+  await expect(sim).toContainText('+69.00 EUR vs precio actual (5,200.00)');
+  await expect(sim).toContainText('Comisión del grupo: 10,540.00 EUR');
   await page.getByLabel('Mostrar al colegio el precio por rango').check();
   await page.getByRole('tab', { name: 'Propuesta' }).click();
   await page.getByRole('button', { name: 'Agregar día' }).click();

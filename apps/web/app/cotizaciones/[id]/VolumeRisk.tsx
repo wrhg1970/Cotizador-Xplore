@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { atGroupSize, calculateQuote, D, freePlaces, type QuoteInput, safeDivide } from '@ee/quote-engine';
 import { downloadCsv } from '../../lib/csv';
 import type { QuoteDto } from '../../lib/types';
+import { thousands } from './SheetSummary';
 
 type Dec = InstanceType<typeof D>;
 const n2 = (x: Dec) => x.toFixed(2);
@@ -20,28 +21,33 @@ function at(input: QuoteInput, participants: number, studentsPerFreePlace?: numb
   };
 }
 
-/** Stress test: fewer paying students or a moved exchange rate, with the price already given to the school. */
+/** Stress test: fewer paying students or another % de comisión; the price follows, like the sheet. */
 export function Sensitivity({ input, d }: { input: QuoteInput; d: QuoteDto }) {
   const base = d.participants;
-  const [students, setStudents] = useState(base);
-  const [fxDelta, setFxDelta] = useState(0);
+  // Exact %, so the simulator starts on today's price; the slider then moves in 0.5 steps.
+  const basePct = input.targetMarginRate.mul(100).toNumber();
+  // null = follow the scenario's own value while it is still being edited.
+  const [studentsSet, setStudents] = useState<number | null>(null);
+  const [pctSet, setPct] = useState<number | null>(null);
+  const students = studentsSet ?? base;
+  const pct = pctSet ?? basePct;
   const cur = d.saleCurrency;
-  const baseRate = cur === 'MXN' ? null : d.mxnRate ? Number(d.mxnRate) : null;
+  const rate = cur !== 'MXN' && d.mxnRate ? new D(d.mxnRate) : null;
   const price = calculateQuote(input).pricePerParticipant;
-  const now = at(input, students);
-  const margin = price.minus(now.costPerParticipant);
-  const rate = baseRate ? new D(baseRate).plus(fxDelta) : null;
-  const sign = (x: number) => (x >= 0 ? `+${x.toFixed(2)}` : x.toFixed(2));
+  const now = at({ ...input, targetMarginRate: new D(pct).div(100) }, students);
+  const diff = now.pricePerParticipant.minus(price);
+  const m = (x: Dec) => thousands(n2(x));
+  const mxn = (x: Dec) => rate && <small>≈ {m(x.mul(rate))} MXN</small>;
 
   return (
     <section className="card" aria-labelledby="sensibilidad">
       <p className="eyebrow">Simulador financiero de riesgo y sensibilidad</p>
       <h2 id="sensibilidad" style={{ margin: 0 }}>
-        Variación de aforo y de tipo de cambio
+        Variación de aforo y de % de comisión
       </h2>
       <p className="muted" style={{ margin: '4px 0 12px' }}>
-        Qué pasa con los gastos de chaperones y la utilidad si se inscriben menos estudiantes o se mueve el
-        tipo de cambio antes de pagar a proveedores. El precio se queda fijo; nada se guarda.
+        Qué pasa con el precio por estudiante y la comisión si se inscriben menos estudiantes o se ajusta el %
+        de comisión. Nada se guarda.
       </p>
       <div className="sim">
         <div className="sliders">
@@ -64,55 +70,58 @@ export function Sensitivity({ input, d }: { input: QuoteInput; d: QuoteDto }) {
               <span>Máx. 40</span>
             </span>
           </label>
-          {baseRate && (
-            <label>
-              <span className="row" style={{ justifyContent: 'space-between' }}>
-                Tipo de cambio {cur}/MXN
-                <strong>
-                  {(baseRate + fxDelta).toFixed(2)} ({sign(fxDelta)})
-                </strong>
-              </span>
-              <input
-                type="range"
-                min={-2.5}
-                max={3.5}
-                step={0.05}
-                value={fxDelta}
-                onChange={(e) => setFxDelta(Number(e.target.value))}
-              />
-              <span className="scale">
-                <span>−2.50</span>
-                <span>Base {baseRate.toFixed(2)}</span>
-                <span>+3.50</span>
-              </span>
-            </label>
-          )}
+          <label>
+            <span className="row" style={{ justifyContent: 'space-between' }}>
+              % de comisión
+              <strong>
+                {pct.toFixed(1)}% (base {basePct.toFixed(1)}%)
+              </strong>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={Math.max(40, Math.ceil(basePct))}
+              step={0.5}
+              value={pct}
+              onChange={(e) => setPct(Number(e.target.value))}
+            />
+            <span className="scale">
+              <span>0%</span>
+              <span>Base {basePct.toFixed(1)}%</span>
+              <span>{Math.max(40, Math.ceil(basePct))}%</span>
+            </span>
+          </label>
         </div>
         <dl className="kpis">
           <div>
-            <dt>Gastos del líder por estudiante</dt>
+            <dt>Precio por estudiante</dt>
             <dd>
-              {n2(now.leaderEach)} {cur}
+              {m(now.pricePerParticipant)} {cur}
             </dd>
-          </div>
-          <div>
-            <dt>
-              Margen real (precio fijo {n2(price)} {cur})
-            </dt>
-            <dd className={margin.isNegative() ? 'bad' : 'good'}>
-              {price.isZero() ? '—' : `${margin.div(price).mul(100).toFixed(2)}%`}
-            </dd>
-            <small>
-              Utilidad por estudiante: {n2(margin)} {cur}
+            {mxn(now.pricePerParticipant)}
+            <small style={{ display: 'block' }}>
+              {diff.isZero()
+                ? 'Igual al precio actual'
+                : `${diff.isPositive() ? '+' : '−'}${m(diff.abs())} ${cur} vs precio actual (${m(price)})`}
             </small>
           </div>
-          {rate && (
-            <div>
-              <dt>Precio por estudiante en pesos</dt>
-              <dd>{n2(price.mul(rate))} MXN</dd>
-              <small>Utilidad del grupo: {n2(margin.mul(students).mul(rate))} MXN</small>
-            </div>
-          )}
+          <div>
+            <dt>Comisión por estudiante</dt>
+            <dd className={now.marginPerParticipant.isNegative() ? 'bad' : undefined}>
+              {m(now.marginPerParticipant)} {cur}
+            </dd>
+            <small style={{ display: 'block' }}>
+              Comisión del grupo: {m(now.groupMargin)} {cur}
+            </small>
+            {mxn(now.groupMargin)}
+          </div>
+          <div>
+            <dt>Gastos del líder por estudiante</dt>
+            <dd>
+              {m(now.leaderEach)} {cur}
+            </dd>
+            <small>Chaperones, staff EE y fondo de emergencia</small>
+          </div>
         </dl>
       </div>
     </section>
