@@ -90,7 +90,7 @@ export function SheetSummary({ q }: { q: QuoteDto }) {
             {ft && (
               <>
                 {total(
-                  'Precio del programa',
+                  'Precio del curso',
                   new D(t.pricePerParticipant).minus(ft.pricePerParticipant).toFixed(2),
                 )}
                 <tr>

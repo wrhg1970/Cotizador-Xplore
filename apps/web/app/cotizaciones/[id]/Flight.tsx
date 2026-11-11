@@ -137,7 +137,7 @@ export function FlightPanel({
               </td>
             </tr>
             <tr>
-              <td>Precio del programa (con % de comisión) + avión</td>
+              <td>Precio del curso (con % de comisión) + avión</td>
               <td className="num">
                 {n(new D(live.price).minus(t.price).toFixed(2))} + {n(t.price)} = {n(live.price)} {cur}
               </td>
