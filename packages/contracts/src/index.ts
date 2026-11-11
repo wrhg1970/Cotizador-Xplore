@@ -431,6 +431,17 @@ export type ItineraryDay = z.infer<typeof ItineraryDay>;
 
 export const FreePlaceBenefit = z.enum(['CHAPERONE', 'STUDENT']);
 
+/** "Avión" (Will, 2026-11-11): net ticket and final price per student, in the ticket's currency. */
+export const FlightInput = z.strictObject({
+  netCost: DecimalString.refine((x) => Number(x) >= 0, 'El precio neto no puede ser negativo'),
+  finalPrice: DecimalString.refine((x) => Number(x) >= 0, 'El precio final no puede ser negativo'),
+  currency: CurrencyCode,
+  /** Sí = the chaperones' tickets are shared among students; No = not charged to the group. */
+  shareChaperones: z.boolean(),
+  shareStaff: z.boolean(),
+});
+export type FlightInput = z.infer<typeof FlightInput>;
+
 /** Proposal content shared by versions and templates. */
 const proposalContent = {
   studentsPerFreePlace: z.number().int().min(1).max(100).nullable().optional(),
@@ -465,6 +476,8 @@ export const UpdateQuote = z
     lines: z.array(QuoteLineInput).max(500).optional(),
     fxRates: z.array(FxRateInput).max(10).optional(),
     paymentPlan: PaymentPlanInput.nullable().optional(),
+    /** null removes the plane ticket. */
+    flight: FlightInput.nullable().optional(),
     ...proposalContent,
     /** Price per group size on the client's proposal (prices only). */
     showVolumePrices: z.boolean().optional(),

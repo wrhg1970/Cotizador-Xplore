@@ -58,6 +58,7 @@ function eeSheet(wb: ExcelJS.Workbook, q: QuoteDto, req: { folio: string; groupN
 
   const t = q.totals;
   const s = q.sheet;
+  const f = t?.flight;
   if (!t || !s) {
     ws.addRow(['Sin totales: faltan tipos de cambio']);
     for (const w of q.warnings) ws.addRow([w.message]);
@@ -79,10 +80,16 @@ function eeSheet(wb: ExcelJS.Workbook, q: QuoteDto, req: { folio: string; groupN
     ...(Number(s.groupFixedTotal) > 0
       ? [['Fijos del grupo ÷ estudiantes', s.groupFixedPerParticipant] as Row]
       : []),
-    ['SubTotal 2', t.costPerParticipant, 'total'],
+    ['SubTotal 2', t.programCostPerParticipant, 'total'],
     ['% Comisión (sobre el precio final)', Number(q.targetMarginRate)],
     ['Comisión por estudiante', t.marginPerParticipant],
     ['Comisión del grupo', t.groupMargin],
+    ...(f && q.flight
+      ? ([
+          ['Avión: precio final por estudiante (sin comisión)', f.pricePerParticipant],
+          ['Utilidad aérea por estudiante (incluida en la comisión)', f.marginPerParticipant],
+        ] as Row[])
+      : []),
     [`PRECIO FINAL (${cur})`, t.pricePerParticipant, 'strong'],
     ['Total del grupo', t.groupPrice],
     ...(t.pricePerParticipantMxn
@@ -97,6 +104,23 @@ function eeSheet(wb: ExcelJS.Workbook, q: QuoteDto, req: { folio: string; groupN
     ['SubTotal chaperones', s.chaperonesTotal, 'total'],
     ['Fondo de emergencia', s.emergencyFund],
     ['Total chaperones', s.totalChaperones, 'strong'],
+    ...(f && q.flight
+      ? ([
+          ['Avión', null, 'title'],
+          [`Precio neto por boleto (${q.flight.currency} ${q.flight.netCost})`, null],
+          [
+            `Boletos: estudiantes${q.flight.shareChaperones ? ' + chaperones escuela' : ''}${q.flight.shareStaff ? ' + chaperones EE' : ''}`,
+            f.tickets,
+          ],
+          ['Costo aéreo del grupo', f.groupCost, 'total'],
+          ['Costo por estudiante', f.costPerParticipant],
+          [
+            `Precio final por estudiante (${q.flight.currency} ${q.flight.finalPrice})`,
+            f.pricePerParticipant,
+            'strong',
+          ],
+        ] as Row[])
+      : []),
     ...(Number(s.groupFixedTotal) > 0
       ? ([
           ['Fijos del grupo', null, 'title'],

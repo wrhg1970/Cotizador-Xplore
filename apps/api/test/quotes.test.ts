@@ -624,6 +624,42 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
     });
   });
 
+  it('Avión adds its final price without % comisión, asks for its exchange rate and shows on the proposal', async () => {
+    const v = (await newScenario(c.quoter).expect(201)).body.latest;
+    const flight = {
+      netCost: '300',
+      finalPrice: '350',
+      currency: 'EUR',
+      shareChaperones: true,
+      shareStaff: false,
+    };
+    const res = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ ...option1, flight, rowVersion: 1 })
+      .expect(200);
+    expect(res.body.flight).toEqual(flight);
+    expect(res.body.totals.pricePerParticipant).toBe('5479.00'); // 5129 of option 1 + 350, rounded up once
+    expect(res.body.totals.flight).toMatchObject({ pricePerParticipant: '350.00' });
+    const p = await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', c.advisor).expect(200);
+    expect(p.body.includes).toContain('Boleto de avión');
+    expect(JSON.stringify(p.body)).not.toMatch(/netCost|flight/); // costs never reach the client
+    const usd = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ flight: { ...flight, currency: 'USD' }, rowVersion: res.body.rowVersion })
+      .expect(200);
+    expect(usd.body.totals).toBeNull();
+    expect(usd.body.warnings).toContainEqual(expect.objectContaining({ code: 'MISSING_FX' }));
+    const cleared = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ flight: null, rowVersion: usd.body.rowVersion })
+      .expect(200);
+    expect(cleared.body.flight).toBeNull();
+    expect(cleared.body.totals.pricePerParticipant).toBe('5129.00');
+  });
+
   it('volume prices reach the proposal only when ticked, and quote events reach the timeline', async () => {
     const v = (await newScenario(c.quoter).expect(201)).body.latest;
     const saved = await api()

@@ -3,7 +3,7 @@ import {
   calculateQuote,
   D,
   dec,
-  marginRateForPrice,
+  marginForPrice,
   QuoteEngineError,
   type QuoteInput,
   roundMoney,
@@ -25,6 +25,10 @@ export type Preview =
       mxn: string | null;
       lineTotals: string[];
       byCategory: Record<string, string>;
+      /** SubTotal 2: cost the % comisión applies to (no plane ticket). */
+      programCost: string;
+      /** Avión in sale currency; null without one. */
+      flight: { tickets: number; groupCost: string; cost: string; price: string; margin: string } | null;
       /** Engine input with the effective margin, for what-if tables (volume, sensitivity). */
       input: QuoteInput;
     }
@@ -59,11 +63,16 @@ export function preview(d: QuoteDto, marginPct: string, targetPrice: string, byP
       mxnRate: d.saleCurrency !== 'MXN' && d.mxnRate ? dec(d.mxnRate) : null,
       studentsPerFreePlace: d.freeCourseByRatio ? d.studentsPerFreePlace : null,
       freePlaceBenefit: d.freePlaceBenefit,
+      flight: d.flight && {
+        ...d.flight,
+        netCost: dec(d.flight.netCost || '0'),
+        finalPrice: dec(d.flight.finalPrice || '0'),
+      },
     };
     if (!d.participants) return { ok: false, reason: 'Captura el número de estudiantes' };
     let r = calculateQuote(input);
     if (byPrice && /^[1-9]\d*$/.test(targetPrice.trim())) {
-      input.targetMarginRate = marginRateForPrice(r.costPerParticipant, new D(targetPrice.trim()));
+      input.targetMarginRate = marginForPrice(r, new D(targetPrice.trim()));
       r = calculateQuote(input);
     }
     return {
@@ -79,6 +88,14 @@ export function preview(d: QuoteDto, marginPct: string, targetPrice: string, byP
       mxn: r.pricePerParticipantMxn && money(r.pricePerParticipantMxn),
       lineTotals: r.lineTotals.map(money),
       byCategory: Object.fromEntries(Object.entries(r.byCategory).map(([k, v]) => [k, money(v)])),
+      programCost: money(r.programCostPerParticipant),
+      flight: r.flight && {
+        tickets: r.flight.tickets,
+        groupCost: money(r.flight.groupCost),
+        cost: money(r.flight.costPerParticipant),
+        price: money(r.flight.pricePerParticipant),
+        margin: money(r.flight.marginPerParticipant),
+      },
       input,
     };
   } catch (e) {
