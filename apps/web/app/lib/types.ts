@@ -134,6 +134,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'request.commented': 'Comentó',
   'quote.scenario.created': 'Creó un escenario',
   'quote.scenario.duplicated': 'Duplicó un escenario',
+  'quote.scenario.renamed': 'Cambió el nombre de un escenario',
   'quote.version.created': 'Creó una versión',
   'quote.version.updated': 'Editó la cotización',
   'quote.import_previewed': 'Importó una hoja con IA (vista previa)',

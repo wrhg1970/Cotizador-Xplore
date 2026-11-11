@@ -71,6 +71,7 @@ function describe(detail: unknown): string {
     parts.push(
       `Tipos de cambio: ${(d.fxRates as { from: string; rate: string }[]).map((f) => `${f.from} ${f.rate}`).join(', ')}`,
     );
+  if (typeof d.from === 'string' && typeof d.to === 'string') parts.push(`${d.from} → ${d.to}`);
   for (const k of ['reason', 'comment', 'recipients', 'name', 'fileName'])
     if (typeof d[k] === 'string') parts.push(String(d[k]));
   return parts.join(' · ');
