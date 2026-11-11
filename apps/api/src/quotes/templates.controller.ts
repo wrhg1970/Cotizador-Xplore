@@ -47,6 +47,7 @@ export class QuoteTemplatesController {
           id: t.id,
           name: t.name,
           saleCurrency: t.saleCurrency,
+          targetMarginRate: t.targetMarginRate.toFixed(),
           lineCount: Array.isArray(t.lines) ? t.lines.length : 0,
           createdBy: t.createdBy.name,
           createdById: t.createdById,

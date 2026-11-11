@@ -16,12 +16,17 @@ test('admin grants "Autorizar viaje"; legend shows until the trip is authorized'
   await admCtx.addCookies([admin.cookie]);
   const adm = await admCtx.newPage();
   await adm.goto('/usuarios');
-  await adm.getByLabel('Agregar privilegio a Aurora Autoriza').selectOption({ label: 'Autorizar viaje' });
+  await adm.getByRole('button', { name: 'Editar Aurora Autoriza' }).click();
+  await adm
+    .getByRole('group', { name: 'Privilegios de Aurora Autoriza' })
+    .getByLabel('Autorizar viaje')
+    .click();
   await expect(adm.getByRole('row', { name: /Aurora Autoriza/ })).toContainText('Autorizar viaje');
+  await adm.getByRole('button', { name: '+ Invitar usuario' }).click();
   await adm.getByLabel('Nombre', { exact: true }).fill('Nuevo Autorizador');
   await adm.getByLabel('Correo de Google').fill(`${randomUUID()}@e2e.example`);
   await adm.getByLabel('Privilegio', { exact: true }).selectOption({ label: 'Autorizar viaje' });
-  await adm.getByRole('button', { name: 'Invitar' }).click();
+  await adm.getByRole('button', { name: 'Invitar', exact: true }).click();
   await expect(adm.getByRole('row', { name: /Nuevo Autorizador/ })).toContainText('Autorizar viaje');
 
   // A ready version, built by the quoter.

@@ -12,7 +12,7 @@ test('admin publishes an official rate and the quoter prefills a quote with it',
   const ctx = await browser.newContext();
   await ctx.addCookies([admin.cookie]);
   const page = await ctx.newPage();
-  await page.goto('/administracion');
+  await page.goto('/administracion?t=tipos');
   const form = page.getByRole('region', { name: 'Tipos de cambio oficiales' });
   await form.getByRole('combobox', { name: 'De', exact: true }).selectOption('USD');
   await form.getByRole('combobox', { name: 'A', exact: true }).selectOption('EUR');

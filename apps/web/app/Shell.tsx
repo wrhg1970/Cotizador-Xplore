@@ -15,20 +15,19 @@ import { WorkNotifier } from './WorkNotifier';
 const LEADS: string[] = ['OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'];
 const QUOTING: string[] = ['QUOTER', 'APPROVER', 'OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'];
 const ADMINS: string[] = ['OFFICE_ADMIN', 'SYSTEM_ADMIN'];
-const PLATFORM: string[] = ['SYSTEM_ADMIN'];
+const CONFIG_PATHS = ['/usuarios', '/plantillas', '/rubros', '/administracion'];
 
 interface Item {
   label: string;
   href: string;
   /** Hidden unless the person holds one of these roles; the API enforces the same rule. */
   roles?: string[];
-  sub?: boolean;
 }
 
 /** The three blocks Will asked for (2026-10-28), in his order. */
 const groups = (me: Me | null): Item[][] => {
   const has = (roles: string[]) => !!me?.roles.some((r) => roles.includes(r.role));
-  const settings = has(PLATFORM) ? '/administracion' : has(ADMINS) ? '/usuarios' : '/plantillas';
+  const settings = has(ADMINS) ? '/usuarios' : '/plantillas';
   return [
     [
       { label: 'Inicio', href: '/inicio' },
@@ -47,10 +46,6 @@ const groups = (me: Me | null): Item[][] => {
     ],
     [
       { label: 'Configuración', href: settings, roles: QUOTING },
-      { label: 'Usuarios', href: '/usuarios', roles: ADMINS, sub: true },
-      { label: 'Plantillas', href: '/plantillas', roles: QUOTING, sub: true },
-      { label: 'Rubros', href: '/rubros', roles: PLATFORM, sub: true },
-      { label: 'Integraciones', href: '/administracion#integraciones', roles: PLATFORM },
       { label: 'Importar XLSX / IA', href: '/importar' },
     ],
   ]
@@ -67,12 +62,15 @@ export function Shell({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => setMenuOpen(false), [pathname]);
 
-  // "Configuración" stays lit on its sub-pages; Integraciones is an anchor inside Administración.
-  const current = (i: Item) => {
-    const path = i.href.split('#')[0]!;
-    if (i.href.includes('#') || i.label === 'Configuración') return pathname === path ? 'page' : undefined;
-    return pathname.startsWith(path) ? 'page' : undefined;
-  };
+  // "Configuración" stays lit on every one of its tabs (ConfigTabs).
+  const current = (i: Item) =>
+    (
+      i.label === 'Configuración'
+        ? CONFIG_PATHS.some((p) => pathname.startsWith(p))
+        : pathname.startsWith(i.href)
+    )
+      ? 'page'
+      : undefined;
   const initials = me?.name
     .split(/\s+/)
     .slice(0, 2)
@@ -116,7 +114,7 @@ export function Shell({ children }: { children: ReactNode }) {
           {groups(me).map((g, n) => (
             <ul key={n}>
               {g.map((i) => (
-                <li key={i.label} className={i.sub ? 'sub' : undefined}>
+                <li key={i.label}>
                   <Link href={i.href} aria-current={current(i)}>
                     {i.label}
                   </Link>

@@ -32,6 +32,7 @@
 - Resultado: aceptar/rechazar/expirar con motivo y evidencia opcional.
 - Integraciones: estado, última sincronización, errores accionables, botón probar conexión.
 - Fórmulas: constructor limitado y versionado; no editor de código arbitrario.
+- Configuración: una fila de pestañas (Usuarios · Permisos · Oficinas | Plantillas · Rubros · Tipos de cambio | Autorización y alertas · Metas | Marca · Integraciones · Agencias), cada persona ve las de su rol; en el menú lateral solo "Configuración". Cada pestaña: barra con búsqueda/filtros y botón "+ Agregar", ayuda en una línea, tabla compacta. En Usuarios, "Editar" abre un panel con privilegios y oficinas (casilla "Todas las oficinas").
 
 ## Mensajes de confirmación
 - Antes de enviar: “Vas a enviar la versión X, aprobada por Y el [fecha]. Esta versión no podrá editarse. ¿Continuar?”

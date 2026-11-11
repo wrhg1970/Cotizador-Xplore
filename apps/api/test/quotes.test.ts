@@ -704,7 +704,10 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
       .get(`/api/v1/offices/${officeA}/quote-templates`)
       .set('Cookie', c.approver)
       .expect(200);
-    expect(list.body.find((x: { id: string }) => x.id === t.body.id)).toMatchObject({ lineCount: 8 });
+    expect(list.body.find((x: { id: string }) => x.id === t.body.id)).toMatchObject({
+      lineCount: 8,
+      targetMarginRate: expect.any(String),
+    });
     await api().get(`/api/v1/offices/${officeA}/quote-templates`).set('Cookie', c.advisor).expect(404);
     await api().get(`/api/v1/offices/${officeA}/quote-templates`).set('Cookie', c.adminB).expect(404);
     const one = await api().get(`/api/v1/quote-templates/${t.body.id}`).set('Cookie', c.quoter).expect(200);

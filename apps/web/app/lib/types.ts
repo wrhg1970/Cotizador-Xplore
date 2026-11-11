@@ -343,6 +343,8 @@ export interface QuoteTemplateDto {
   id: string;
   name: string;
   saleCurrency: CurrencyCode;
+  /** Commission rate as a decimal string, e.g. "0.12". */
+  targetMarginRate: string;
   lineCount: number;
   createdBy: string;
   createdById: string;

@@ -11,7 +11,7 @@ test("an agency's system admin sets its brand and the menu shows it", async ({ b
   await ctx.addCookies([admin.cookie]);
   const page = await ctx.newPage();
 
-  await page.goto('/administracion');
+  await page.goto('/administracion?t=marca');
   const section = page.getByRole('region', { name: 'Marca de la agencia' });
   await section.getByLabel('Nombre que se muestra').fill('Viajes Marca E2E');
   await section

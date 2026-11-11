@@ -81,6 +81,7 @@ test('phone width: no sideways scroll on any screen, and the menu folds', async 
     '/proveedores',
     '/rubros',
     '/administracion',
+    '/administracion?t=oficinas',
     `/bitacora?requestId=${r.id}`,
     '/guia',
     '/historico',
