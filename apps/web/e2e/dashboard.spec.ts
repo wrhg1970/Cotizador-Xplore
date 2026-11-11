@@ -67,7 +67,7 @@ test('system admin changes a role policy and creates an office', async ({ browse
   const ctx = await browser.newContext();
   await ctx.addCookies([admin.cookie]);
   const page = await ctx.newPage();
-  await page.goto('/administracion');
+  await page.goto('/administracion?t=permisos');
 
   const limit = page.getByLabel('Tope de autorización en pesos');
   await limit.fill('750000');
@@ -80,10 +80,15 @@ test('system admin changes a role policy and creates an office', async ({ browse
   await expect(limit).toHaveValue('');
 
   const code = `E2E${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  await page
+    .getByRole('navigation', { name: 'Configuración' })
+    .getByRole('link', { name: 'Oficinas' })
+    .click();
   const offices = page.getByRole('region', { name: 'Oficinas', exact: true });
+  await offices.getByRole('button', { name: '+ Agregar oficina' }).click();
   await offices.getByLabel('Código').fill(code);
   await offices.getByLabel('Nombre', { exact: true }).fill('Oficina Monterrey');
-  await page.getByRole('button', { name: 'Agregar oficina' }).click();
+  await page.getByRole('button', { name: 'Crear oficina' }).click();
   await expect(page.getByRole('status')).toHaveText(`Oficina ${code} creada`);
   const row = page
     .getByRole('region', { name: 'Oficinas', exact: true })
@@ -99,6 +104,7 @@ test('system admin changes a role policy and creates an office', async ({ browse
   await edit.getByRole('button', { name: 'Guardar', exact: true }).click();
   await expect(page.getByRole('status')).toHaveText(`Oficina ${code} guardada`);
   await expect(row).toContainText('Monterrey Centro');
+  await row.getByLabel(`Más acciones de ${code}`).click();
   await row.getByRole('button', { name: `Desactivar ${code}` }).click();
   await expect(row).toContainText('Desactivada');
   page.once('dialog', (d) => void d.accept());

@@ -87,8 +87,8 @@ test('approvals list, Kanban by stage and integrations status', async ({ browser
   const admCtx = await browser.newContext();
   await admCtx.addCookies([sysadmin.cookie]);
   const adm = await admCtx.newPage();
-  await adm.goto('/administracion');
+  await adm.goto('/administracion?t=integraciones');
   const integrations = adm.getByRole('region', { name: 'Integraciones' });
-  await expect(integrations.getByRole('listitem').filter({ hasText: 'Wissify' })).toContainText('Pendiente');
+  await expect(integrations.getByRole('row').filter({ hasText: 'Wissify' })).toContainText('Pendiente');
   await admCtx.close();
 });

@@ -12,7 +12,7 @@ test('an EE system admin registers an agency with its domain, office and admin',
   const tag = randomUUID().slice(0, 6);
   const domain = `viajes-${tag}.example`;
 
-  await page.goto('/administracion');
+  await page.goto('/administracion?t=agencias');
   const section = page.getByRole('region', { name: 'Agencias' });
   await section.getByLabel('Nombre', { exact: true }).fill(`Viajes ${tag}`);
   await section.getByLabel('Código', { exact: true }).fill(`V${tag}`.toUpperCase());
@@ -47,8 +47,9 @@ test('the agencies section is only for EE system admins', async ({ browser }) =>
   const ctx = await browser.newContext();
   await ctx.addCookies([admin.cookie]);
   const page = await ctx.newPage();
-  await page.goto('/administracion');
-  await expect(page.getByRole('heading', { name: 'Marca de la agencia' })).toBeVisible();
+  await page.goto('/administracion?t=agencias');
+  await expect(page.getByRole('link', { name: 'Marca' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Agencias' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Agencias' })).toHaveCount(0);
   await ctx.close();
 });

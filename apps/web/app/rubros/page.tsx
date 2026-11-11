@@ -5,6 +5,7 @@ import { LineCategory } from '@ee/contracts';
 import { api, errorText } from '../lib/api';
 import { type ConceptTemplateDto, SHEET_BLOCKS } from '../lib/types';
 import { useMe } from '../lib/useMe';
+import { ConfigTabs } from '../ConfigTabs';
 
 const FLAG = {
   isBase: 'Base',
@@ -23,6 +24,10 @@ export default function ConceptsPage() {
   const [items, setItems] = useState<ConceptTemplateDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [block, setBlock] = useState<LineCategory>(SHEET_BLOCKS[0]!.category);
+  const [query, setQuery] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
+  const [adding, setAdding] = useState(false);
   const isSysAdmin = !!me?.roles.some((r) => r.role === 'SYSTEM_ADMIN');
 
   const reload = useCallback(
@@ -64,142 +69,181 @@ export default function ConceptsPage() {
       },
       'Rubro agregado',
     );
-    if (ok) form.reset();
+    if (ok) {
+      form.reset();
+      setAdding(false);
+    }
   }
 
   if (me && !isSysAdmin)
-    return <p className="error">Solo un administrador del sistema puede editar el catálogo.</p>;
+    return (
+      <ConfigTabs current="rubros">
+        <p className="error">Solo un administrador del sistema puede editar el catálogo.</p>
+      </ConfigTabs>
+    );
+
+  const q = query.trim().toLowerCase();
+  const shown = items.filter(
+    (t) => t.category === block && (showInactive || t.active) && (!q || t.label.toLowerCase().includes(q)),
+  );
 
   return (
-    <>
-      <h1>Catálogo de rubros</h1>
-      <p className="muted">
-        Los rubros base se agregan solos a cada escenario nuevo, con costo cero. Los demás se eligen desde el
-        editor. Los internos nunca aparecen en la propuesta al cliente. Un cambio aquí no modifica
-        cotizaciones ya creadas.
-      </p>
+    <ConfigTabs current="rubros">
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
-      {SHEET_BLOCKS.map((b) => (
-        <section key={b.category} aria-labelledby={`b-${b.category}`}>
-          <h2 id={`b-${b.category}`}>{b.title}</h2>
+      <div className="cfg-sub" role="group" aria-label="Bloque">
+        {SHEET_BLOCKS.map((b) => (
+          <button
+            key={b.category}
+            type="button"
+            aria-pressed={block === b.category}
+            onClick={() => setBlock(b.category)}
+          >
+            {b.title} <small>{items.filter((t) => t.category === b.category && t.active).length}</small>
+          </button>
+        ))}
+      </div>
+      <section className="card" aria-label={BLOCK[block]}>
+        <div className="cfg-bar">
+          <input
+            type="search"
+            aria-label="Buscar rubro"
+            placeholder="Buscar rubro"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <label className="inline">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+            />{' '}
+            Mostrar inactivos
+          </label>
+          <span className="cfg-help">
+            ⓘ Base = se agrega solo a cada escenario nuevo. Interno = nunca sale en la propuesta. Los cambios
+            no tocan cotizaciones ya creadas.
+          </span>
+
+          <button type="button" aria-expanded={adding} onClick={() => setAdding(!adding)}>
+            + Nuevo rubro
+          </button>
+        </div>
+        {adding && (
+          <form onSubmit={create} className="row cfg-add" aria-label="Nuevo rubro" key={block}>
+            <label>
+              Nombre
+              <input name="label" required maxLength={300} />
+            </label>
+            <label>
+              Bloque
+              <select name="category" defaultValue={block}>
+                {LineCategory.options.map((c) => (
+                  <option key={c} value={c}>
+                    {BLOCK[c]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Orden
+              <input name="position" type="number" min={0} max={10000} defaultValue={0} />
+            </label>
+            <label className="inline">
+              <input name="isBase" type="checkbox" /> Base
+            </label>
+            <label className="inline">
+              <input name="internalOnly" type="checkbox" /> Solo interno
+            </label>
+            <label className="inline">
+              <input name="perTripDay" type="checkbox" /> Cantidad = días del viaje
+            </label>
+            <button>Agregar rubro</button>
+            <button type="button" className="secondary" onClick={() => setAdding(false)}>
+              Cancelar
+            </button>
+          </form>
+        )}
+        {shown.length === 0 ? (
+          <p className="muted">No hay rubros con estos filtros.</p>
+        ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>Rubro</th>
-                  <th>Orden</th>
-                  <th>Base</th>
-                  <th>Interno</th>
-                  <th>Cantidad = días del viaje</th>
-                  <th>Activo</th>
+                  <th className="num">Orden</th>
+                  <th className="c">Base</th>
+                  <th className="c">Interno</th>
+                  <th className="c">Cantidad = días</th>
+                  <th className="c">Activo</th>
                 </tr>
               </thead>
               <tbody>
-                {items
-                  .filter((t) => t.category === b.category)
-                  .map((t) => (
-                    <tr key={t.id} className={t.active ? undefined : 'muted'}>
-                      <td>
+                {shown.map((t) => (
+                  <tr key={t.id} className={t.active ? undefined : 'muted'}>
+                    <td>
+                      <input
+                        className="cfg-inline"
+                        aria-label={`Nombre de ${t.label}`}
+                        defaultValue={t.label}
+                        maxLength={300}
+                        onBlur={(e) => {
+                          const label = e.target.value.trim();
+                          if (label && label !== t.label)
+                            void run(`/concept-templates/${t.id}`, 'PATCH', { label }, 'Rubro actualizado');
+                        }}
+                      />
+                    </td>
+                    <td className="num">
+                      <input
+                        className="cfg-inline cfg-num"
+                        aria-label={`Orden de ${t.label}`}
+                        type="number"
+                        min={0}
+                        max={10000}
+                        defaultValue={t.position}
+                        onBlur={(e) => {
+                          const position = Number(e.target.value);
+                          if (position !== t.position)
+                            void run(
+                              `/concept-templates/${t.id}`,
+                              'PATCH',
+                              { position },
+                              'Rubro actualizado',
+                            );
+                        }}
+                      />
+                    </td>
+                    {(Object.keys(FLAG) as (keyof typeof FLAG)[]).map((k) => (
+                      <td key={k} className="c">
                         <input
-                          aria-label={`Nombre de ${t.label}`}
-                          defaultValue={t.label}
-                          maxLength={300}
-                          onBlur={(e) => {
-                            const label = e.target.value.trim();
-                            if (label && label !== t.label)
-                              void run(`/concept-templates/${t.id}`, 'PATCH', { label }, 'Rubro actualizado');
-                          }}
+                          type="checkbox"
+                          className="switch"
+                          aria-label={`${FLAG[k]}: ${t.label}`}
+                          checked={t[k]}
+                          onChange={(e) =>
+                            void run(
+                              `/concept-templates/${t.id}`,
+                              'PATCH',
+                              { [k]: e.target.checked },
+                              'Rubro actualizado',
+                            )
+                          }
                         />
                       </td>
-                      <td>
-                        <input
-                          aria-label={`Orden de ${t.label}`}
-                          type="number"
-                          min={0}
-                          max={10000}
-                          size={5}
-                          defaultValue={t.position}
-                          onBlur={(e) => {
-                            const position = Number(e.target.value);
-                            if (position !== t.position)
-                              void run(
-                                `/concept-templates/${t.id}`,
-                                'PATCH',
-                                { position },
-                                'Rubro actualizado',
-                              );
-                          }}
-                        />
-                      </td>
-                      {(Object.keys(FLAG) as (keyof typeof FLAG)[]).map((k) => (
-                        <td key={k}>
-                          <input
-                            type="checkbox"
-                            aria-label={`${FLAG[k]}: ${t.label}`}
-                            checked={t[k]}
-                            onChange={(e) =>
-                              void run(
-                                `/concept-templates/${t.id}`,
-                                'PATCH',
-                                { [k]: e.target.checked },
-                                'Rubro actualizado',
-                              )
-                            }
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                    ))}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        </section>
-      ))}
-
-      <section aria-labelledby="nuevo">
-        <h2 id="nuevo">Nuevo rubro</h2>
-        <form onSubmit={create} className="row">
-          <label>
-            Nombre
-            <input name="label" required maxLength={300} />
-          </label>
-          <label>
-            Bloque
-            <select name="category" defaultValue="PER_PARTICIPANT">
-              {LineCategory.options.map((c) => (
-                <option key={c} value={c}>
-                  {BLOCK[c]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Orden
-            <input name="position" type="number" min={0} max={10000} defaultValue={0} />
-          </label>
-          <label>
-            <span>
-              <input name="isBase" type="checkbox" /> Base (en cada escenario nuevo)
-            </span>
-          </label>
-          <label>
-            <span>
-              <input name="internalOnly" type="checkbox" /> Solo interno
-            </span>
-          </label>
-          <label>
-            <span>
-              <input name="perTripDay" type="checkbox" /> Cantidad = días del viaje
-            </span>
-          </label>
-          <button>Agregar rubro</button>
-        </form>
+        )}
       </section>
-    </>
+    </ConfigTabs>
   );
 }
