@@ -37,6 +37,8 @@ export interface Proposal {
   validUntil: string | null;
   assumptions: string | null;
   includes: string[];
+  /** Avión quoted apart from the course price (Sumar al curso No), in its own currency. */
+  airTicket?: { pricePerParticipant: string; currency: string } | null;
   paymentSchedule: PaymentDto[] | null;
   /** Price per student by group size, when whoever quotes chose to show it. */
   volumePrices?: { participants: number; pricePerParticipant: string }[] | null;
@@ -148,6 +150,14 @@ export function ProposalView({
             <span className="pv-label">Propuesta válida hasta</span>
             <strong>{fmtDate(p.validUntil)}</strong>
           </div>
+          {p.airTicket && (
+            <div>
+              <span className="pv-label">✈ Avión, aparte del precio</span>
+              <strong>
+                {thousands(p.airTicket.pricePerParticipant)} {p.airTicket.currency} por estudiante
+              </strong>
+            </div>
+          )}
           {!!p.freePlaces?.count && (
             <div>
               <span className="pv-label">Gratuidades por ratio</span>

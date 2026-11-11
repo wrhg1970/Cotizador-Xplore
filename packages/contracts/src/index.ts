@@ -439,6 +439,8 @@ export const FlightInput = z.strictObject({
   /** Sí = the chaperones' tickets are shared among students; No = not charged to the group. */
   shareChaperones: z.boolean(),
   shareStaff: z.boolean(),
+  /** Sumar al curso: No keeps it in its own currency, presented apart from the course price. */
+  addToCourse: z.boolean().default(true),
 });
 export type FlightInput = z.infer<typeof FlightInput>;
 

@@ -299,6 +299,20 @@ describe('Avión (Will, 2026-11-11)', () => {
     expect(() => calculateQuote({ ...base, fxRates: {}, flight: flight(true, true) })).toThrow(/USD/);
   });
 
+  it('Sumar al curso No: stays in its currency, apart from the course price, with no exchange rate', () => {
+    const r = calculateQuote({
+      ...base,
+      fxRates: {},
+      flight: { ...flight(true, false), addToCourse: false },
+    });
+    expect(r.pricePerParticipant.toFixed(0)).toBe('1250');
+    expect(r.costPerParticipant.toFixed(2)).toBe('1000.00');
+    expect(r.flight).toMatchObject({ added: false, currency: 'USD', tickets: 33 });
+    expect(r.flight!.groupCost.toFixed(2)).toBe('16500.00');
+    expect(r.flight!.pricePerParticipant.toFixed(2)).toBe('600.00');
+    expect(r.flight!.marginPerParticipant.toFixed(2)).toBe('50.00');
+  });
+
   it('without Avión the price is unchanged', () => {
     expect(calculateQuote(base).pricePerParticipant.toFixed(0)).toBe('1250');
     expect(calculateQuote(base).flight).toBeNull();

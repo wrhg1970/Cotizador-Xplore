@@ -422,6 +422,37 @@ ol.timeline li {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+.group-total-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 28px;
+}
+.group-total-top > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+.group-total-split {
+  display: flex;
+  gap: 24px;
+  padding-left: 24px;
+  border-left: 1px solid rgba(255, 255, 255, 0.3);
+}
+.group-total-split div {
+  display: grid;
+  gap: 1px;
+}
+.group-total-split small {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.7rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.group-total-split strong {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
 .group-total-foot {
   display: grid;
   grid-template-columns: 1fr 1fr;

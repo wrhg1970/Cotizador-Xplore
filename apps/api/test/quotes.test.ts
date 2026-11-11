@@ -638,7 +638,7 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
       .set('Cookie', c.quoter)
       .send({ ...option1, flight, rowVersion: 1 })
       .expect(200);
-    expect(res.body.flight).toEqual(flight);
+    expect(res.body.flight).toEqual({ ...flight, addToCourse: true });
     expect(res.body.totals.pricePerParticipant).toBe('5479.00'); // 5129 of option 1 + 350, rounded up once
     expect(res.body.totals.flight).toMatchObject({ pricePerParticipant: '350.00' });
     const p = await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', c.advisor).expect(200);
@@ -651,10 +651,25 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
       .expect(200);
     expect(usd.body.totals).toBeNull();
     expect(usd.body.warnings).toContainEqual(expect.objectContaining({ code: 'MISSING_FX' }));
+    // Sumar al curso No: the course price stays, Avión goes apart in USD with no exchange rate needed.
+    const apart = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ flight: { ...flight, currency: 'USD', addToCourse: false }, rowVersion: usd.body.rowVersion })
+      .expect(200);
+    expect(apart.body.totals.pricePerParticipant).toBe('5129.00');
+    expect(apart.body.totals.flight).toMatchObject({
+      added: false,
+      currency: 'USD',
+      pricePerParticipant: '350.00',
+    });
+    const ap = await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', c.advisor).expect(200);
+    expect(ap.body.airTicket).toEqual({ pricePerParticipant: '350.00', currency: 'USD' });
+    expect(ap.body.includes).not.toContain('Boleto de avión');
     const cleared = await api()
       .patch(`/api/v1/quotes/${v.id}`)
       .set('Cookie', c.quoter)
-      .send({ flight: null, rowVersion: usd.body.rowVersion })
+      .send({ flight: null, rowVersion: apart.body.rowVersion })
       .expect(200);
     expect(cleared.body.flight).toBeNull();
     expect(cleared.body.totals.pricePerParticipant).toBe('5129.00');

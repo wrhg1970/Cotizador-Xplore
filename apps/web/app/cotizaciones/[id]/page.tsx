@@ -148,7 +148,10 @@ export default function QuoteEditorPage() {
   const setLine = (i: number, patch: Partial<QuoteLineDto>) =>
     set({ lines: draft.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
   const foreign = [
-    ...new Set([...draft.lines.map((l) => l.currency), ...(draft.flight ? [draft.flight.currency] : [])]),
+    ...new Set([
+      ...draft.lines.map((l) => l.currency),
+      ...(draft.flight?.addToCourse ? [draft.flight.currency] : []),
+    ]),
   ].filter((c) => c !== draft.saleCurrency);
   const missingFx = foreign.filter((c) => !draft.fxRates.some((f) => f.fromCurrency === c && f.rate));
   const live = preview(draft, marginPct, targetPrice, byPrice);
@@ -778,7 +781,7 @@ export default function QuoteEditorPage() {
                       : b.category !== 'FLIGHT'
                         ? `${live.byCategory[b.category]} ${draft.saleCurrency}`
                         : live.flight
-                          ? `${live.flight.price} ${draft.saleCurrency} / est.`
+                          ? `${live.flight.price} ${live.flight.currency} / est.${live.flight.added ? '' : ' · aparte'}`
                           : 'Sin avión'}
                   </span>
                 </button>
@@ -799,7 +802,7 @@ export default function QuoteEditorPage() {
                 </span>
                 {live.ok && live.flight && (
                   <span className="num subtotal">
-                    {live.flight.price} {draft.saleCurrency} / est.
+                    {live.flight.price} {live.flight.currency} / est.
                   </span>
                 )}
               </div>
