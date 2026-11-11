@@ -56,6 +56,7 @@ Base path: `/api/v1`. JSON UTF-8. OpenAPI debe ser fuente verificable de contrat
 ### Escenarios/versiones
 - `POST /requests/{requestId}/scenarios`
 - `POST /scenarios/{scenarioId}/duplicate`
+- `PATCH /scenarios/{scenarioId}` `{ name }`: renombra el escenario (quien trabaja la cotización, solicitud en cotización); 409 `SCENARIO_SENT` si alguna versión ya se envió; auditoría `quote.scenario.renamed`.
 - `GET /requests/{requestId}/scenarios` — cada escenario con su última versión, quién la preparó (`preparedBy`) y la política de autorización que aplica (`policy`, p. ej. «Doble firma (margen < 18%)»)
 - `POST /scenarios/{scenarioId}/versions`
 - `GET /quotes/{quoteVersionId}`

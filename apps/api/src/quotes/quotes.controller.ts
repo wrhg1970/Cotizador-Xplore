@@ -703,6 +703,40 @@ export class QuotesController {
     });
   }
 
+  /** Rename a scenario; once one of its versions reached the client the name is frozen (sent proposals are immutable). */
+  @Patch('scenarios/:id')
+  async rename(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(DuplicateScenario)) body: z.infer<typeof DuplicateScenario>,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const scenario = await tx.quoteScenario.findUnique({ where: { id } });
+      if (!scenario) throw new NotFoundException('Escenario no encontrado');
+      this.assertWork(user, await this.request(tx, scenario.requestId, user));
+      const sent = await tx.quoteVersion.count({
+        where: { scenarioId: id, OR: [{ status: 'SENT' }, { deliveries: { some: {} } }] },
+      });
+      if (sent)
+        throw new ConflictException({
+          code: 'SCENARIO_SENT',
+          message: 'Este escenario ya se envió al colegio; su nombre queda fijo',
+        });
+      if (body.name === scenario.name) return { id, name: scenario.name };
+      await tx.quoteScenario.update({ where: { id }, data: { name: body.name } });
+      await audit(tx, {
+        actorUserId: user.id,
+        action: 'quote.scenario.renamed',
+        entityType: 'TravelRequest',
+        entityId: scenario.requestId,
+        correlationId: req.correlationId,
+        diff: { scenarioId: id, from: scenario.name, to: body.name },
+      });
+      return { id, name: body.name };
+    });
+  }
+
   /** New version from the latest one, e.g. after it was sent (DATABASE.md: sent versions are immutable). */
   @Post('scenarios/:id/versions')
   async newVersion(@CurrentUser() user: AuthUser, @Req() req: Request, @Param('id', uuid) id: string) {

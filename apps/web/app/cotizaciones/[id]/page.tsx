@@ -299,6 +299,20 @@ export default function QuoteEditorPage() {
     }
   }
 
+  async function renameScenario(scenarioId: string, name: string) {
+    setError(null);
+    try {
+      await api(`/scenarios/${scenarioId}`, { method: 'PATCH', body: { name } });
+      setScenarios((all) => all.map((s) => (s.id === scenarioId ? { ...s, name } : s)));
+      const next = q && { ...q, scenarioName: name };
+      setQ(next);
+      // Keep "Guardado" when nothing else was edited (dirty compares draft and q by identity).
+      setDraft(draft === q ? next : draft && { ...draft, scenarioName: name });
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }
+
   /** V2 "Duplicar escenario (+5 alumnos)": copy of this option with five more students, then open it. */
   async function duplicatePlus5() {
     if (!q) return;
@@ -405,6 +419,7 @@ export default function QuoteEditorPage() {
       <ScenarioBar
         scenarios={scenarios}
         currentId={q.scenarioId}
+        onRename={works && req?.status === 'QUOTING' ? renameScenario : undefined}
         tools={
           <>
             {works && req?.status === 'QUOTING' && (

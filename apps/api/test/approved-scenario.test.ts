@@ -159,4 +159,35 @@ describe('Aprobada step and one approved scenario per request', () => {
     expect(await stageInList('SENT')).toContain(requestId);
     await act(c.approver, b.id, 'revoke', { rowVersion: sent.body.rowVersion, comment: 'x' }).expect(403);
   });
+
+  it('renames a scenario: audited, only who works the quote, never once sent', async () => {
+    const scenarioOf = async (id: string) =>
+      (await prisma.quoteVersion.findUniqueOrThrow({ where: { id } })).scenarioId;
+    const sa = await scenarioOf(a.id);
+    const rename = (cookie: string, id: string, name: unknown) =>
+      api().patch(`/api/v1/scenarios/${id}`).set('Cookie', cookie).send({ name });
+
+    // Sending moved the request out of QUOTING: nothing can be renamed anymore.
+    await rename(c.quoter, sa, 'Hotel céntrico').expect(403);
+    const { status } = await prisma.travelRequest.findUniqueOrThrow({ where: { id: requestId } });
+    // Back in QUOTING to check the rules on their own.
+    await prisma.travelRequest.update({ where: { id: requestId }, data: { status: 'QUOTING' } });
+
+    await rename(c.quoter, sa, '').expect(400);
+    await rename(c.quoter, sa, 'x'.repeat(151)).expect(400);
+    await rename(c.approver, sa, 'Hotel céntrico').expect(403);
+    const ok = await rename(c.quoter, sa, 'Hotel céntrico').expect(200);
+    expect(ok.body).toEqual({ id: sa, name: 'Hotel céntrico' });
+    const v = await api().get(`/api/v1/quotes/${a.id}`).set('Cookie', c.quoter).expect(200);
+    expect(v.body.scenarioName).toBe('Hotel céntrico');
+    const log = await prisma.auditLog.findFirstOrThrow({
+      where: { entityId: requestId, action: 'quote.scenario.renamed' },
+    });
+    expect(log.diff).toMatchObject({ scenarioId: sa, from: 'Opción A', to: 'Hotel céntrico' });
+
+    const sent = await rename(c.quoter, await scenarioOf(b.id), 'Otro nombre').expect(409);
+    expect(sent.body.code).toBe('SCENARIO_SENT');
+    await rename(c.quoter, '00000000-0000-4000-8000-000000000000', 'X').expect(404);
+    await prisma.travelRequest.update({ where: { id: requestId }, data: { status } });
+  });
 });

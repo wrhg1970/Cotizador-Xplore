@@ -1,5 +1,7 @@
+'use client';
+
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { QUOTE_STATUS_LABEL, type ScenarioDto } from '../../lib/types';
 
 const PATHS = {
@@ -30,31 +32,91 @@ export function ScenarioBar({
   currentId,
   tools,
   actions,
+  onRename,
 }: {
   scenarios: ScenarioDto[];
   currentId: string;
   tools: ReactNode;
   actions: ReactNode;
+  /** Only passed to who may work the quote; sent scenarios keep their name. */
+  onRename?: (scenarioId: string, name: string) => Promise<void>;
 }) {
+  const [editing, setEditing] = useState<string | null>(null);
+  const renamable = (s: ScenarioDto) =>
+    !!onRename && s.id === currentId && !s.versions.some((v) => v.status === 'SENT');
+
+  async function save(s: ScenarioDto, value: string) {
+    const name = value.trim();
+    if (name && name !== s.name) await onRename!(s.id, name);
+    setEditing(null);
+  }
+
   return (
     <section className="card scenario-bar" aria-label="Escenarios y acciones">
       <span className="sb-label">Escenarios</span>
       <nav className="sb-tabs" aria-label="Escenarios de la solicitud">
-        {scenarios.map((s, i) => (
-          <Link
-            key={s.id}
-            href={`/cotizaciones/${s.latest.id}`}
-            className={s.id === currentId ? 'sb-tab active' : 'sb-tab'}
-            aria-current={s.id === currentId ? 'page' : undefined}
-            title={s.name}
-          >
-            <span className="ltr">{String.fromCharCode(65 + (i % 26))}</span>
-            {s.latest.participants} est. + {s.latest.chaperones + s.latest.staff} chap.
-            <span className={tone(s.latest.status)}>
-              v{s.latest.number} · {QUOTE_STATUS_LABEL[s.latest.status]}
-            </span>
-          </Link>
-        ))}
+        {scenarios.map((s, i) => {
+          const active = s.id === currentId;
+          const letter = <span className="ltr">{String.fromCharCode(65 + (i % 26))}</span>;
+          const rest = (
+            <>
+              <span className="cnt">
+                {s.latest.participants} est. + {s.latest.chaperones + s.latest.staff} chap.
+              </span>
+              <span className={tone(s.latest.status)}>
+                v{s.latest.number} · {QUOTE_STATUS_LABEL[s.latest.status]}
+              </span>
+            </>
+          );
+          if (editing === s.id)
+            return (
+              <span key={s.id} className="sb-tab active">
+                {letter}
+                <input
+                  className="sb-name"
+                  aria-label="Nombre del escenario"
+                  defaultValue={s.name}
+                  maxLength={150}
+                  autoFocus
+                  onFocus={(e) => e.currentTarget.select()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void save(s, e.currentTarget.value);
+                    if (e.key === 'Escape') setEditing(null);
+                  }}
+                  onBlur={() => setEditing(null)}
+                />
+                {rest}
+              </span>
+            );
+          return (
+            <Link
+              key={s.id}
+              href={`/cotizaciones/${s.latest.id}`}
+              className={active ? 'sb-tab active' : 'sb-tab'}
+              aria-current={active ? 'page' : undefined}
+              title={s.name}
+              onDoubleClick={renamable(s) ? () => setEditing(s.id) : undefined}
+            >
+              {letter}
+              <span className="nm">{s.name}</span>
+              {rest}
+              {renamable(s) && (
+                <button
+                  type="button"
+                  className="sb-pen"
+                  aria-label="Cambiar nombre del escenario"
+                  title="Cambiar nombre"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setEditing(s.id);
+                  }}
+                >
+                  ✎
+                </button>
+              )}
+            </Link>
+          );
+        })}
       </nav>
       <div className="sb-group">{tools}</div>
       <span className="sb-sep" aria-hidden="true" />
