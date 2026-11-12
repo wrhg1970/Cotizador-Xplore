@@ -138,6 +138,11 @@ describe('global approvals and sent proposals', () => {
     const forAdvisor = (await list(c.advisor)).find((v) => v.id === q.versionId);
     expect(JSON.stringify(forAdvisor)).not.toMatch(/cost|margin|recipients/i); // no cost view
     expect((await list(c.quoter)).find((v) => v.id === q.versionId)?.canApprove).toBe(false); // own work
+    const mine = (await api().get('/api/v1/reports/versions').set('Cookie', c.quoter).expect(200)).body as {
+      id: string;
+      request: { assignedToMe: boolean };
+    }[];
+    expect(mine.find((v) => v.id === q.versionId)?.request.assignedToMe).toBe(true); // assigned quoter
     expect((await list(c.advisor)).find((v) => v.id === q.versionId)?.canApprove).toBe(false);
     expect((await list(c.adminB)).some((v) => v.id === q.versionId)).toBe(false); // other office
     expect((await list(c.approver, 'SENT')).some((v) => v.id === q.versionId)).toBe(false);
@@ -177,7 +182,7 @@ describe('global approvals and sent proposals', () => {
       groupPrice: '12200.00',
       marginRate: '0.1803',
       signatures: 0,
-      request: { groupName: 'Bandeja pendiente' },
+      request: { groupName: 'Bandeja pendiente', officeCode: expect.any(String), assignedToMe: false },
     });
     expect(tray.find((v) => v.id === done.versionId)).toMatchObject({ status: 'APPROVED', signatures: 1 });
     const advisorTray = (

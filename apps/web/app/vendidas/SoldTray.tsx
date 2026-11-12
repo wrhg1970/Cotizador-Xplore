@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { amount } from '../aprobaciones/format';
 import { api, errorText } from '../lib/api';
 import { fmtDate } from '../lib/types';
+import { matchesSearch, officeOptions, TrayFilters } from '../TrayFilters';
 
 interface Row {
   id: string;
@@ -22,6 +24,9 @@ interface Row {
     departureDate: string | null;
     closedAt: string | null;
     wetravelUrl: string | null;
+    officeCode: string;
+    officeName: string;
+    assignedToMe: boolean;
   };
 }
 
@@ -39,7 +44,8 @@ const inTab = (tab: Tab, r: Row) =>
 
 /** "Propuestas vendidas": the sold version of each request, after "Propuestas enviadas". */
 export function SoldTray() {
-  const [rows, setRows] = useState<Row[] | null>(null);
+  const params = useSearchParams();
+  const [all, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('UPCOMING');
   useEffect(() => {
@@ -51,6 +57,14 @@ export function SoldTray() {
       (e) => setError(errorText(e)),
     );
   }, []);
+  const p = (k: string) => params.get(k) ?? '';
+  const rows = all?.filter(
+    (v) =>
+      (!p('oficina') || v.request.officeCode === p('oficina')) &&
+      (!p('cobro') || (p('cobro') === 'LINK') === !!v.request.wetravelUrl) &&
+      (!p('mias') || v.request.assignedToMe) &&
+      matchesSearch(p('q'), [v.request.folio, v.request.clientName, v.request.groupName, v.label]),
+  );
   const shown = rows?.filter((r) => inTab(tab, r));
 
   return (
@@ -74,6 +88,23 @@ export function SoldTray() {
         </p>
       )}
       {!rows && !error && <p className="muted">Cargando…</p>}
+      <TrayFilters
+        placeholder="Buscar folio, colegio o grupo…"
+        selects={[
+          { key: 'oficina', label: 'Oficina', options: officeOptions((all ?? []).map((v) => v.request)) },
+          {
+            key: 'cobro',
+            label: 'Cobro',
+            options: [
+              ['LINK', 'Con liga WeTravel'],
+              ['NONE', 'Sin liga de pago'],
+            ],
+          },
+        ]}
+        checks={[['mias', 'Solo asignadas a mí']]}
+        shown={shown?.length ?? null}
+        total={all?.filter((r) => inTab(tab, r)).length ?? null}
+      />
       {shown?.length === 0 && <p className="muted">No hay propuestas vendidas aquí.</p>}
       {!!shown?.length && (
         <div className="table-wrap card flush">

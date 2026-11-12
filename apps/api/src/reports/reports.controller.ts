@@ -131,6 +131,8 @@ export class ReportsController {
           canRecordOutcome: canRecordOutcome(user, r),
           officeCode: r.office.code,
           officeName: r.office.name,
+          // "Solo asignadas a mí" in the tray filters, like Cotizaciones.
+          assignedToMe: r.assigneeId === user.id,
           departureDate: day(r.departureDate),
         },
         scenarioName: v.scenario.name,

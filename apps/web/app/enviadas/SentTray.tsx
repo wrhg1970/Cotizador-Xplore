@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
 import { CHANNEL_LABEL, fmtDate, STATUS_LABEL } from '../lib/types';
+import { matchesSearch, officeOptions, TrayFilters } from '../TrayFilters';
 
 interface Row {
   id: string;
@@ -20,6 +22,9 @@ interface Row {
     wonVersionId: string | null;
     version: number;
     canRecordOutcome: boolean;
+    officeCode: string;
+    officeName: string;
+    assignedToMe: boolean;
   };
   sentOn: string | null;
   channel: keyof typeof CHANNEL_LABEL | null;
@@ -43,17 +48,23 @@ const VIA_TEXT = { APP: 'enviada desde el cotizador', MANUAL: 'registro manual',
 const group = (r: Row['request']) => (r.clientName ? `${r.clientName} — ${r.groupName}` : r.groupName);
 const version = (s: Sent) => `v${Math.max(...s.versions.map((v) => v.number))} (${s.versions.length} esc.)`;
 const channel = (v: Row) => (v.channel ? `${CHANNEL_TEXT[v.channel]} (${VIA_TEXT[v.sentVia]})` : '—');
-const outcome = (s: Sent) => {
+const OUTCOME = {
+  OPEN: 'En revisión con escuela',
+  WON: 'Vendida',
+  WON_OTHER: 'Vendida con otra versión',
+  LOST: 'Perdida',
+} as const;
+const outcomeKey = (s: Sent): keyof typeof OUTCOME => {
   const r = s.first.request;
-  if (r.status === 'WON')
-    return s.versions.some((v) => v.id === r.wonVersionId) ? 'Vendida' : 'Vendida con otra versión';
-  if (r.status === 'LOST') return 'Perdida';
-  return 'En revisión con escuela';
+  if (r.status === 'WON') return s.versions.some((v) => v.id === r.wonVersionId) ? 'WON' : 'WON_OTHER';
+  return r.status === 'LOST' ? 'LOST' : 'OPEN';
 };
+const outcome = (s: Sent) => OUTCOME[outcomeKey(s)];
 
 /** V2 "Control de Propuestas Enviadas y Aceptaciones": one row per delivery, newest first. */
 export function SentTray() {
-  const [rows, setRows] = useState<Sent[] | null>(null);
+  const params = useSearchParams();
+  const [all, setRows] = useState<Sent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'ROWS' | 'COMPACT'>('ROWS');
   const [busy, setBusy] = useState(false);
@@ -104,7 +115,7 @@ export function SentTray() {
   // Vendida / Perdida only on the newest delivery of a request still in negotiation.
   const latest = new Set<string>();
   const seen = new Set<string>();
-  for (const s of rows ?? [])
+  for (const s of all ?? [])
     if (!seen.has(s.first.request.id)) {
       seen.add(s.first.request.id);
       latest.add(s.key);
@@ -152,6 +163,22 @@ export function SentTray() {
       </div>
     );
   };
+  const p = (k: string) => params.get(k) ?? '';
+  const rows = all?.filter(
+    (s) =>
+      (!p('resultado') || outcomeKey(s) === p('resultado')) &&
+      (!p('oficina') || s.first.request.officeCode === p('oficina')) &&
+      (!p('canal') || s.first.channel === p('canal')) &&
+      (!p('mias') || s.first.request.assignedToMe) &&
+      matchesSearch(p('q'), [
+        s.first.request.folio,
+        s.first.request.clientName,
+        s.first.request.groupName,
+        s.first.request.contactName,
+        s.first.recipients,
+      ]),
+  );
+  const channels = [...new Set((all ?? []).map((s) => s.first.channel).filter((c) => c !== null))];
   const scenarios = (s: Sent) =>
     [...s.versions]
       .sort((a, b) => a.scenarioName.localeCompare(b.scenarioName))
@@ -192,7 +219,23 @@ export function SentTray() {
         </p>
       )}
       {!rows && !error && <p className="muted">Cargando…</p>}
-      {rows?.length === 0 && <p className="muted">Aún no hay envíos.</p>}
+      <TrayFilters
+        placeholder="Buscar folio, colegio, grupo o destinatario…"
+        selects={[
+          { key: 'resultado', label: 'Resultado', options: Object.entries(OUTCOME) },
+          {
+            key: 'oficina',
+            label: 'Oficina',
+            options: officeOptions((all ?? []).map((s) => s.first.request)),
+          },
+          { key: 'canal', label: 'Canal', options: channels.map((c) => [c, CHANNEL_TEXT[c]] as const) },
+        ]}
+        checks={[['mias', 'Solo asignadas a mí']]}
+        shown={rows?.length ?? null}
+        total={all?.length ?? null}
+      />
+      {all?.length === 0 && <p className="muted">Aún no hay envíos.</p>}
+      {!!all?.length && rows?.length === 0 && <p className="muted">Nada coincide con estos filtros.</p>}
       {!!rows?.length && view === 'ROWS' && (
         <div className="table-wrap card flush">
           <table className="tray">
