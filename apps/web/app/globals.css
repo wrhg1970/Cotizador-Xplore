@@ -3505,3 +3505,168 @@ table.compare thead th.picked {
 .flight-calc .accent td {
   color: var(--accent);
 }
+
+/* Reportes: tabs per dimension, small KPI tiles, bars with the value beside them.
+   Status colors validated for color blindness (dataviz): sold #1F64A8, open #5FA8E8, lost gray. */
+.rp-tabs {
+  margin: 12px 0 10px;
+}
+.rp-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px 14px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  font-size: 0.8rem;
+}
+.rp-filters label {
+  display: flex;
+  flex-direction: column;
+  color: var(--muted);
+}
+.rp-filters input,
+.rp-filters select {
+  font-size: 0.8rem;
+  padding: 3px 6px;
+}
+.rp-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+.rp-seg button {
+  font-size: 0.8rem;
+  padding: 3px 10px;
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--subtle);
+}
+.rp-seg button[aria-pressed='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--ink-text);
+}
+.rp-kpis {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  margin-bottom: 10px;
+}
+.rp-kpi {
+  padding: 8px 10px;
+  font-size: 0.72rem;
+}
+.rp-kpi strong {
+  display: block;
+  font-family: var(--font-head);
+  font-size: 1.3rem;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  margin: 1px 0;
+}
+.rp-kpi.internal {
+  border: 1px dashed #ec6206;
+}
+.rp-tag {
+  color: #ec6206;
+}
+.rp-up {
+  color: var(--ok);
+}
+.rp-down {
+  color: var(--danger);
+}
+.rp-two {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  margin-bottom: 10px;
+}
+.rp-two.wide {
+  grid-template-columns: 2fr 1fr;
+}
+.rp-two .card,
+.rp-table {
+  padding: 10px 12px;
+}
+.rp-table {
+  margin-top: 10px;
+  font-size: 0.8rem;
+}
+.rp-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.85rem;
+  margin: 0 0 6px;
+}
+.rp-head small {
+  font-weight: 400;
+  font-size: 0.72rem;
+}
+.rp-bars {
+  font-size: 0.75rem;
+}
+.rp-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 8rem) 1fr minmax(4.5rem, auto);
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.rp-label {
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rp-track {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+}
+.rp-track > span {
+  display: block;
+  height: 100%;
+}
+.rp-track > span:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.rp-note {
+  font-size: 0.72rem;
+  margin: 6px 0 0;
+}
+.rp-legend {
+  font-size: 0.72rem;
+  margin: 0 0 4px;
+}
+.rp-mini {
+  display: inline-block;
+  height: 7px;
+  border-radius: 0 3px 3px 0;
+  background: var(--ink);
+  vertical-align: middle;
+}
+.rp-one {
+  background: var(--ink);
+  fill: var(--ink);
+}
+.rp-won {
+  background: #1f64a8;
+  fill: #1f64a8;
+}
+.rp-open {
+  background: #5fa8e8;
+  fill: #5fa8e8;
+}
+.rp-lost {
+  background: #9aa7b6;
+  fill: #9aa7b6;
+}
+@media (max-width: 800px) {
+  .rp-two.wide {
+    grid-template-columns: 1fr;
+  }
+}

@@ -629,6 +629,17 @@ export const ExecutiveDashboardQuery = z
   .refine((q) => !q.from || !q.to || q.from <= q.to, { message: 'El inicio no puede ser posterior al fin' });
 export type ExecutiveDashboardQuery = z.infer<typeof ExecutiveDashboardQuery>;
 
+/** "Reportes": requests whose creation (CREATED) or departure (DEPARTURE) date falls in the period. */
+export const ReportQuery = z
+  .strictObject({
+    officeId: z.uuid().optional(),
+    from: z.iso.date().optional(),
+    to: z.iso.date().optional(),
+    basis: z.enum(['CREATED', 'DEPARTURE']).default('CREATED'),
+  })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, { message: 'El inicio no puede ser posterior al fin' });
+export type ReportQuery = z.infer<typeof ReportQuery>;
+
 /** Global lists (V2 "Aprobaciones" and "Propuestas enviadas"). */
 /** No status = "Cotizaciones": every live version (working copies only where internal costs are visible). */
 /** APPROVAL = the approvals tray: versions in review plus those already authorized and not yet sent. */

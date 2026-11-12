@@ -1,7 +1,7 @@
 import { Controller, ForbiddenException, Get, Inject, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import ExcelJS from 'exceljs';
-import { ExecutiveDashboardQuery, VersionListQuery } from '@ee/contracts';
+import { ExecutiveDashboardQuery, ReportQuery, VersionListQuery } from '@ee/contracts';
 import type { Prisma, PrismaClient } from '@ee/db';
 import { D, type Dec, QuoteEngineError } from '@ee/quote-engine';
 import type { z } from 'zod';
@@ -13,12 +13,14 @@ import {
   hasOfficeRole,
   isSystemAdmin,
   officeScope,
+  officesWithRole,
 } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { canRecordOutcome } from '../requests/request-policy.js';
 import { ENV, type Env } from '../env.js';
 import { PRISMA } from '../prisma.service.js';
 import { engine } from '../quotes/quotes.controller.js';
+import { groupMxn, reachedOf, shownVersion } from '../dashboard/dashboard.controller.js';
 import { ZodPipe } from '../zod.pipe.js';
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
@@ -34,6 +36,11 @@ const calc = (v: Parameters<typeof engine>[0]) => {
 };
 // shortcut: unpaged, capped at LIMIT rows, fine for pilot volumes; page it if offices grow.
 const LIMIT = 200;
+/** "Reportes" has the executive dashboard's readers (menu LEADS). */
+const REPORT_READERS = ['OFFICE_ADMIN', 'AUDITOR'] as const;
+// shortcut: whole period loaded and grouped on the page, fine for pilot volumes; move to SQL if it grows.
+const REPORT_LIMIT = 3000;
+const NO_SUPPLIER = 'Sin proveedor';
 
 /**
  * V2 extra screens: "Aprobaciones" and "Propuestas enviadas" across the user's offices (client
@@ -169,6 +176,99 @@ export class ReportsController {
     });
   }
 
+  /**
+   * "Reportes": one row per request of the period (by creation or departure date), for the page to
+   * group by office, country, supplier and month. Client prices in MXN; commission and the cost per
+   * supplier only where the user sees internal costs. Amounts without an MXN rate stay null (never inferred).
+   */
+  @Get('summary')
+  async summary(
+    @CurrentUser() user: AuthUser,
+    @Query(new ZodPipe(ReportQuery)) q: z.infer<typeof ReportQuery>,
+  ) {
+    const scope = officesWithRole(user, REPORT_READERS);
+    if (scope.length === 0)
+      throw new ForbiddenException('Solo coordinadores, auditores y administradores ven los reportes');
+    if (q.officeId && !scope.includes(q.officeId)) throw new ForbiddenException();
+    const year = new Date().getUTCFullYear();
+    const from = q.from ?? `${year}-01-01`;
+    const to = q.to ?? `${year}-12-31`;
+    const range = {
+      gte: new Date(`${from}T00:00:00Z`),
+      lt: new Date(new Date(`${to}T00:00:00Z`).getTime() + 86_400_000),
+    };
+    const [rows, suppliers] = await Promise.all([
+      this.prisma.travelRequest.findMany({
+        where: {
+          officeId: q.officeId ?? { in: scope },
+          archivedAt: null,
+          status: { not: 'DRAFT' },
+          ...(q.basis === 'DEPARTURE' ? { departureDate: range } : { createdAt: range }),
+        },
+        orderBy: { createdAt: 'asc' },
+        take: REPORT_LIMIT,
+        select: {
+          id: true,
+          folio: true,
+          groupName: true,
+          countryCode: true,
+          createdAt: true,
+          departureDate: true,
+          status: true,
+          lostReason: true,
+          participants: true,
+          chaperones: true,
+          wonVersionId: true,
+          office: { select: { id: true, code: true, name: true } },
+          scenarios: {
+            select: {
+              versions: { include: { lines: true, fxRates: true, deliveries: { select: { sentOn: true } } } },
+            },
+          },
+        },
+      }),
+      this.prisma.supplier.findMany({
+        where: { agencyId: user.agencyId },
+        select: { name: true, kind: true },
+      }),
+    ]);
+    const kindOf = new Map(suppliers.map((s) => [s.name, s.kind]));
+    return {
+      period: { from, to, basis: q.basis },
+      truncated: rows.length === REPORT_LIMIT,
+      rows: rows.map((r) => {
+        const versions = r.scenarios.flatMap((s) => s.versions);
+        const shown = shownVersion(versions, r.wonVersionId);
+        const group = shown ? groupMxn(shown) : null;
+        const sent = versions.flatMap((v) => v.deliveries.map((d) => d.sentOn.getTime()));
+        const internal = canSeeInternalCosts(user, r.office.id);
+        return {
+          id: r.id,
+          folio: r.folio,
+          groupName: r.groupName,
+          officeId: r.office.id,
+          officeCode: r.office.code,
+          officeName: r.office.name,
+          countryCode: r.countryCode,
+          createdAt: day(r.createdAt)!,
+          departureDate: day(r.departureDate)!,
+          firstSentOn: sent.length ? day(new Date(Math.min(...sent))) : null,
+          status: r.status,
+          reached: reachedOf(r.status, versions),
+          lostReason: r.lostReason,
+          participants: r.participants,
+          chaperones: r.chaperones,
+          /** Group price in MXN of the sold version, else of the most advanced one. */
+          volumeMxn: group?.volume.toFixed(2) ?? null,
+          ...(internal && {
+            commissionMxn: group?.commission.toFixed(2) ?? null,
+            suppliers: shown ? supplierCosts(shown, kindOf) : [],
+          }),
+        };
+      }),
+    };
+  }
+
   /** Won trips departing in the period, with cost and commission from the winning version. Internal use. */
   @Get('financial.xlsx')
   async financial(
@@ -283,6 +383,38 @@ export class ReportsController {
       .attachment(`reporte-financiero-${from}-${to}.xlsx`)
       .send(Buffer.from(await wb.xlsx.writeBuffer()));
   }
+}
+
+/**
+ * Group cost of a version per supplier in MXN (the supplier is the name copied from its rate into
+ * the line's cost source; lines typed by hand count as "Sin proveedor"). Empty when the version has
+ * no MXN rate or doesn't compute, since rates are never inferred.
+ */
+export function supplierCosts(
+  v: Parameters<typeof engine>[0],
+  kindOf: Map<string, string | null>,
+): { name: string; kind: string | null; costMxn: string }[] {
+  const t = calc(v);
+  const rate = v.saleCurrency === 'MXN' ? new D(1) : v.mxnRate ? new D(v.mxnRate.toString()) : null;
+  if (!t || !rate) return [];
+  const sums = new Map<string, Dec>();
+  const add = (name: string, x: Dec) => sums.set(name, (sums.get(name) ?? new D(0)).plus(x.mul(rate)));
+  v.lines.forEach((l, i) => {
+    const total = t.lineTotals[i]!;
+    // Engine keeps per-participant lines per head; the rest are already group totals.
+    add(
+      l.costSource?.trim() || NO_SUPPLIER,
+      l.category === 'PER_PARTICIPANT' ? total.mul(v.participants) : total,
+    );
+  });
+  if (t.flight) add('Avión', t.flight.groupCost);
+  return [...sums]
+    .filter(([, x]) => !x.isZero())
+    .map(([name, x]) => ({
+      name,
+      kind: name === 'Avión' ? 'Aéreo' : (kindOf.get(name) ?? null),
+      costMxn: x.toFixed(2),
+    }));
 }
 
 /** V2 "Integraciones": which connectors this deployment has configured. Never returns the secrets. */

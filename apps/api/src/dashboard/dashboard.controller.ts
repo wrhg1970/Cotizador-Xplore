@@ -110,7 +110,7 @@ const mxnPerParticipant = (v: Parameters<typeof engine>[0]): Dec | null => {
 
 /** V2 commercial funnel: Nueva → En cotización → Aprobada → Enviada → Vendida; the furthest step a request reached. */
 type Reached = 1 | 2 | 3 | 4 | 5;
-const reachedOf = (status: RequestStatus, versions: { status: string }[]): Reached => {
+export const reachedOf = (status: RequestStatus, versions: { status: string }[]): Reached => {
   if (status === 'WON') return 5;
   if (status === 'SENT' || status === 'LOST' || versions.some((v) => v.status === 'SENT')) return 4;
   if (versions.some((v) => v.status === 'APPROVED')) return 3;
@@ -118,7 +118,7 @@ const reachedOf = (status: RequestStatus, versions: { status: string }[]): Reach
 };
 
 /** The version that best represents a request: the winner, else the most advanced quoted one. */
-const shownVersion = <V extends { id: string; status: string; updatedAt: Date }>(
+export const shownVersion = <V extends { id: string; status: string; updatedAt: Date }>(
   versions: V[],
   wonVersionId: string | null,
 ): V | undefined =>
@@ -136,7 +136,7 @@ const shownVersion = <V extends { id: string; status: string; updatedAt: Date }>
     );
 
 /** Group price and commission in MXN; null when the version doesn't compute or has no MXN rate (never inferred). */
-const groupMxn = (v: Parameters<typeof engine>[0]): { volume: Dec; commission: Dec } | null => {
+export const groupMxn = (v: Parameters<typeof engine>[0]): { volume: Dec; commission: Dec } | null => {
   try {
     const t = engine(v);
     if (v.saleCurrency === 'MXN')
