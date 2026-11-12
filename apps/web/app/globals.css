@@ -2402,6 +2402,72 @@ polyline.l-stu {
   padding: 0;
   overflow-x: auto;
 }
+/* Search + Filtros avanzados of Aprobaciones, Enviadas and Vendidas (same as Cotizaciones). */
+.tray-filters {
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.tray-filters .top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.tray-filters .count {
+  margin-right: auto;
+  font-size: 0.8rem;
+}
+.tray-filters form {
+  flex: 0 1 340px;
+  display: flex;
+}
+.tray-filters form input {
+  flex: 1;
+  min-height: 36px;
+}
+.tray-filters .top > button {
+  min-height: 36px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+}
+.tray-filters .tab-count {
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #fff3e8;
+  color: #b04a00;
+  font-size: 0.72rem;
+}
+.tray-filters .adv {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: flex-end;
+  margin-top: 10px;
+}
+.tray-filters .adv label {
+  font-size: 0.8rem;
+}
+.tray-filters .adv select {
+  min-height: 34px;
+  padding: 4px 10px;
+}
+.tray-filters .adv label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+}
+.tray-filters button.link {
+  background: none;
+  border: 0;
+  min-height: 0;
+  padding: 0 0 8px;
+  color: var(--accent);
+  font-size: 0.8rem;
+  text-decoration: underline;
+}
 .tray th,
 .tray td {
   padding: 12px 10px;

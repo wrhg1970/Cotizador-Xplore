@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
 import { amount, rate } from './format';
+import { matchesSearch, officeOptions, TrayFilters } from '../TrayFilters';
 
 interface Row {
   id: string;
@@ -15,7 +17,9 @@ interface Row {
     folio: string;
     groupName: string;
     clientName: string | null;
+    officeCode: string;
     officeName: string;
+    assignedToMe: boolean;
   };
   participants: number;
   chaperones: number;
@@ -38,7 +42,8 @@ const statusText = (v: Row) =>
 
 /** V2 "Bandeja central de aprobaciones": one row per scenario version in review or authorized. */
 export function ApprovalTray() {
-  const [rows, setRows] = useState<Row[] | null>(null);
+  const params = useSearchParams();
+  const [all, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'ROWS' | 'COMPACT'>('ROWS');
   useEffect(() => {
@@ -58,6 +63,21 @@ export function ApprovalTray() {
       (e) => setError(errorText(e)),
     );
   }, []);
+  const p = (k: string) => params.get(k) ?? '';
+  const rows = all?.filter(
+    (v) =>
+      (!p('estado') || (p('estado') === 'APPROVED') === (v.status === 'APPROVED')) &&
+      (!p('oficina') || v.request.officeCode === p('oficina')) &&
+      (!p('mias') || v.request.assignedToMe) &&
+      (!p('dictaminar') || v.canApprove) &&
+      matchesSearch(p('q'), [
+        v.request.folio,
+        v.request.clientName,
+        v.request.groupName,
+        v.scenarioName,
+        v.preparedBy,
+      ]),
+  );
   const seesMargin = !!rows?.some((v) => v.marginRate !== undefined);
   const group = (v: Row) =>
     v.request.clientName ? `${v.request.clientName} — ${v.request.groupName}` : v.request.groupName;
@@ -99,7 +119,28 @@ export function ApprovalTray() {
         </p>
       )}
       {!rows && !error && <p className="muted">Cargando…</p>}
-      {rows?.length === 0 && <p className="muted">Nada espera autorización.</p>}
+      <TrayFilters
+        placeholder="Buscar folio, colegio, grupo o persona…"
+        selects={[
+          {
+            key: 'estado',
+            label: 'Estado',
+            options: [
+              ['PENDING', 'Pendiente'],
+              ['APPROVED', 'Aprobado'],
+            ],
+          },
+          { key: 'oficina', label: 'Oficina', options: officeOptions((all ?? []).map((v) => v.request)) },
+        ]}
+        checks={[
+          ['mias', 'Solo asignadas a mí'],
+          ['dictaminar', 'Solo las que puedo dictaminar'],
+        ]}
+        shown={rows?.length ?? null}
+        total={all?.length ?? null}
+      />
+      {all?.length === 0 && <p className="muted">Nada espera autorización.</p>}
+      {!!all?.length && rows?.length === 0 && <p className="muted">Nada coincide con estos filtros.</p>}
       {!!rows?.length && view === 'ROWS' && (
         <div className="table-wrap card flush">
           <table className="tray">
