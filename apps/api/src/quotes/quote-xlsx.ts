@@ -84,7 +84,7 @@ function eeSheet(wb: ExcelJS.Workbook, q: QuoteDto, req: { folio: string; groupN
     ['% Comisión (sobre el precio final)', Number(q.targetMarginRate)],
     ['Comisión por estudiante', t.marginPerParticipant],
     ['Comisión del grupo', t.groupMargin],
-    ...(f && q.flight
+    ...(f?.added
       ? ([
           ['Avión: precio final por estudiante (sin comisión)', f.pricePerParticipant],
           ['Utilidad aérea por estudiante (incluida en la comisión)', f.marginPerParticipant],
@@ -106,7 +106,11 @@ function eeSheet(wb: ExcelJS.Workbook, q: QuoteDto, req: { folio: string; groupN
     ['Total chaperones', s.totalChaperones, 'strong'],
     ...(f && q.flight
       ? ([
-          ['Avión', null, 'title'],
+          [
+            f.added ? 'Avión (sumado al curso)' : `Avión, aparte del curso (cifras en ${f.currency})`,
+            null,
+            'title',
+          ],
           [`Precio neto por boleto (${q.flight.currency} ${q.flight.netCost})`, null],
           [
             `Boletos: estudiantes${q.flight.shareChaperones ? ' + chaperones escuela' : ''}${q.flight.shareStaff ? ' + chaperones EE' : ''}`,
@@ -114,6 +118,7 @@ function eeSheet(wb: ExcelJS.Workbook, q: QuoteDto, req: { folio: string; groupN
           ],
           ['Costo aéreo del grupo', f.groupCost, 'total'],
           ['Costo por estudiante', f.costPerParticipant],
+          ...(f.added ? [] : [['Utilidad aérea por estudiante', f.marginPerParticipant] as Row]),
           [
             `Precio final por estudiante (${q.flight.currency} ${q.flight.finalPrice})`,
             f.pricePerParticipant,

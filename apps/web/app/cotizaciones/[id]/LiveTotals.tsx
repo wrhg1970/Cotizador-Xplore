@@ -28,7 +28,15 @@ export type Preview =
       /** SubTotal 2: cost the % comisión applies to (no plane ticket). */
       programCost: string;
       /** Avión in sale currency; null without one. */
-      flight: { tickets: number; groupCost: string; cost: string; price: string; margin: string } | null;
+      flight: {
+        added: boolean;
+        currency: string;
+        tickets: number;
+        groupCost: string;
+        cost: string;
+        price: string;
+        margin: string;
+      } | null;
       /** Engine input with the effective margin, for what-if tables (volume, sensitivity). */
       input: QuoteInput;
     }
@@ -90,6 +98,8 @@ export function preview(d: QuoteDto, marginPct: string, targetPrice: string, byP
       byCategory: Object.fromEntries(Object.entries(r.byCategory).map(([k, v]) => [k, money(v)])),
       programCost: money(r.programCostPerParticipant),
       flight: r.flight && {
+        added: r.flight.added,
+        currency: r.flight.currency,
         tickets: r.flight.tickets,
         groupCost: money(r.flight.groupCost),
         cost: money(r.flight.costPerParticipant),

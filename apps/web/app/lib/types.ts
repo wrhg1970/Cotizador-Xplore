@@ -194,6 +194,8 @@ export interface FlightDto {
   /** Sí = these chaperones' tickets are shared among the students. */
   shareChaperones: boolean;
   shareStaff: boolean;
+  /** Sumar al curso: No keeps it in its own currency, presented apart from the course price. */
+  addToCourse: boolean;
 }
 
 export interface QuoteDto {
@@ -230,12 +232,12 @@ export interface QuoteDto {
         groupMarginMxn: string | null;
         /** Per line, in sale currency, headcount applied. */
         lineTotals: string[];
-        /** Avión in sale currency; null without one. */
+        /** Avión, in `currency` (the sale currency when added to the course); null without one. */
         flight:
           | (Record<
               'groupCost' | 'costPerParticipant' | 'pricePerParticipant' | 'marginPerParticipant',
               string
-            > & { tickets: number })
+            > & { tickets: number; added: boolean; currency: CurrencyCode })
           | null;
       })
     | null;

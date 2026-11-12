@@ -10,6 +10,7 @@ const NEW_FLIGHT = (currency: CurrencyCode): FlightDto => ({
   currency,
   shareChaperones: true,
   shareStaff: true,
+  addToCourse: true,
 });
 
 function YesNo({
@@ -92,8 +93,9 @@ export function FlightPanel({
           value={f.shareStaff}
           onChange={(v) => set({ shareStaff: v })}
         />
+        <YesNo label="Sumar al curso" value={f.addToCourse} onChange={(v) => set({ addToCourse: v })} />
         <label>
-          Precio final por estudiante
+          Precio final por estudiante ({f.currency})
           <input
             inputMode="decimal"
             value={f.finalPrice}
@@ -102,8 +104,10 @@ export function FlightPanel({
         </label>
       </div>
       <p className="muted">
-        Prorrateo Sí: sus boletos se reparten entre los estudiantes. No: no se cobran al grupo. El precio
-        final se suma al precio por estudiante sin el % de comisión.
+        Prorrateo Sí: sus boletos se reparten entre los estudiantes. No: no se cobran al grupo.{' '}
+        {f.addToCourse
+          ? `Sumar al curso Sí: se convierte a ${cur} y se suma al precio por estudiante, sin el % de comisión.`
+          : `Sumar al curso No: se queda en ${f.currency} y se presenta aparte del precio del curso.`}
       </p>
       {t && live.ok && (
         <table className="flight-calc">
@@ -119,7 +123,7 @@ export function FlightPanel({
             <tr className="b">
               <td>Costo aéreo del grupo</td>
               <td className="num">
-                {n(t.groupCost)} {cur}
+                {n(t.groupCost)} {t.currency}
               </td>
             </tr>
             <tr>
@@ -136,17 +140,26 @@ export function FlightPanel({
                 {n(t.margin)} · {n(new D(t.margin).mul(draft.participants).toFixed(2))}
               </td>
             </tr>
-            <tr>
-              <td>Precio del curso (con % de comisión) + avión</td>
-              <td className="num">
-                {n(new D(live.price).minus(t.price).toFixed(2))} + {n(t.price)} = {n(live.price)} {cur}
-              </td>
-            </tr>
+            {t.added ? (
+              <tr>
+                <td>Precio del curso (con % de comisión) + avión</td>
+                <td className="num">
+                  {n(new D(live.price).minus(t.price).toFixed(2))} + {n(t.price)} = {n(live.price)} {cur}
+                </td>
+              </tr>
+            ) : (
+              <tr>
+                <td>Precio del curso · avión aparte</td>
+                <td className="num">
+                  {n(live.price)} {cur} · {n(t.price)} {t.currency}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       )}
       {editable && (
-        <button type="button" className="small" onClick={() => onChange(null)}>
+        <button type="button" className="small secondary" onClick={() => onChange(null)}>
           Quitar avión
         </button>
       )}

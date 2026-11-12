@@ -37,6 +37,11 @@ export interface FlightInput {
   /** Sí = the school chaperones' tickets are shared among the students; No = not charged to the group. */
   shareChaperones: boolean;
   shareStaff: boolean;
+  /**
+   * Sumar al curso (Will, 2026-11-11). Sí (default): converted and added to the price per student.
+   * No: stays in its own currency, presented apart; the course price and its % comisión ignore it.
+   */
+  addToCourse?: boolean;
 }
 
 const plain = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
@@ -125,12 +130,17 @@ function fx(q: QuoteInput, currency: string) {
 function flightTotals(q: QuoteInput) {
   const f = q.flight;
   if (!f) return null;
-  const rate = fx(q, f.currency);
+  const added = f.addToCourse !== false;
+  // Apart from the course it is quoted in its own currency, so it needs no exchange rate.
+  const rate = added ? fx(q, f.currency) : new D(1);
   const tickets = q.participants + (f.shareChaperones ? q.chaperones : 0) + (f.shareStaff ? q.staff : 0);
   const groupCost = f.netCost.mul(rate).mul(tickets);
   const costPerParticipant = safeDivide(groupCost, new D(q.participants));
   const pricePerParticipant = f.finalPrice.mul(rate);
   return {
+    added,
+    /** Currency of the amounts below: the sale currency when added, else the ticket's. */
+    currency: added ? q.saleCurrency : f.currency,
     tickets,
     groupCost,
     costPerParticipant,
@@ -156,10 +166,11 @@ export function calculateQuote(q: QuoteInput) {
   const sharedPerParticipant = safeDivide(sharedTotal, new D(q.participants));
   const programCostPerParticipant = directPerParticipant.plus(sharedPerParticipant);
   const flight = flightTotals(q);
-  const costPerParticipant = programCostPerParticipant.plus(flight?.costPerParticipant ?? 0);
+  const inPrice = flight?.added ? flight : null;
+  const costPerParticipant = programCostPerParticipant.plus(inPrice?.costPerParticipant ?? 0);
   // Finance rounds the price up to the next whole unit; the margin absorbs the difference.
   const pricePerParticipant = priceFromTargetMargin(programCostPerParticipant, q.targetMarginRate)
-    .plus(flight?.pricePerParticipant ?? 0)
+    .plus(inPrice?.pricePerParticipant ?? 0)
     .ceil();
   const marginPerParticipant = pricePerParticipant.minus(costPerParticipant);
   const groupMargin = marginPerParticipant.mul(q.participants);
@@ -194,4 +205,7 @@ export function calculateQuote(q: QuoteInput) {
 
 /** The % comisión that makes the price hit `price`; the plane ticket's final price is fixed, not grossed up. */
 export const marginForPrice = (r: ReturnType<typeof calculateQuote>, price: Dec) =>
-  marginRateForPrice(r.programCostPerParticipant, price.minus(r.flight?.pricePerParticipant ?? 0));
+  marginRateForPrice(
+    r.programCostPerParticipant,
+    price.minus(r.flight?.added ? r.flight.pricePerParticipant : 0),
+  );

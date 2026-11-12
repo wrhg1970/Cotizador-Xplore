@@ -226,7 +226,12 @@ export function clientProposal(
         (l) => !l.internalOnly && l.category === 'PER_PARTICIPANT' && l.unitCost.gt(0) && l.quantity.gt(0),
       )
       .map((l) => l.description)
-      .concat(v.flight ? ['Boleto de avión'] : []),
+      .concat(dto.flight?.addToCourse ? ['Boleto de avión'] : []),
+    /** Avión not added to the course: its own price per student, in its own currency. */
+    airTicket:
+      dto.flight && !dto.flight.addToCourse && totals?.flight
+        ? { pricePerParticipant: totals.flight.pricePerParticipant, currency: dto.flight.currency }
+        : null,
   };
 }
 
@@ -319,6 +324,8 @@ function calculate(v: FullVersion) {
     groupMarginMxn: r.groupMarginMxn && money(r.groupMarginMxn),
     /** Avión in sale currency: tickets the group pays, its cost and final price per student. */
     flight: r.flight && {
+      added: r.flight.added,
+      currency: r.flight.currency,
       tickets: r.flight.tickets,
       groupCost: money(r.flight.groupCost),
       costPerParticipant: money(r.flight.costPerParticipant),
@@ -412,7 +419,7 @@ export function toDto(v: FullVersion) {
   const rated = new Set(v.fxRates.map((f) => f.fromCurrency));
   const flight = v.flight ? FlightInput.parse(v.flight) : null;
   const missingFx = [
-    ...new Set([...v.lines.map((l) => l.currency), ...(flight ? [flight.currency] : [])]),
+    ...new Set([...v.lines.map((l) => l.currency), ...(flight?.addToCourse ? [flight.currency] : [])]),
   ].filter((c) => c !== v.saleCurrency && !rated.has(c));
   const pay = schedule(v, missingFx.length ? null : engine(v).pricePerParticipant);
   return {
