@@ -419,6 +419,14 @@ export interface SupplierDto {
   email: string | null;
   phone: string | null;
   notes: string | null;
+  legalName: string | null;
+  taxId: string | null;
+  website: string | null;
+  wissifyId: string | null;
+  wissifySyncedAt: string | null;
   active: boolean;
+  /** Quote versions of the last 12 months that took this supplier (offices whose costs I see). */
+  quotes12m: number;
+  contacts: { id: string; name: string; role: string | null; email: string | null; phone: string | null }[];
   rates: SupplierRateDto[];
 }

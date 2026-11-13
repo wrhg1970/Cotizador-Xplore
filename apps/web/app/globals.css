@@ -3767,3 +3767,55 @@ table.compare thead th.picked {
     grid-template-columns: 1fr;
   }
 }
+
+/* Fichas de Clientes y Proveedores: name, headline figures and sections in tabs. */
+.ficha-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.ficha-head h1 {
+  margin: 6px 0 4px;
+  font-size: 1.35rem;
+}
+.ficha-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.ficha-strip dd {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ficha-sect {
+  margin: 14px 0 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.ficha-sect:first-child {
+  margin-top: 0;
+}
+.grid label.wide {
+  grid-column: span 2;
+}
+.row.end {
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.vig-soon {
+  color: var(--warn);
+}
+.vig-out {
+  color: var(--danger);
+}

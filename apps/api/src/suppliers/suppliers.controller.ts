@@ -2,6 +2,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Inject,
@@ -13,11 +14,17 @@ import {
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { SupplierInput, SupplierRateInput, UpdateSupplier, UpdateSupplierRate } from '@ee/contracts';
+import {
+  ContactInput,
+  SupplierInput,
+  SupplierRateInput,
+  UpdateSupplier,
+  UpdateSupplierRate,
+} from '@ee/contracts';
 import { Prisma, type PrismaClient } from '@ee/db';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
-import { isSystemAdmin, seesAnyInternalCosts } from '../auth/authz.js';
+import { canSeeInternalCosts, isSystemAdmin, seesAnyInternalCosts } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { ZodPipe } from '../zod.pipe.js';
@@ -58,12 +65,125 @@ export class SuppliersController {
     const rows = await this.prisma.supplier.findMany({
       where: { agencyId: user.agencyId, ...(all ? {} : { active: true }) },
       orderBy: { name: 'asc' },
-      include: { rates: { where: all ? {} : { active: true }, orderBy: { description: 'asc' } } },
+      include: {
+        rates: { where: all ? {} : { active: true }, orderBy: { description: 'asc' } },
+        contacts: { orderBy: { createdAt: 'asc' }, omit: { supplierId: true, createdAt: true } },
+      },
     });
-    return rows.map(({ rates, agencyId: _a, createdAt: _c, updatedAt: _u, ...s }) => ({
+    // Quote lines take the supplier's name in costSource when a rate is added (or typed in the sheet).
+    const since = new Date(Date.now() - 365 * 864e5);
+    const used = await this.prisma.quoteLine.findMany({
+      where: {
+        costSource: { in: rows.map((r) => r.name) },
+        version: { createdAt: { gte: since }, scenario: { request: this.costOffices(user) } },
+      },
+      select: { costSource: true, versionId: true },
+      distinct: ['costSource', 'versionId'],
+    });
+    const uses = new Map<string, number>();
+    for (const u of used) uses.set(u.costSource!, (uses.get(u.costSource!) ?? 0) + 1);
+    return rows.map(({ rates, agencyId: _a, createdAt: _c, updatedAt: _u, wissifySyncedAt, ...s }) => ({
       ...s,
+      wissifySyncedAt: wissifySyncedAt?.toISOString() ?? null,
+      quotes12m: uses.get(s.name) ?? 0,
       rates: rates.map(rateDto),
     }));
+  }
+
+  /** Offices whose costs the user sees: quotes elsewhere are not listed under a supplier. */
+  private costOffices(user: AuthUser) {
+    return { officeId: { in: user.agencyOfficeIds.filter((o) => canSeeInternalCosts(user, o)) } };
+  }
+
+  /** "Uso en cotizaciones": quote lines that took this supplier, newest first. */
+  @Get('suppliers/:id/usage')
+  async usage(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
+    if (!seesAnyInternalCosts(user)) throw new ForbiddenException('Tu rol no ve costos internos');
+    const s = await this.prisma.supplier.findFirst({ where: { id, agencyId: user.agencyId } });
+    if (!s) throw new NotFoundException('Proveedor no encontrado');
+    const lines = await this.prisma.quoteLine.findMany({
+      where: { costSource: s.name, version: { scenario: { request: this.costOffices(user) } } },
+      orderBy: { version: { createdAt: 'desc' } },
+      take: 200,
+      select: {
+        id: true,
+        description: true,
+        unitCost: true,
+        currency: true,
+        version: {
+          select: {
+            id: true,
+            number: true,
+            status: true,
+            createdAt: true,
+            scenario: {
+              select: {
+                name: true,
+                request: { select: { id: true, folio: true, groupName: true, clientName: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    return lines.map((l) => ({
+      id: l.id,
+      description: l.description,
+      unitCost: l.unitCost.toFixed(2),
+      currency: l.currency,
+      versionId: l.version.id,
+      version: l.version.number,
+      status: l.version.status,
+      scenario: l.version.scenario.name,
+      date: l.version.createdAt.toISOString().slice(0, 10),
+      request: l.version.scenario.request,
+    }));
+  }
+
+  @Post('suppliers/:id/contacts')
+  addContact(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) supplierId: string,
+    @Body(new ZodPipe(ContactInput)) body: ContactInput,
+  ) {
+    this.admin(user);
+    return this.prisma.$transaction(async (tx) => {
+      if (!(await tx.supplier.findFirst({ where: { id: supplierId, agencyId: user.agencyId } })))
+        throw new NotFoundException('Proveedor no encontrado');
+      const c = await tx.supplierContact.create({ data: { ...body, supplierId } });
+      // Ids only: the person's name, email and phone stay in their table.
+      await audit(tx, {
+        actorUserId: user.id,
+        action: 'supplier.contact_added',
+        entityType: 'SupplierContact',
+        entityId: c.id,
+        correlationId: req.correlationId,
+        diff: { supplierId },
+      });
+      return { id: c.id };
+    });
+  }
+
+  @Delete('supplier-contacts/:id')
+  async removeContact(@CurrentUser() user: AuthUser, @Req() req: Request, @Param('id', uuid) id: string) {
+    this.admin(user);
+    const c = await this.prisma.supplierContact.findFirst({
+      where: { id, supplier: { agencyId: user.agencyId } },
+    });
+    if (!c) throw new NotFoundException('Contacto no encontrado');
+    await this.prisma.$transaction(async (tx) => {
+      await tx.supplierContact.delete({ where: { id } });
+      await audit(tx, {
+        actorUserId: user.id,
+        action: 'supplier.contact_removed',
+        entityType: 'SupplierContact',
+        entityId: id,
+        correlationId: req.correlationId,
+        diff: { supplierId: c.supplierId },
+      });
+    });
+    return { ok: true };
   }
 
   @Post('suppliers')

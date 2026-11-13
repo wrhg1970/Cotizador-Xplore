@@ -34,6 +34,7 @@ beforeAll(async () => {
     ['advisor', officeA, 'ADVISOR'],
     ['other', officeA, 'ADVISOR'],
     ['admin', officeA, 'OFFICE_ADMIN'],
+    ['auditor', officeA, 'AUDITOR'],
     ['outsider', officeB, 'OFFICE_ADMIN'],
   ] as const) {
     const u = await makeUser([{ officeId, role }]);
@@ -99,5 +100,69 @@ describe('ficha por colegio', () => {
     expect(JSON.stringify(log.diff)).not.toContain('Laura');
     await ctx.http().delete(`/api/v1/schools/contacts/${id}`).set('Cookie', c.other!).expect(403);
     await ctx.http().delete(`/api/v1/schools/contacts/${id}`).set('Cookie', c.admin!).expect(200);
+  });
+
+  it('saves the ficha of a school from requests, keeps its contacts after a rename, audits field names only', async () => {
+    const key = schoolKey(SCHOOL);
+    const save = (cookie: string, body: object) =>
+      ctx.http().put('/api/v1/schools/client').set('Cookie', cookie).send(body);
+    const data = {
+      officeId: officeA,
+      key,
+      name: 'Colegio Renombrado',
+      taxId: 'cam850101ab1',
+      city: 'Monterrey',
+    };
+    await save(c.advisor!, { ...data, website: 'cam.edu.mx' }).expect(400);
+    await save(c.outsider!, data).expect(404);
+    await save(c.auditor!, data).expect(403);
+    await save(c.advisor!, data).expect(200);
+    await ctx
+      .http()
+      .post('/api/v1/schools/contacts')
+      .set('Cookie', c.advisor!)
+      .send({ officeId: officeA, key, schoolName: 'Colegio Renombrado', name: 'Ana' })
+      .expect(201);
+    const list = (await ctx.http().get('/api/v1/schools').set('Cookie', c.other!)).body;
+    expect(list.find((x: { key: string }) => x.key === key)).toMatchObject({
+      name: 'Colegio Renombrado',
+      taxId: 'CAM850101AB1',
+      city: 'Monterrey',
+      requests: 2,
+      wissifyId: null,
+      contact: { name: 'Ana' },
+    });
+    const log = await prisma.auditLog.findFirstOrThrow({
+      where: { action: 'client.created', officeId: officeA },
+    });
+    expect(JSON.stringify(log.diff)).not.toContain('CAM850101AB1');
+    // Clearing a field stores null.
+    await save(c.advisor!, { ...data, city: '' }).expect(200);
+    const row = await prisma.client.findUniqueOrThrow({
+      where: { officeId_key: { officeId: officeA, key } },
+    });
+    expect(row.city).toBeNull();
+  });
+
+  it('"Nuevo cliente" without requests shows in the list; a second one with the same name is a conflict', async () => {
+    const name = `Cliente Nuevo ${uniq()}`;
+    const body = { officeId: officeA, name, kind: 'Empresa' };
+    const r = (
+      await ctx.http().put('/api/v1/schools/client').set('Cookie', c.advisor!).send(body).expect(200)
+    ).body;
+    expect(r.key).toBe(schoolKey(name));
+    await ctx.http().put('/api/v1/schools/client').set('Cookie', c.advisor!).send(body).expect(409);
+    const list = (await ctx.http().get('/api/v1/schools').set('Cookie', c.other!)).body;
+    expect(list.find((x: { key: string }) => x.key === r.key)).toMatchObject({
+      requests: 0,
+      kind: 'Empresa',
+    });
+    const d = await ctx
+      .http()
+      .get('/api/v1/schools/detail')
+      .query({ officeId: officeA, key: r.key })
+      .set('Cookie', c.other!)
+      .expect(200);
+    expect(d.body).toMatchObject({ name, trips: [], canEdit: true });
   });
 });
