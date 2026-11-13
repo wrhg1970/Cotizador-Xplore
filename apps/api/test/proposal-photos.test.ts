@@ -1,28 +1,28 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { pexelsImage, type StockPhotos, toStockPhoto } from '../src/integrations/pexels.js';
+import { pixabayImage, type StockPhotos, toStockPhoto } from '../src/integrations/pixabay.js';
 import { loginAs, makeApp, makeOffice, makeUser, prisma, testEnv, uniq } from './helpers.js';
 
-/** Up to 5 proposal photos: Pexels or own uploads (Will, 2026-11-13). */
+/** Up to 5 proposal photos: Pixabay or own uploads (Will, 2026-11-13). */
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1]);
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 
-class FakePexels implements StockPhotos {
+class FakePixabay implements StockPhotos {
   async search(query: string) {
     return {
       photos: [
         {
           id: 7,
-          thumb: 'https://images.pexels.com/7.jpg',
+          thumb: 'https://pixabay.com/get/7_640.jpg',
           alt: query,
           photographer: 'Ana',
-          url: 'https://www.pexels.com/photo/7/',
+          url: 'https://pixabay.com/photos/montreal-7/',
         },
       ],
       hasNext: false,
     };
   }
   async download(id: number) {
-    return { content: Buffer.from(JPEG), credit: id === 7 ? 'Ana / Pexels' : 'Otro / Pexels' };
+    return { content: Buffer.from(JPEG), credit: id === 7 ? 'Ana / Pixabay' : 'Otro / Pixabay' };
   }
 }
 
@@ -62,7 +62,7 @@ beforeAll(async () => {
     undefined,
     testEnv(),
     undefined,
-    new FakePexels(),
+    new FakePixabay(),
   );
   off = await makeApp();
   const office = (await makeOffice()).id;
@@ -86,23 +86,25 @@ const upload = (id: string, fileName: string, content: Buffer) =>
     .send({ fileName, fileBase64: content.toString('base64') })
     .expect(201);
 
-describe('Pexels mapping', () => {
-  it('only ever trusts images.pexels.com over https', () => {
-    expect(pexelsImage('https://images.pexels.com/photos/1/a.jpeg?w=940')).toContain('images.pexels.com');
-    expect(pexelsImage('http://images.pexels.com/a.jpg')).toBeNull();
-    expect(pexelsImage('https://evil.example/a.jpg')).toBeNull();
-    expect(toStockPhoto({ id: 1, src: { medium: 'https://evil.example/a.jpg' } })).toBeNull();
+describe('Pixabay mapping', () => {
+  it('only ever trusts pixabay.com hosts over https', () => {
+    expect(pixabayImage('https://cdn.pixabay.com/photo/2017/1/a_1280.jpg')).toContain('cdn.pixabay.com');
+    expect(pixabayImage('http://cdn.pixabay.com/a.jpg')).toBeNull();
+    expect(pixabayImage('https://pixabay.com.evil.example/a.jpg')).toBeNull();
+    expect(toStockPhoto({ id: 1, webformatURL: 'https://evil.example/a.jpg' })).toBeNull();
     expect(
-      toStockPhoto({ id: 1, src: { medium: 'https://images.pexels.com/1.jpg' }, url: 'javascript:x' }),
-    ).toMatchObject({
-      url: 'https://www.pexels.com/',
-      photographer: 'Pexels',
-    });
+      toStockPhoto({
+        id: 1,
+        webformatURL: 'https://pixabay.com/get/a_640.jpg',
+        pageURL: 'javascript:x',
+        tags: 'city',
+      }),
+    ).toMatchObject({ url: 'https://pixabay.com/', photographer: 'Pixabay', alt: 'city' });
   });
 });
 
 describe('proposal photos', () => {
-  it('searches Pexels and copies the picked photo with its credit; without key it says so', async () => {
+  it('searches Pixabay and copies the picked photo with its credit; without key it says so', async () => {
     const found = await api().get('/api/v1/stock-photos?q=Montreal').set('Cookie', quoter).expect(200);
     expect(found.body.photos[0]).toMatchObject({ id: 7, photographer: 'Ana' });
     await api().get('/api/v1/stock-photos?q=').set('Cookie', quoter).expect(400);
@@ -119,9 +121,9 @@ describe('proposal photos', () => {
       .send({ photoId: 7 })
       .expect(201);
     expect(picked.body).toMatchObject({
-      fileName: 'pexels-7.jpg',
+      fileName: 'pixabay-7.jpg',
       mimeType: 'image/jpeg',
-      credit: 'Ana / Pexels',
+      credit: 'Ana / Pixabay',
     });
     // Read-only roles cannot add files.
     await api()
@@ -162,7 +164,7 @@ describe('proposal photos', () => {
     const saved = (await patch([own, stock], 1).expect(200)).body;
     expect(saved).toMatchObject({ photoIds: [own, stock], coverAttachmentId: own });
     const p = (await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', quoter).expect(200)).body;
-    expect(p).toMatchObject({ hasCover: true, photos: 2, photoCredits: ['Ana / Pexels'] });
+    expect(p).toMatchObject({ hasCover: true, photos: 2, photoCredits: ['Ana / Pixabay'] });
     const second = await api()
       .get(`/api/v1/quotes/${v.id}/proposal/photos/1`)
       .set('Cookie', quoter)

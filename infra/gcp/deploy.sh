@@ -13,8 +13,8 @@
 # WeTravel (opcional): la primera vez correr con WETRAVEL=1 para guardar la llave de la Partner API;
 # después se conecta sola mientras exista el secreto. WETRAVEL_API_URL apunta al sandbox si se quiere.
 # Banxico (opcional): la primera vez correr con BANXICO=1 para guardar el token del SIE; igual que WeTravel.
-# Pexels (opcional, fotos gratis en la propuesta): la primera vez correr con PEXELS=1 para guardar la llave
-# (gratis en https://www.pexels.com/api/); igual que WeTravel. Sin ella solo se suben fotos propias.
+# Pixabay (opcional, fotos gratis en la propuesta): la primera vez correr con PIXABAY=1 para guardar la llave
+# (gratis en https://pixabay.com/api/docs/ (con sesión iniciada)); igual que WeTravel. Sin ella solo se suben fotos propias.
 # Monitoreo (opcional): ALERT_EMAIL=persona@dominio crea revisiones de disponibilidad (web y API con BD)
 # cada 5 minutos y un aviso por correo a esa dirección si fallan. Basta pasarlo una vez.
 # Siempre crea la tarea diaria de Cloud Scheduler (días hábiles, 13:00 hora de CDMX) que llama a /cron/daily.
@@ -155,11 +155,11 @@ if [[ -n "${BANXICO:-}" ]] && ! exists gcloud secrets describe cotizador-banxico
 fi
 exists gcloud secrets describe cotizador-banxico-token && BMX_ENV=",BANXICO_TOKEN=cotizador-banxico-token:latest"
 PX_ENV=""
-if [[ -n "${PEXELS:-}" ]] && ! exists gcloud secrets describe cotizador-pexels-api-key; then
-  read -rsp "Llave de la API de Pexels (no se muestra): " PEXELS_API_KEY && echo
-  printf '%s' "$PEXELS_API_KEY" | secret cotizador-pexels-api-key
+if [[ -n "${PIXABAY:-}" ]] && ! exists gcloud secrets describe cotizador-pixabay-api-key; then
+  read -rsp "Llave de la API de Pixabay (no se muestra): " PIXABAY_API_KEY && echo
+  printf '%s' "$PIXABAY_API_KEY" | secret cotizador-pixabay-api-key
 fi
-exists gcloud secrets describe cotizador-pexels-api-key && PX_ENV=",PEXELS_API_KEY=cotizador-pexels-api-key:latest"
+exists gcloud secrets describe cotizador-pixabay-api-key && PX_ENV=",PIXABAY_API_KEY=cotizador-pixabay-api-key:latest"
 
 CRON_SECRET_NAME="cotizador${SUFFIX}-cron-secret"
 exists gcloud secrets describe "$CRON_SECRET_NAME" ||

@@ -32,7 +32,7 @@ import { HistoryController } from './history/history.controller.js';
 import { PaymentRemindersController } from './notify/payment-reminders.js';
 import { PUSH_SENDER, PushController, Pusher, type PushSender, VapidPushSender } from './notify/push.js';
 import { HttpWeTravel, type WeTravel, WETRAVEL } from './integrations/wetravel.js';
-import { HttpPexels, STOCK_PHOTOS, type StockPhotos } from './integrations/pexels.js';
+import { HttpPixabay, STOCK_PHOTOS, type StockPhotos } from './integrations/pixabay.js';
 import { BANXICO, type Banxico, HttpBanxico } from './rates/banxico.js';
 import { CronController } from './cron/cron.controller.js';
 import { SchoolsController } from './schools/schools.controller.js';
@@ -52,7 +52,7 @@ export class AppModule {
     pushOverride?: PushSender,
     stockOverride?: StockPhotos,
   ): DynamicModule {
-    const stock = stockOverride ?? (env.PEXELS_API_KEY ? new HttpPexels(env.PEXELS_API_KEY) : null);
+    const stock = stockOverride ?? (env.PIXABAY_API_KEY ? new HttpPixabay(env.PIXABAY_API_KEY) : null);
     const push =
       pushOverride ??
       (env.VAPID_PRIVATE_KEY

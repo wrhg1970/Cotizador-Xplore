@@ -177,7 +177,7 @@ export async function proposalContact(prisma: PrismaClient, r: TravelRequest): P
 export const photoList = (v: Pick<QuoteVersion, 'photoIds' | 'coverAttachmentId'>) =>
   v.photoIds.length ? v.photoIds : v.coverAttachmentId ? [v.coverAttachmentId] : [];
 
-/** Stock photo credits ("Ana Pérez / Pexels") of the proposal's photos, once each, in photo order. */
+/** Stock photo credits ("Ana Pérez / Pixabay") of the proposal's photos, once each, in photo order. */
 export async function photoCredits(
   prisma: PrismaClient,
   v: Pick<QuoteVersion, 'photoIds' | 'coverAttachmentId'>,

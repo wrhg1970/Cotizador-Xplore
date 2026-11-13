@@ -372,7 +372,7 @@ const MAX_PHOTOS = 5;
 export const photosOf = (q: Pick<QuoteDto, 'photoIds' | 'coverAttachmentId'>) =>
   q.photoIds.length ? q.photoIds : q.coverAttachmentId ? [q.coverAttachmentId] : [];
 
-/** Up to 5 destination photos: Pexels with one click, own uploads, or images already in the request's files. */
+/** Up to 5 destination photos: Pixabay with one click, own uploads, or images already in the request's files. */
 function PhotoPicker({
   draft,
   set,
@@ -421,7 +421,7 @@ function PhotoPicker({
       setFound(r.photos);
     });
   const pickStock = (p: StockPhoto) => {
-    const have = images.find((a) => a.fileName === `pexels-${p.id}.jpg`);
+    const have = images.find((a) => a.fileName.replace(/\.png$/, '.jpg') === `pixabay-${p.id}.jpg`);
     if (have) return toggle(have.id);
     if (full) return;
     void work(async () => {
@@ -523,9 +523,9 @@ function PhotoPicker({
       </div>
       {found && (
         <>
-          <ul className="photo-grid" aria-label="Fotos de Pexels">
+          <ul className="photo-grid" aria-label="Fotos de Pixabay">
             {found.map((p) => {
-              const have = images.find((a) => a.fileName === `pexels-${p.id}.jpg`);
+              const have = images.find((a) => a.fileName.replace(/\.png$/, '.jpg') === `pixabay-${p.id}.jpg`);
               const n = have ? chosen.indexOf(have.id) : -1;
               return (
                 <li key={p.id}>
@@ -575,8 +575,8 @@ function PhotoPicker({
       )}
       <p className="muted">
         Un clic agrega, otro clic quita. Fotos gratis de{' '}
-        <a href="https://www.pexels.com" target="_blank" rel="noreferrer">
-          Pexels
+        <a href="https://pixabay.com" target="_blank" rel="noreferrer">
+          Pixabay
         </a>
         ; se guarda una copia y la propuesta da crédito al fotógrafo.
       </p>

@@ -577,7 +577,7 @@ model RequestAttachment {
   mimeType     String         @map("mime_type")
   size         Int
   content      Bytes
-  /// Stock photo credit shown on the proposal, e.g. "Ana Pérez / Pexels"; null for own files.
+  /// Stock photo credit shown on the proposal, e.g. "Ana Pérez / Pixabay"; null for own files.
   credit       String?
   uploadedById String         @map("uploaded_by_id") @db.Uuid
   createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)

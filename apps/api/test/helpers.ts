@@ -7,7 +7,7 @@ import { loadEnv } from '../src/env.js';
 import type { Mail, Mailer } from '../src/notify/notifier.js';
 import type { SheetReader } from '../src/quotes/sheet-import.js';
 import type { WeTravel } from '../src/integrations/wetravel.js';
-import type { StockPhotos } from '../src/integrations/pexels.js';
+import type { StockPhotos } from '../src/integrations/pixabay.js';
 import type { Banxico } from '../src/rates/banxico.js';
 import { GoneSubscription, type PushSender } from '../src/notify/push.js';
 

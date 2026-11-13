@@ -12,7 +12,7 @@ import type { OidcProvider } from './auth/oidc.js';
 import type { Mailer } from './notify/notifier.js';
 import type { SheetReader } from './quotes/sheet-import.js';
 import type { WeTravel } from './integrations/wetravel.js';
-import type { StockPhotos } from './integrations/pexels.js';
+import type { StockPhotos } from './integrations/pixabay.js';
 import type { Banxico } from './rates/banxico.js';
 import type { Env } from './env.js';
 import { HttpExceptionFilter } from './http-exception.filter.js';

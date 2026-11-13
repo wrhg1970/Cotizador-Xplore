@@ -28,7 +28,7 @@ import { canDo } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { ZodPipe } from '../zod.pipe.js';
-import { STOCK_PHOTOS, StockPhotoError, type StockPhotos } from '../integrations/pexels.js';
+import { STOCK_PHOTOS, StockPhotoError, type StockPhotos } from '../integrations/pixabay.js';
 import { sniffMime } from './attachment-mime.js';
 import { canView } from './request-policy.js';
 
@@ -44,7 +44,7 @@ const asciiName = (s: string) =>
 const stockOff = () =>
   new ServiceUnavailableException({
     code: 'STOCK_OFF',
-    message: 'El banco de fotos no está conectado (falta la llave de Pexels); sube tus propias fotos',
+    message: 'El banco de fotos no está conectado (falta la llave de Pixabay); sube tus propias fotos',
   });
 const stockError = (e: unknown): never => {
   if (e instanceof StockPhotoError)
@@ -52,7 +52,7 @@ const stockError = (e: unknown): never => {
   throw e;
 };
 
-/** Free stock photo search (Pexels) for the proposal; any signed-in person, results are public photos. */
+/** Free stock photo search (Pixabay) for the proposal; any signed-in person, results are public photos. */
 @Controller('stock-photos')
 export class StockPhotosController {
   constructor(@Inject(STOCK_PHOTOS) private readonly stock: StockPhotos | null) {}
@@ -121,7 +121,7 @@ export class AttachmentsController {
     });
   }
 
-  /** Copies a Pexels photo into the request's files, with its credit, to use in the proposal. */
+  /** Copies a Pixabay photo into the request's files, with its credit, to use in the proposal. */
   @Post('stock')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   async pickStock(
@@ -134,11 +134,16 @@ export class AttachmentsController {
     const r = await this.request(id, user);
     if (r.status === 'CANCELLED' || !canDo(user, r.officeId, 'canEdit'))
       throw new ForbiddenException('Tu rol no puede adjuntar archivos a esta solicitud');
-    const fileName = `pexels-${body.photoId}.jpg`;
     const { content, credit } = await this.stock.download(body.photoId).catch(stockError);
-    if (sniffMime(content, fileName) !== 'image/jpeg')
-      throw new BadRequestException({ code: 'ATTACHMENT', message: 'Pexels no devolvió una foto JPG' });
-    return this.store(user, req, id, { fileName, mimeType: 'image/jpeg', content, credit });
+    const png = sniffMime(content, 'x.png') === 'image/png';
+    const fileName = `pixabay-${body.photoId}.${png ? 'png' : 'jpg'}`;
+    const mimeType = sniffMime(content, fileName);
+    if (!mimeType)
+      throw new BadRequestException({
+        code: 'ATTACHMENT',
+        message: 'Pixabay no devolvió una foto JPG o PNG',
+      });
+    return this.store(user, req, id, { fileName, mimeType, content, credit });
   }
 
   private store(

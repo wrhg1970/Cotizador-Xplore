@@ -59,8 +59,8 @@ const Env = z.object({
     .string()
     .optional()
     .transform((v) => v || undefined),
-  // Pexels API key (free, pexels.com/api); the stock-photo search is off when unset, uploads still work.
-  PEXELS_API_KEY: z
+  // Pixabay API key (free, pixabay.com/api/docs); the stock-photo search is off when unset, uploads still work.
+  PIXABAY_API_KEY: z
     .string()
     .optional()
     .transform((v) => v || undefined),

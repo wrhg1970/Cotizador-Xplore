@@ -549,7 +549,7 @@ export const UpdateConceptTemplate = z
   .partial();
 export type UpdateConceptTemplate = z.infer<typeof UpdateConceptTemplate>;
 
-/** A Pexels photo to copy into the request's files (proposal photos). */
+/** A Pixabay photo to copy into the request's files (proposal photos). */
 export const PickStockPhoto = z.strictObject({ photoId: z.number().int().positive() });
 export const StockPhotoSearch = z.strictObject({
   q: ShortText(100),

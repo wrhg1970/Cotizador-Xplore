@@ -303,7 +303,7 @@ describe('integrations status', () => {
       'MAIL',
       'VERTEX',
       'WETRAVEL',
-      'PEXELS',
+      'PIXABAY',
       'BANXICO',
       'CRON',
       'WISSIFY',

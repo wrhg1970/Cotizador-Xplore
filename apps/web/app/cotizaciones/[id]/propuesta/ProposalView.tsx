@@ -189,7 +189,7 @@ export function ProposalView({
           )}
           {(p.photoCredits?.length ?? 0) > 0 && (
             <figcaption>
-              Fotos: {p.photoCredits!.map((c) => c.replace(/ \/ Pexels$/, '')).join(', ')} en Pexels
+              Fotos: {p.photoCredits!.map((c) => c.replace(/ \/ Pixabay$/, '')).join(', ')} en Pixabay
             </figcaption>
           )}
         </figure>
