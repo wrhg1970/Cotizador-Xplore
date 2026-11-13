@@ -12,6 +12,7 @@ import type { OidcProvider } from './auth/oidc.js';
 import type { Mailer } from './notify/notifier.js';
 import type { SheetReader } from './quotes/sheet-import.js';
 import type { WeTravel } from './integrations/wetravel.js';
+import type { StockPhotos } from './integrations/pexels.js';
 import type { Banxico } from './rates/banxico.js';
 import type { Env } from './env.js';
 import { HttpExceptionFilter } from './http-exception.filter.js';
@@ -30,9 +31,10 @@ export async function createApp(
   wetravel?: WeTravel,
   banxico?: Banxico,
   push?: PushSender,
+  stock?: StockPhotos,
 ): Promise<INestApplication> {
   const app = await NestFactory.create(
-    AppModule.forRoot(env, oidc, reader, mailer, wetravel, banxico, push),
+    AppModule.forRoot(env, oidc, reader, mailer, wetravel, banxico, push, stock),
     {
       logger: env.NODE_ENV === 'test' ? false : undefined,
       bodyParser: false,

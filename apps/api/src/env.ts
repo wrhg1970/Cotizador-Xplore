@@ -59,6 +59,11 @@ const Env = z.object({
     .string()
     .optional()
     .transform((v) => v || undefined),
+  // Pexels API key (free, pexels.com/api); the stock-photo search is off when unset, uploads still work.
+  PEXELS_API_KEY: z
+    .string()
+    .optional()
+    .transform((v) => v || undefined),
   // Banxico SIE token (free, banxico.org.mx); automatic official rates are off when unset.
   BANXICO_TOKEN: z
     .string()

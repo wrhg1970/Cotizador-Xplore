@@ -56,6 +56,7 @@ const FIELD: Record<string, string> = {
   exclusions: 'no incluye',
   extraIncludes: 'incluye',
   coverAttachmentId: 'portada',
+  photoIds: 'fotos',
 };
 const kindOf = (action: string): Kind =>
   PRICE.includes(action) ? 'price' : TRANSITION[action] || action === 'request.created' ? 'state' : 'notes';

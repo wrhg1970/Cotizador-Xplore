@@ -8,7 +8,7 @@ import { FlightPanel } from './Flight';
 import { chaperoneMirrors, syncChaperoneLines } from '@ee/quote-engine';
 import { api, errorText } from '../../lib/api';
 import { preview, TotalsBar } from './LiveTotals';
-import { PaymentSchedule, ProposalContent } from './ProposalContent';
+import { PaymentSchedule, photosOf, ProposalContent } from './ProposalContent';
 import { ShareLinks } from './ShareLinks';
 import { VersionChanges } from './VersionChanges';
 import { SheetImport } from './SheetImport';
@@ -361,7 +361,7 @@ export default function QuoteEditorPage() {
           itinerary: draft.itinerary?.map((d) => ({ ...d, details: d.details?.trim() || undefined })) ?? null,
           exclusions: draft.exclusions.map((x) => x.trim()).filter(Boolean),
           extraIncludes: draft.extraIncludes,
-          coverAttachmentId: draft.coverAttachmentId,
+          photoIds: photosOf(draft),
           flight: draft.flight && {
             ...draft.flight,
             netCost: draft.flight.netCost || '0',
@@ -1173,7 +1173,7 @@ export default function QuoteEditorPage() {
 
         <div {...tabProps('propuesta')}>
           <fieldset disabled={!editable} className="editor">
-            <ProposalContent draft={draft} set={set} />
+            <ProposalContent draft={draft} set={set} city={req?.city ?? ''} />
           </fieldset>
         </div>
       </div>

@@ -171,12 +171,32 @@ export async function proposalContact(prisma: PrismaClient, r: TravelRequest): P
   return { name: user?.name ?? null, email: user?.email ?? null, office: office?.name ?? null };
 }
 
+/** The proposal's photos in order: the chosen ones, or the single cover of versions made before. */
+export const photoList = (v: Pick<QuoteVersion, 'photoIds' | 'coverAttachmentId'>) =>
+  v.photoIds.length ? v.photoIds : v.coverAttachmentId ? [v.coverAttachmentId] : [];
+
+/** Stock photo credits ("Ana Pérez / Pexels") of the proposal's photos, once each, in photo order. */
+export async function photoCredits(
+  prisma: PrismaClient,
+  v: Pick<QuoteVersion, 'photoIds' | 'coverAttachmentId'>,
+) {
+  const ids = photoList(v);
+  if (!ids.length) return [];
+  const rows = await prisma.requestAttachment.findMany({
+    where: { id: { in: ids }, credit: { not: null } },
+    select: { id: true, credit: true },
+  });
+  const by = new Map(rows.map((a) => [a.id, a.credit!]));
+  return [...new Set(ids.map((id) => by.get(id)).filter((c): c is string => !!c))];
+}
+
 /** Client-safe proposal (PRD §PDF): price, group, validity and included concepts; never costs or margin. */
 export function clientProposal(
   v: FullVersion,
   r: TravelRequest,
   brand: AgencyBrand,
   contact: ProposalContact | null = null,
+  credits: string[] = [],
 ) {
   const dto = toDto(v);
   const { totals, validUntil, assumptions } = dto;
@@ -209,6 +229,9 @@ export function clientProposal(
     itinerary: dto.itinerary ?? [],
     exclusions: dto.exclusions,
     hasCover: !!v.coverAttachmentId,
+    /** Photos served by index (0 = cover); credits only for stock photos. */
+    photos: photoList(v).length,
+    photoCredits: credits,
     // Prices only (no costs); shown when whoever quotes ticks it.
     volumePrices: v.showVolumePrices ? dto.volumePrices : null,
     // Only the winning proposal carries the payment link, the same one WeTravel's checkout shows.
@@ -405,6 +428,7 @@ export function snapshotHash(v: FullVersion) {
     'flight',
   ] as const;
   for (const k of added) if (rest[k] === null) delete rest[k];
+  if (!rest.photoIds.length) delete (rest as { photoIds?: string[] }).photoIds;
   if (!rest.showVolumePrices) delete (rest as { showVolumePrices?: boolean }).showVolumePrices;
   const { exclusions, extraIncludes, ...kept } = rest;
   return calculationHash({
@@ -449,6 +473,7 @@ export function toDto(v: FullVersion) {
     exclusions: v.exclusions,
     extraIncludes: v.extraIncludes,
     coverAttachmentId: v.coverAttachmentId,
+    photoIds: v.photoIds,
     showVolumePrices: v.showVolumePrices,
     flight,
     paymentSchedule: pay.payments,
@@ -521,6 +546,7 @@ async function copyVersion(tx: Tx, src: FullVersion, scenarioId: string, number:
       exclusions: src.exclusions,
       extraIncludes: src.extraIncludes,
       coverAttachmentId: src.coverAttachmentId,
+      photoIds: src.photoIds,
       showVolumePrices: src.showVolumePrices,
       flight: src.flight ?? Prisma.DbNull,
       createdById: userId,
@@ -829,6 +855,7 @@ export class QuotesController {
       r,
       toBrand(await agencyOfOffice(this.prisma, r.officeId)),
       await proposalContact(this.prisma, r),
+      await photoCredits(this.prisma, v),
     );
   }
 
@@ -911,6 +938,22 @@ export class QuotesController {
           message: 'No se captura tipo de cambio de la moneda de venta consigo misma',
         });
 
+      if (fields.photoIds) {
+        const ok = await tx.requestAttachment.count({
+          where: {
+            id: { in: fields.photoIds },
+            requestId: v.scenario.requestId,
+            mimeType: { startsWith: 'image/' },
+          },
+        });
+        if (ok !== fields.photoIds.length)
+          throw new BadRequestException({
+            code: 'VALIDATION_ERROR',
+            message: 'Las fotos deben ser imágenes JPG o PNG de esta solicitud',
+          });
+        // The first photo is the cover; old clients keep sending coverAttachmentId alone.
+        fields.coverAttachmentId = fields.photoIds[0] ?? null;
+      }
       if (fields.coverAttachmentId) {
         const cover = await tx.requestAttachment.findFirst({
           where: { id: fields.coverAttachmentId, requestId: v.scenario.requestId },

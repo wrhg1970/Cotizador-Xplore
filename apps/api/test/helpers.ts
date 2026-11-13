@@ -7,6 +7,7 @@ import { loadEnv } from '../src/env.js';
 import type { Mail, Mailer } from '../src/notify/notifier.js';
 import type { SheetReader } from '../src/quotes/sheet-import.js';
 import type { WeTravel } from '../src/integrations/wetravel.js';
+import type { StockPhotos } from '../src/integrations/pexels.js';
 import type { Banxico } from '../src/rates/banxico.js';
 import { GoneSubscription, type PushSender } from '../src/notify/push.js';
 
@@ -62,8 +63,9 @@ export async function makeApp(
   banxico?: Banxico,
   env = testEnv(),
   push?: PushSender,
+  stock?: StockPhotos,
 ) {
-  const app: INestApplication = await createApp(env, oidc, reader, mailer, wetravel, banxico, push);
+  const app: INestApplication = await createApp(env, oidc, reader, mailer, wetravel, banxico, push, stock);
   await app.init();
   return { app, oidc, http: () => request(app.getHttpServer()) };
 }

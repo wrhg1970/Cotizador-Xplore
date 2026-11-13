@@ -363,6 +363,8 @@ model QuoteVersion {
   /// Destination photo on the proposal: an image attachment of the same request.
   coverAttachmentId    String?             @map("cover_attachment_id") @db.Uuid
   coverAttachment      RequestAttachment?  @relation("cover", fields: [coverAttachmentId], references: [id], onDelete: Restrict)
+  /// Up to 5 destination photos (image attachments of the same request), in order; the first is the cover.
+  photoIds             String[]            @default([]) @map("photo_ids") @db.Uuid
   /// Shows the price-per-group-size table (prices only, no costs) on the client's proposal.
   showVolumePrices     Boolean             @default(false) @map("show_volume_prices")
   /// Plane ticket "Avión" (contracts FlightInput): net cost, final price per student, currency, shares.
@@ -573,6 +575,8 @@ model RequestAttachment {
   mimeType     String         @map("mime_type")
   size         Int
   content      Bytes
+  /// Stock photo credit shown on the proposal, e.g. "Ana Pérez / Pexels"; null for own files.
+  credit       String?
   uploadedById String         @map("uploaded_by_id") @db.Uuid
   createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   request      TravelRequest  @relation(fields: [requestId], references: [id], onDelete: Restrict)

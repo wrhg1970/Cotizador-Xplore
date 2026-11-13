@@ -3857,3 +3857,111 @@ table.compare thead th.picked {
   border-style: dashed;
   width: 12em;
 }
+
+/* Proposal photos (Will, 2026-11-13): up to 5, the first is the cover. */
+article.proposal .pv-photos {
+  margin: 14px var(--pv-pad) 0;
+}
+article.proposal .pv-photo-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+article.proposal .pv-photo-strip img {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+}
+article.proposal .pv-photos figcaption {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.photo-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 10px;
+}
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+.photo-grid.small {
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+}
+.photo {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--subtle);
+}
+.photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+}
+.photo-row .photo {
+  width: 108px;
+}
+.photo[aria-pressed='true'],
+.photo.chosen {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+.photo-n {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+.photo small {
+  position: absolute;
+  left: 5px;
+  bottom: 3px;
+  color: #fff;
+  font-size: 9px;
+  text-shadow: 0 1px 2px #000;
+}
+.photo-tools {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  display: flex;
+  gap: 2px;
+}
+.photo-tools button {
+  min-height: 0;
+  padding: 0 5px;
+  font-size: 11px;
+  line-height: 18px;
+  border-radius: 4px;
+  background: #ffffffdd;
+  color: var(--ink);
+  border: 0;
+}
+.photo-search input {
+  flex: 1;
+}

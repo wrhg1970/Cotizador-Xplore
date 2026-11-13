@@ -253,6 +253,8 @@ export interface QuoteDto {
   /** "Incluye" lines picked from the catalog, after the ones derived from priced concepts. */
   extraIncludes: string[];
   coverAttachmentId: string | null;
+  /** Up to 5 destination photos (request attachments); the first is the cover. */
+  photoIds: string[];
   showVolumePrices: boolean;
   /** Plane ticket ("Avión"), in its own currency; finalPrice is per student and skips the % comisión. */
   flight: FlightDto | null;

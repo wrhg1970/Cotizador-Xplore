@@ -10,13 +10,16 @@ import {
   NotFoundException,
   Param,
   ParseUUIDPipe,
+  HttpException,
   Post,
+  Query,
   Req,
   Res,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
-import { MAX_ATTACHMENT_BYTES, UploadAttachment } from '@ee/contracts';
+import { MAX_ATTACHMENT_BYTES, PickStockPhoto, StockPhotoSearch, UploadAttachment } from '@ee/contracts';
 import type { PrismaClient } from '@ee/db';
 import type { z } from 'zod';
 import { audit } from '../audit.js';
@@ -25,6 +28,7 @@ import { canDo } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { ZodPipe } from '../zod.pipe.js';
+import { STOCK_PHOTOS, StockPhotoError, type StockPhotos } from '../integrations/pexels.js';
 import { sniffMime } from './attachment-mime.js';
 import { canView } from './request-policy.js';
 
@@ -37,9 +41,36 @@ const asciiName = (s: string) =>
     .slice(0, 120);
 
 /** Files on a request (V2 "adjuntos"): visible to whoever sees the request, added by members who may edit. */
+const stockOff = () =>
+  new ServiceUnavailableException({
+    code: 'STOCK_OFF',
+    message: 'El banco de fotos no está conectado (falta la llave de Pexels); sube tus propias fotos',
+  });
+const stockError = (e: unknown): never => {
+  if (e instanceof StockPhotoError)
+    throw new HttpException({ code: 'STOCK_PHOTOS', message: e.message }, e.status);
+  throw e;
+};
+
+/** Free stock photo search (Pexels) for the proposal; any signed-in person, results are public photos. */
+@Controller('stock-photos')
+export class StockPhotosController {
+  constructor(@Inject(STOCK_PHOTOS) private readonly stock: StockPhotos | null) {}
+
+  @Get()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  search(@Query(new ZodPipe(StockPhotoSearch)) q: z.infer<typeof StockPhotoSearch>) {
+    if (!this.stock) throw stockOff();
+    return this.stock.search(q.q, q.page).catch(stockError);
+  }
+}
+
 @Controller('requests/:id/attachments')
 export class AttachmentsController {
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    @Inject(STOCK_PHOTOS) private readonly stock: StockPhotos | null,
+  ) {}
 
   private async request(id: string, user: AuthUser) {
     const r = await this.prisma.travelRequest.findUnique({ where: { id } });
@@ -82,6 +113,47 @@ export class AttachmentsController {
         code: 'ATTACHMENT',
         message: 'Solo se aceptan PDF, imágenes PNG/JPG, Excel, Word, PowerPoint, CSV o texto',
       });
+    return this.store(user, req, id, {
+      fileName: body.fileName,
+      mimeType,
+      content,
+      versionId: body.versionId,
+    });
+  }
+
+  /** Copies a Pexels photo into the request's files, with its credit, to use in the proposal. */
+  @Post('stock')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  async pickStock(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(PickStockPhoto)) body: z.infer<typeof PickStockPhoto>,
+  ) {
+    if (!this.stock) throw stockOff();
+    const r = await this.request(id, user);
+    if (r.status === 'CANCELLED' || !canDo(user, r.officeId, 'canEdit'))
+      throw new ForbiddenException('Tu rol no puede adjuntar archivos a esta solicitud');
+    const fileName = `pexels-${body.photoId}.jpg`;
+    const { content, credit } = await this.stock.download(body.photoId).catch(stockError);
+    if (sniffMime(content, fileName) !== 'image/jpeg')
+      throw new BadRequestException({ code: 'ATTACHMENT', message: 'Pexels no devolvió una foto JPG' });
+    return this.store(user, req, id, { fileName, mimeType: 'image/jpeg', content, credit });
+  }
+
+  private store(
+    user: AuthUser,
+    req: Request,
+    id: string,
+    body: {
+      fileName: string;
+      mimeType: string;
+      content: Buffer<ArrayBuffer>;
+      versionId?: string;
+      credit?: string;
+    },
+  ) {
+    const { mimeType, content } = body;
     return this.prisma.$transaction(async (tx) => {
       if (
         body.versionId &&
@@ -102,6 +174,7 @@ export class AttachmentsController {
           content,
           uploadedById: user.id,
           versionId: body.versionId,
+          credit: body.credit,
         },
         omit: { content: true },
       });
@@ -151,10 +224,14 @@ export class AttachmentsController {
     if (!a) throw new NotFoundException('Archivo no encontrado');
     if (a.uploadedById !== user.id && !canDo(user, r.officeId, 'canDelete'))
       throw new ForbiddenException('Solo quien lo subió o un rol con permiso de borrar');
-    if (await this.prisma.quoteVersion.count({ where: { coverAttachmentId: a.id } }))
+    if (
+      await this.prisma.quoteVersion.count({
+        where: { OR: [{ coverAttachmentId: a.id }, { photoIds: { has: a.id } }] },
+      })
+    )
       throw new ConflictException({
         code: 'ATTACHMENT_IN_USE',
-        message: 'Es la portada de una propuesta; quítala de la cotización antes de borrarla',
+        message: 'Es una foto de una propuesta; quítala de la cotización antes de borrarla',
       });
     await this.prisma.$transaction(async (tx) => {
       await tx.requestAttachment.delete({ where: { id: a.id } });

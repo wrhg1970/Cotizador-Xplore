@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { api } from '../../lib/api';
+import { api, errorText } from '../../lib/api';
+import { MAX_BYTES, toBase64 } from './SheetImport';
 import { fmtDate, paymentLabel, type ProposalItemDto, type QuoteDto } from '../../lib/types';
 
 const SUBTABS = [
@@ -13,9 +14,12 @@ const SUBTABS = [
 export function ProposalContent({
   draft,
   set,
+  city = '',
 }: {
   draft: QuoteDto;
   set: (patch: Partial<QuoteDto>) => void;
+  /** The request's city, the first photo search. */
+  city?: string;
 }) {
   const [sub, setSub] = useState<(typeof SUBTABS)[number][0]>('fotos');
   const itinerary = draft.itinerary ?? [];
@@ -31,7 +35,7 @@ export function ProposalContent({
           </button>
         ))}
       </div>
-      {sub === 'fotos' && <CoverPicker draft={draft} set={set} />}
+      {sub === 'fotos' && <PhotoPicker draft={draft} set={set} city={city} />}
       {sub === 'itinerario' && (
         <section aria-labelledby="itinerario">
           <h2 id="itinerario">Itinerario</h2>
@@ -223,40 +227,221 @@ function PhraseGroup({
   );
 }
 
-/** Destination photo for the proposal, chosen among the request's JPG/PNG attachments. */
-function CoverPicker({ draft, set }: { draft: QuoteDto; set: (patch: Partial<QuoteDto>) => void }) {
-  const [images, setImages] = useState<{ id: string; fileName: string }[]>([]);
+type Attachment = { id: string; fileName: string; mimeType: string; credit: string | null };
+type StockPhoto = { id: number; thumb: string; alt: string; photographer: string; url: string };
+const MAX_PHOTOS = 5;
+/** Photos of versions made before there were several: their single cover. */
+export const photosOf = (q: Pick<QuoteDto, 'photoIds' | 'coverAttachmentId'>) =>
+  q.photoIds.length ? q.photoIds : q.coverAttachmentId ? [q.coverAttachmentId] : [];
+
+/** Up to 5 destination photos: Pexels with one click, own uploads, or images already in the request's files. */
+function PhotoPicker({
+  draft,
+  set,
+  city,
+}: {
+  draft: QuoteDto;
+  set: (patch: Partial<QuoteDto>) => void;
+  city: string;
+}) {
+  const [files, setFiles] = useState<Attachment[]>([]);
+  const [query, setQuery] = useState(city);
+  const [found, setFound] = useState<StockPhoto[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const base = `/requests/${draft.requestId}/attachments`;
+  const images = files.filter((a) => a.mimeType.startsWith('image/'));
+  const chosen = photosOf(draft);
+  const full = chosen.length >= MAX_PHOTOS;
+  const choose = (ids: string[]) => set({ photoIds: ids, coverAttachmentId: ids[0] ?? null });
+  const toggle = (id: string) =>
+    choose(chosen.includes(id) ? chosen.filter((x) => x !== id) : full ? chosen : [...chosen, id]);
+  const move = (i: number, by: number) => {
+    const next = [...chosen];
+    [next[i], next[i + by]] = [next[i + by]!, next[i]!];
+    choose(next);
+  };
+
   useEffect(() => {
-    api<{ id: string; fileName: string; mimeType: string }[]>(
-      `/requests/${draft.requestId}/attachments`,
-    ).then(
-      (all) => setImages(all.filter((a) => a.mimeType.startsWith('image/'))),
-      () => setImages([]),
-    );
+    api<Attachment[]>(`/requests/${draft.requestId}/attachments`).then(setFiles, () => setFiles([]));
   }, [draft.requestId]);
+
+  async function work(task: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await task();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const search = () =>
+    work(async () => {
+      const r = await api<{ photos: StockPhoto[] }>(`/stock-photos?q=${encodeURIComponent(query.trim())}`);
+      setFound(r.photos);
+    });
+  const pickStock = (p: StockPhoto) => {
+    const have = images.find((a) => a.fileName === `pexels-${p.id}.jpg`);
+    if (have) return toggle(have.id);
+    if (full) return;
+    void work(async () => {
+      const a = await api<Attachment>(`${base}/stock`, { method: 'POST', body: { photoId: p.id } });
+      setFiles((all) => [...all, a]);
+      choose([...chosen, a.id]);
+    });
+  };
+  const uploadOwn = (list: FileList | null) =>
+    work(async () => {
+      const added: string[] = [];
+      for (const file of Array.from(list ?? []).slice(0, MAX_PHOTOS - chosen.length)) {
+        if (file.size > MAX_BYTES) throw new Error(`${file.name} pesa más de 3 MB`);
+        const a = await api<Attachment>(base, {
+          method: 'POST',
+          body: { fileName: file.name, fileBase64: await toBase64(file) },
+        });
+        setFiles((all) => [...all, a]);
+        added.push(a.id);
+      }
+      choose([...chosen, ...added]);
+    });
+  const src = (id: string) => `/api/v1${base}/${id}`;
+  const byId = new Map(images.map((a) => [a.id, a]));
+
   return (
-    <section aria-labelledby="portada">
-      <h2 id="portada">Foto del destino</h2>
-      {images.length ? (
-        <label>
-          Portada de la propuesta
-          <select
-            value={draft.coverAttachmentId ?? ''}
-            onChange={(e) => set({ coverAttachmentId: e.target.value || null })}
-          >
-            <option value="">Sin foto</option>
-            {images.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.fileName}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : (
-        <p className="muted">
-          Sube una foto JPG o PNG en los adjuntos de la solicitud para usarla de portada.
+    <section aria-labelledby="fotos">
+      <h2 id="fotos">
+        Fotos del destino{' '}
+        <small className="muted">
+          · máximo {MAX_PHOTOS} · la 1 es la portada · {chosen.length} de {MAX_PHOTOS}
+        </small>
+      </h2>
+      {error && (
+        <p className="error" role="alert">
+          {error}
         </p>
       )}
+      <ol className="photo-row" aria-label="Fotos elegidas">
+        {chosen.map((id, i) => (
+          <li key={id} className="photo chosen">
+            <img src={src(id)} alt={byId.get(id)?.fileName ?? `Foto ${i + 1}`} />
+            <span className="photo-n">{i + 1}</span>
+            <span className="photo-tools">
+              <button
+                type="button"
+                aria-label={`Mover foto ${i + 1} antes`}
+                disabled={i === 0}
+                onClick={() => move(i, -1)}
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                aria-label={`Mover foto ${i + 1} después`}
+                disabled={i === chosen.length - 1}
+                onClick={() => move(i, 1)}
+              >
+                →
+              </button>
+              <button type="button" aria-label={`Quitar foto ${i + 1}`} onClick={() => toggle(id)}>
+                ✕
+              </button>
+            </span>
+          </li>
+        ))}
+        {chosen.length === 0 && <li className="muted">Sin fotos: la propuesta sale sin portada.</li>}
+      </ol>
+      <div className="row photo-search">
+        <input
+          aria-label="Buscar fotos gratis"
+          value={query}
+          maxLength={100}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              if (query.trim()) void search();
+            }
+          }}
+        />
+        <button type="button" disabled={busy || !query.trim()} onClick={() => void search()}>
+          Buscar
+        </button>
+        <label className="button secondary">
+          ⬆ Subir mis fotos
+          <input
+            type="file"
+            accept="image/jpeg,image/png"
+            multiple
+            hidden
+            disabled={busy || full}
+            onChange={(e) => {
+              void uploadOwn(e.target.files);
+              e.target.value = '';
+            }}
+          />
+        </label>
+      </div>
+      {found && (
+        <>
+          <ul className="photo-grid" aria-label="Fotos de Pexels">
+            {found.map((p) => {
+              const have = images.find((a) => a.fileName === `pexels-${p.id}.jpg`);
+              const n = have ? chosen.indexOf(have.id) : -1;
+              return (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    className="photo"
+                    aria-pressed={n >= 0}
+                    aria-label={`${p.alt || 'Foto'} · ${p.photographer}`}
+                    disabled={busy || (n < 0 && full)}
+                    onClick={() => pickStock(p)}
+                  >
+                    <img src={p.thumb} alt="" />
+                    {n >= 0 && <span className="photo-n">{n + 1}</span>}
+                    <small>Foto: {p.photographer}</small>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {found.length === 0 && <p className="muted">Sin resultados; prueba otra palabra.</p>}
+        </>
+      )}
+      {images.length > 0 && (
+        <>
+          <p className="muted">Fotos ya en los archivos de la solicitud:</p>
+          <ul className="photo-grid small" aria-label="Fotos de la solicitud">
+            {images.map((a) => {
+              const n = chosen.indexOf(a.id);
+              return (
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    className="photo"
+                    aria-pressed={n >= 0}
+                    aria-label={a.fileName}
+                    disabled={n < 0 && full}
+                    onClick={() => toggle(a.id)}
+                  >
+                    <img src={src(a.id)} alt="" />
+                    {n >= 0 && <span className="photo-n">{n + 1}</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+      <p className="muted">
+        Un clic agrega, otro clic quita. Fotos gratis de{' '}
+        <a href="https://www.pexels.com" target="_blank" rel="noreferrer">
+          Pexels
+        </a>
+        ; se guarda una copia y la propuesta da crédito al fotógrafo.
+      </p>
     </section>
   );
 }

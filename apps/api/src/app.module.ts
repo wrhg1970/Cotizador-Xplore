@@ -24,7 +24,7 @@ import { SHEET_READER, type SheetReader, VertexSheetReader } from './quotes/shee
 import { MAILER, type Mailer, Notifier, SmtpMailer } from './notify/notifier.js';
 import { UsersController } from './users/users.controller.js';
 import { OfficialRatesController } from './rates/official-rates.controller.js';
-import { AttachmentsController } from './requests/attachments.controller.js';
+import { AttachmentsController, StockPhotosController } from './requests/attachments.controller.js';
 import { RequestTeamController } from './requests/team.controller.js';
 import { ProposalShareController } from './quotes/share.controller.js';
 import { IntegrationsController, ReportsController } from './reports/reports.controller.js';
@@ -32,6 +32,7 @@ import { HistoryController } from './history/history.controller.js';
 import { PaymentRemindersController } from './notify/payment-reminders.js';
 import { PUSH_SENDER, PushController, Pusher, type PushSender, VapidPushSender } from './notify/push.js';
 import { HttpWeTravel, type WeTravel, WETRAVEL } from './integrations/wetravel.js';
+import { HttpPexels, STOCK_PHOTOS, type StockPhotos } from './integrations/pexels.js';
 import { BANXICO, type Banxico, HttpBanxico } from './rates/banxico.js';
 import { CronController } from './cron/cron.controller.js';
 import { SchoolsController } from './schools/schools.controller.js';
@@ -49,7 +50,9 @@ export class AppModule {
     wetravelOverride?: WeTravel,
     banxicoOverride?: Banxico,
     pushOverride?: PushSender,
+    stockOverride?: StockPhotos,
   ): DynamicModule {
+    const stock = stockOverride ?? (env.PEXELS_API_KEY ? new HttpPexels(env.PEXELS_API_KEY) : null);
     const push =
       pushOverride ??
       (env.VAPID_PRIVATE_KEY
@@ -116,6 +119,7 @@ export class AppModule {
         RequestImportController,
         OfficialRatesController,
         AttachmentsController,
+        StockPhotosController,
         RequestTeamController,
         ProposalShareController,
         ReportsController,
@@ -135,6 +139,7 @@ export class AppModule {
         { provide: SHEET_READER, useValue: reader },
         { provide: MAILER, useValue: mailer },
         { provide: WETRAVEL, useValue: wetravel },
+        { provide: STOCK_PHOTOS, useValue: stock },
         { provide: BANXICO, useValue: banxico },
         { provide: PUSH_SENDER, useValue: push },
         Pusher,

@@ -487,6 +487,12 @@ export const UpdateQuote = z
     /** null removes the plane ticket. */
     flight: FlightInput.nullable().optional(),
     ...proposalContent,
+    /** Up to 5 destination photos (image attachments of the request), in order; the first becomes the cover. */
+    photoIds: z
+      .array(z.uuid())
+      .max(5, 'Máximo 5 fotos')
+      .refine((ids) => new Set(ids).size === ids.length, 'Foto repetida')
+      .optional(),
     /** Price per group size on the client's proposal (prices only). */
     showVolumePrices: z.boolean().optional(),
     rowVersion: z.number().int().min(1),
@@ -526,6 +532,13 @@ export const UpdateConceptTemplate = z
   })
   .partial();
 export type UpdateConceptTemplate = z.infer<typeof UpdateConceptTemplate>;
+
+/** A Pexels photo to copy into the request's files (proposal photos). */
+export const PickStockPhoto = z.strictObject({ photoId: z.number().int().positive() });
+export const StockPhotoSearch = z.strictObject({
+  q: ShortText(100),
+  page: z.coerce.number().int().min(1).max(50).default(1),
+});
 
 /** Agency catalog phrase for the proposal's Incluye (excluded false) or No incluye (excluded true). */
 export const ProposalItemInput = z.strictObject({
