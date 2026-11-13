@@ -1,6 +1,6 @@
 import { CurrencyCode } from '@ee/contracts';
 import { D } from '@ee/quote-engine';
-import type { FlightDto, QuoteDto } from '../../lib/types';
+import type { FlightDto, QuoteDto, SupplierDto } from '../../lib/types';
 import type { Preview } from './LiveTotals';
 import { thousands as n } from './SheetSummary';
 
@@ -42,11 +42,13 @@ export function FlightPanel({
   draft,
   live,
   editable,
+  suppliers,
   onChange,
 }: {
   draft: QuoteDto;
   live: Preview;
   editable: boolean;
+  suppliers: SupplierDto[];
   onChange: (flight: FlightDto | null) => void;
 }) {
   const f = draft.flight;
@@ -67,6 +69,23 @@ export function FlightPanel({
   return (
     <fieldset disabled={!editable} className="editor flight">
       <div className="fields">
+        <label>
+          Proveedor
+          <input
+            list="flight-suppliers"
+            maxLength={200}
+            placeholder="Del catálogo o escrito"
+            value={f.supplier ?? ''}
+            onChange={(e) => set({ supplier: e.target.value })}
+          />
+          <datalist id="flight-suppliers">
+            {suppliers
+              .filter((s) => s.active)
+              .map((s) => (
+                <option key={s.id} value={s.name} />
+              ))}
+          </datalist>
+        </label>
         <label>
           Precio neto por boleto
           <input
@@ -104,6 +123,7 @@ export function FlightPanel({
         </label>
       </div>
       <p className="muted">
+        Proveedor: del catálogo de Proveedores o escrito a mano; vacío sale como "Avión" en Reportes.{' '}
         Prorrateo Sí: sus boletos se reparten entre los estudiantes. No: no se cobran al grupo.{' '}
         {f.addToCourse
           ? `Sumar al curso Sí: se convierte a ${cur} y se suma al precio por estudiante, sin el % de comisión.`

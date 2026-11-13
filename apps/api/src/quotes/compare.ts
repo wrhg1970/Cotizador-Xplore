@@ -37,7 +37,7 @@ export function compareVersions(prev: QuoteDto, cur: QuoteDto) {
   }
   const flight = (q: QuoteDto) =>
     q.flight
-      ? `neto ${q.flight.netCost} · final ${q.flight.finalPrice} ${q.flight.currency} · prorrateo escuela ${q.flight.shareChaperones ? 'Sí' : 'No'} · EE ${q.flight.shareStaff ? 'Sí' : 'No'} · sumar al curso ${q.flight.addToCourse ? 'Sí' : 'No'}`
+      ? `neto ${q.flight.netCost} · final ${q.flight.finalPrice} ${q.flight.currency} · prorrateo escuela ${q.flight.shareChaperones ? 'Sí' : 'No'} · EE ${q.flight.shareStaff ? 'Sí' : 'No'} · sumar al curso ${q.flight.addToCourse ? 'Sí' : 'No'}${q.flight.supplier ? ` · proveedor ${q.flight.supplier}` : ''}`
       : null;
   if (flight(prev) !== flight(cur))
     fields.push({ field: 'flight', label: 'Avión', from: flight(prev), to: flight(cur) });

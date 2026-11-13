@@ -365,6 +365,7 @@ export default function QuoteEditorPage() {
             ...draft.flight,
             netCost: draft.flight.netCost || '0',
             finalPrice: draft.flight.finalPrice || '0',
+            supplier: draft.flight.supplier?.trim() || undefined,
           },
           // Server-only fields would fail strict validation.
           lines: draft.lines.map(({ id: _id, lineTotal: _t, ...l }) => ({
@@ -825,6 +826,7 @@ export default function QuoteEditorPage() {
                 draft={draft}
                 live={live}
                 editable={editable}
+                suppliers={suppliers}
                 onChange={(flight) => set({ flight })}
               />
             </div>
