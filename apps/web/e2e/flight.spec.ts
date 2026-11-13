@@ -67,6 +67,7 @@ test('Avión: added to the course or shown apart in its own currency', async ({ 
   await page.getByRole('tab', { name: /Avión/ }).click();
   await page.getByRole('button', { name: '+ Agregar avión' }).click();
   const panel = page.getByRole('tabpanel', { name: /Avión/ });
+  await panel.getByLabel('Proveedor').fill('Aeroméxico');
   await panel.getByLabel('Precio neto por boleto').fill('480');
   await panel.getByLabel('Moneda del boleto').selectOption('USD');
   await panel.getByLabel(/Precio final por estudiante/).fill('650');
@@ -81,6 +82,7 @@ test('Avión: added to the course or shown apart in its own currency', async ({ 
   await expect(box).toContainText('3,000.00 CAD');
   await expect(box).toContainText('884.00 CAD');
   await expect(page.getByRole('table', { name: 'Avión' })).toContainText('Costo aéreo del grupo');
+  await expect(page.getByRole('table', { name: 'Avión' })).toContainText('Aeroméxico');
 
   await page.getByRole('tab', { name: /Avión/ }).click();
   await panel.getByRole('group', { name: 'Sumar al curso' }).getByRole('button', { name: 'No' }).click();

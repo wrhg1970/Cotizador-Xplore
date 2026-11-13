@@ -441,6 +441,8 @@ export const FlightInput = z.strictObject({
   shareStaff: z.boolean(),
   /** Sumar al curso: No keeps it in its own currency, presented apart from the course price. */
   addToCourse: z.boolean().default(true),
+  /** Airline or agency (Will, 2026-11-13): from the supplier catalog or typed; internal, never on the proposal. */
+  supplier: OptionalText(200),
 });
 export type FlightInput = z.infer<typeof FlightInput>;
 

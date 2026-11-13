@@ -8,6 +8,7 @@ let officeA: string;
 let officeB: string;
 let advisorId: string;
 const supplier = `ILAC ${uniq()}`;
+const airline = `Aerolínea ${uniq()}`;
 
 type Row = {
   folio: string;
@@ -22,7 +23,7 @@ const summary = (cookie: string, query = '', status = 200) =>
   ctx.http().get(`/api/v1/reports/summary${query}`).set('Cookie', cookie).expect(status);
 
 /** A won trip of 10 students: 1 000 CAD course from a catalog supplier + 500 CAD per group by hand, 15 MXN/CAD. */
-async function wonTrip(officeId: string, departure: string) {
+async function wonTrip(officeId: string, departure: string, flight?: object) {
   const r = await prisma.travelRequest.create({
     data: {
       folio: `EE-2027-${uniq().toUpperCase().slice(0, 6)}`,
@@ -50,6 +51,7 @@ async function wonTrip(officeId: string, departure: string) {
       participants: 10,
       chaperones: 0,
       staff: 0,
+      flight,
       createdById: advisorId,
       lines: {
         create: [
@@ -101,7 +103,16 @@ beforeAll(async () => {
   const { agencyId } = await prisma.office.findUniqueOrThrow({ where: { id: officeA } });
   await prisma.supplier.create({ data: { agencyId, name: supplier, kind: 'Escuela' } });
   await wonTrip(officeA, '2031-03-10');
-  await wonTrip(officeB, '2031-04-10');
+  // Avión of 100 CAD per ticket, apart from the course, typed by hand.
+  await wonTrip(officeB, '2031-04-10', {
+    netCost: '100',
+    finalPrice: '120',
+    currency: 'CAD',
+    shareChaperones: false,
+    shareStaff: false,
+    addToCourse: false,
+    supplier: airline,
+  });
 });
 afterAll(async () => {
   await ctx.app.close();
@@ -128,6 +139,12 @@ describe('reports summary', () => {
     const created = (await summary(c.sys, `?officeId=${officeB}&from=2031-04-01&to=2031-04-30`)).body
       .rows as Row[];
     expect(created).toHaveLength(0);
+  });
+
+  it('puts the plane tickets under their supplier', async () => {
+    const rows = (await summary(c.sys, `?officeId=${officeB}&basis=DEPARTURE&from=2031-04-01&to=2031-04-30`))
+      .body.rows as Row[];
+    expect(rows[0]!.suppliers).toContainEqual({ name: airline, kind: 'Aéreo', costMxn: '15000.00' });
   });
 
   it('hides commission and suppliers from roles that do not see costs', async () => {

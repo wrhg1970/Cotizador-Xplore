@@ -111,6 +111,7 @@ function eeSheet(wb: ExcelJS.Workbook, q: QuoteDto, req: { folio: string; groupN
             null,
             'title',
           ],
+          ...(q.flight.supplier ? [[`Proveedor: ${q.flight.supplier}`, null] as Row] : []),
           [`Precio neto por boleto (${q.flight.currency} ${q.flight.netCost})`, null],
           [
             `Boletos: estudiantes${q.flight.shareChaperones ? ' + chaperones escuela' : ''}${q.flight.shareStaff ? ' + chaperones EE' : ''}`,

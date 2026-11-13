@@ -632,6 +632,7 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
       currency: 'EUR',
       shareChaperones: true,
       shareStaff: false,
+      supplier: 'Aerolínea Prueba',
     };
     const res = await api()
       .patch(`/api/v1/quotes/${v.id}`)
@@ -643,7 +644,7 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
     expect(res.body.totals.flight).toMatchObject({ pricePerParticipant: '350.00' });
     const p = await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', c.advisor).expect(200);
     expect(p.body.includes).toContain('Boleto de avión');
-    expect(JSON.stringify(p.body)).not.toMatch(/netCost|flight/); // costs never reach the client
+    expect(JSON.stringify(p.body)).not.toMatch(/netCost|flight|Aerolínea/); // costs and supplier never reach the client
     const usd = await api()
       .patch(`/api/v1/quotes/${v.id}`)
       .set('Cookie', c.quoter)

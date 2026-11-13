@@ -174,6 +174,7 @@ export function SheetSummary({ q }: { q: QuoteDto }) {
                   <th colSpan={2}>
                     ✈ Avión{' '}
                     <span className="muted">
+                      {f.supplier && `· ${f.supplier} `}
                       {fa
                         ? f.currency !== cur && `· boleto en ${f.currency}`
                         : `· aparte del curso, en ${f.currency}`}

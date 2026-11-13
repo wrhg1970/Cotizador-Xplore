@@ -196,6 +196,8 @@ export interface FlightDto {
   shareStaff: boolean;
   /** Sumar al curso: No keeps it in its own currency, presented apart from the course price. */
   addToCourse: boolean;
+  /** Airline or agency; internal only. */
+  supplier?: string;
 }
 
 export interface QuoteDto {

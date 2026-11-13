@@ -41,6 +41,8 @@ const REPORT_READERS = ['OFFICE_ADMIN', 'AUDITOR'] as const;
 // shortcut: whole period loaded and grouped on the page, fine for pilot volumes; move to SQL if it grows.
 const REPORT_LIMIT = 3000;
 const NO_SUPPLIER = 'Sin proveedor';
+/** Plane tickets without a supplier keep this name in "Por proveedor". */
+const FLIGHT = 'Avión';
 
 /**
  * V2 extra screens: "Aprobaciones" and "Propuestas enviadas" across the user's offices (client
@@ -409,12 +411,13 @@ export function supplierCosts(
       l.category === 'PER_PARTICIPANT' ? total.mul(v.participants) : total,
     );
   });
-  if (t.flight) add('Avión', t.flight.groupCost);
+  const air = (v.flight as { supplier?: string } | null)?.supplier?.trim() || FLIGHT;
+  if (t.flight) add(air, t.flight.groupCost);
   return [...sums]
     .filter(([, x]) => !x.isZero())
     .map(([name, x]) => ({
       name,
-      kind: name === 'Avión' ? 'Aéreo' : (kindOf.get(name) ?? null),
+      kind: kindOf.get(name) ?? (name === air ? 'Aéreo' : null),
       costMxn: x.toFixed(2),
     }));
 }
