@@ -70,24 +70,68 @@ export class SuppliersController {
         contacts: { orderBy: { createdAt: 'asc' }, omit: { supplierId: true, createdAt: true } },
       },
     });
-    // Quote lines take the supplier's name in costSource when a rate is added (or typed in the sheet).
-    const since = new Date(Date.now() - 365 * 864e5);
-    const used = await this.prisma.quoteLine.findMany({
-      where: {
-        costSource: { in: rows.map((r) => r.name) },
-        version: { createdAt: { gte: since }, scenario: { request: this.costOffices(user) } },
-      },
-      select: { costSource: true, versionId: true },
-      distinct: ['costSource', 'versionId'],
-    });
-    const uses = new Map<string, number>();
-    for (const u of used) uses.set(u.costSource!, (uses.get(u.costSource!) ?? 0) + 1);
+    const names = rows.map((r) => r.name);
+    const uses = await this.quoteCounts(names, this.costOffices(user), new Date(Date.now() - 365 * 864e5));
+    // Admins see whether a supplier was ever quoted anywhere in the agency: only unused ones can be deleted.
+    const ever = all ? await this.quoteCounts(names, { officeId: { in: user.agencyOfficeIds } }) : null;
     return rows.map(({ rates, agencyId: _a, createdAt: _c, updatedAt: _u, wissifySyncedAt, ...s }) => ({
       ...s,
       wissifySyncedAt: wissifySyncedAt?.toISOString() ?? null,
       quotes12m: uses.get(s.name) ?? 0,
+      ...(ever ? { quotesEver: ever.get(s.name) ?? 0 } : {}),
       rates: rates.map(rateDto),
     }));
+  }
+
+  /** Quote versions per supplier name: lines take the supplier's name in costSource when a rate is added. */
+  private async quoteCounts(names: string[], request: Prisma.TravelRequestWhereInput, since?: Date) {
+    const used = await this.prisma.quoteLine.findMany({
+      where: {
+        costSource: { in: names },
+        version: { ...(since ? { createdAt: { gte: since } } : {}), scenario: { request } },
+      },
+      select: { costSource: true, versionId: true },
+      distinct: ['costSource', 'versionId'],
+    });
+    const n = new Map<string, number>();
+    for (const u of used) n.set(u.costSource!, (n.get(u.costSource!) ?? 0) + 1);
+    return n;
+  }
+
+  /** Borrar: only a supplier no quote ever used; its rates and contacts go with it. Audited. */
+  @Delete('suppliers/:id')
+  async remove(@CurrentUser() user: AuthUser, @Req() req: Request, @Param('id', uuid) id: string) {
+    this.admin(user);
+    return this.prisma.$transaction(async (tx) => {
+      const s = await tx.supplier.findFirst({
+        where: { id, agencyId: user.agencyId },
+        include: { _count: { select: { rates: true, contacts: true } } },
+      });
+      if (!s) throw new NotFoundException('Proveedor no encontrado');
+      const used = await tx.quoteLine.count({
+        where: {
+          costSource: s.name,
+          version: { scenario: { request: { officeId: { in: user.agencyOfficeIds } } } },
+        },
+      });
+      if (used)
+        throw new ConflictException({
+          code: 'IN_USE',
+          message:
+            'No se puede borrar: lo usan cotizaciones. Desactívalo para que ya no aparezca en la hoja.',
+        });
+      await tx.supplierRate.deleteMany({ where: { supplierId: id } });
+      await tx.supplier.delete({ where: { id } });
+      await audit(tx, {
+        actorUserId: user.id,
+        action: 'supplier.deleted',
+        entityType: 'Supplier',
+        entityId: id,
+        correlationId: req.correlationId,
+        diff: { name: s.name, rates: s._count.rates, contacts: s._count.contacts },
+      });
+      return { ok: true };
+    });
   }
 
   /** Offices whose costs the user sees: quotes elsewhere are not listed under a supplier. */

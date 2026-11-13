@@ -20,7 +20,7 @@ import type { Client, Prisma, PrismaClient } from '@ee/db';
 import { z } from 'zod';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
-import { canDo, hasOfficeRole, officeScope, officesWithRole } from '../auth/authz.js';
+import { canDo, hasOfficeRole, isSystemAdmin, officeScope, officesWithRole } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { ZodPipe } from '../zod.pipe.js';
@@ -218,6 +218,7 @@ export class SchoolsController {
       name: client?.name ?? trips[0]?.clientName?.trim() ?? q.key,
       ...clientDto(client),
       canEdit: canDo(user, q.officeId, 'canEdit'),
+      canDelete: isSystemAdmin(user),
       officeId: q.officeId,
       key: q.key,
       conversion: conversion(won, lost),
@@ -264,6 +265,45 @@ export class SchoolsController {
         diff: { key, fields: Object.keys(data), ...('active' in data ? { active: data.active } : {}) },
       });
       return { officeId, key };
+    });
+  }
+
+  /** Borrar: system admins only, and only a client with no request at all (archived and drafts count). */
+  @Delete('client')
+  async removeClient(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Query(new ZodPipe(SchoolQuery)) q: z.infer<typeof SchoolQuery>,
+  ) {
+    this.assertMember(user, q.officeId);
+    if (!isSystemAdmin(user)) throw new ForbiddenException('Solo un administrador del sistema');
+    return this.prisma.$transaction(async (tx) => {
+      const requests = await tx.travelRequest.findMany({
+        where: { officeId: q.officeId, clientName: { not: null } },
+        select: { clientName: true },
+      });
+      if (requests.some((r) => schoolKey(r.clientName!) === q.key))
+        throw new ConflictException({
+          code: 'IN_USE',
+          message: 'No se puede borrar: tiene solicitudes. Desactívalo para ocultarlo.',
+        });
+      const where = { officeId: q.officeId, key: q.key };
+      const client = await tx.client.findUnique({ where: { officeId_key: where } });
+      const contacts = await tx.schoolContact.deleteMany({
+        where: { officeId: q.officeId, schoolKey: q.key },
+      });
+      if (!client && !contacts.count) throw new NotFoundException('Cliente no encontrado');
+      if (client) await tx.client.delete({ where: { id: client.id } });
+      await audit(tx, {
+        actorUserId: user.id,
+        action: 'client.deleted',
+        entityType: 'Client',
+        entityId: client?.id ?? q.key,
+        officeId: q.officeId,
+        correlationId: req.correlationId,
+        diff: { key: q.key, contacts: contacts.count },
+      });
+      return { ok: true };
     });
   }
 

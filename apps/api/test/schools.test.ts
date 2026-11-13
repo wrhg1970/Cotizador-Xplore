@@ -35,6 +35,7 @@ beforeAll(async () => {
     ['other', officeA, 'ADVISOR'],
     ['admin', officeA, 'OFFICE_ADMIN'],
     ['auditor', officeA, 'AUDITOR'],
+    ['sys', officeA, 'SYSTEM_ADMIN'],
     ['outsider', officeB, 'OFFICE_ADMIN'],
   ] as const) {
     const u = await makeUser([{ officeId, role }]);
@@ -164,5 +165,32 @@ describe('ficha por colegio', () => {
       .set('Cookie', c.other!)
       .expect(200);
     expect(d.body).toMatchObject({ name, trips: [], canEdit: true });
+  });
+
+  it('system admins delete only clients without requests; contacts go with them; audited', async () => {
+    const del = (cookie: string, key: string) =>
+      ctx.http().delete('/api/v1/schools/client').query({ officeId: officeA, key }).set('Cookie', cookie);
+    await del(c.sys!, schoolKey(SCHOOL)).expect(409);
+    const name = `Cliente Vacío ${uniq()}`;
+    const { key } = (
+      await ctx
+        .http()
+        .put('/api/v1/schools/client')
+        .set('Cookie', c.advisor!)
+        .send({ officeId: officeA, name })
+        .expect(200)
+    ).body;
+    await ctx
+      .http()
+      .post('/api/v1/schools/contacts')
+      .set('Cookie', c.advisor!)
+      .send({ officeId: officeA, key, schoolName: name, name: 'Ana' })
+      .expect(201);
+    await del(c.admin!, key).expect(403);
+    await del(c.outsider!, key).expect(404);
+    await del(c.sys!, key).expect(200);
+    expect(await prisma.schoolContact.count({ where: { officeId: officeA, schoolKey: key } })).toBe(0);
+    await prisma.auditLog.findFirstOrThrow({ where: { action: 'client.deleted', officeId: officeA } });
+    await del(c.sys!, key).expect(404);
   });
 });
