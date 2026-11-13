@@ -143,6 +143,10 @@ function WeTravelLink({
 }) {
   const [trips, setTrips] = useState<Trip[] | null>(null);
   const [query, setQuery] = useState(city);
+  // The request (and its city) loads after the editor mounts.
+  useEffect(() => {
+    if (city) setQuery((q) => q || city);
+  }, [city]);
   const [picked, setPicked] = useState('');
   const [pasted, setPasted] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -384,6 +388,10 @@ function PhotoPicker({
 }) {
   const [files, setFiles] = useState<Attachment[]>([]);
   const [query, setQuery] = useState(city);
+  // The request (and its city) loads after the editor mounts.
+  useEffect(() => {
+    if (city) setQuery((q) => q || city);
+  }, [city]);
   const [found, setFound] = useState<StockPhoto[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
