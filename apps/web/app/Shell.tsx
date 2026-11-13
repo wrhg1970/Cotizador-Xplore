@@ -15,7 +15,7 @@ import { WorkNotifier } from './WorkNotifier';
 const LEADS: string[] = ['OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'];
 const QUOTING: string[] = ['QUOTER', 'APPROVER', 'OFFICE_ADMIN', 'AUDITOR', 'SYSTEM_ADMIN'];
 const ADMINS: string[] = ['OFFICE_ADMIN', 'SYSTEM_ADMIN'];
-const CONFIG_PATHS = ['/usuarios', '/plantillas', '/rubros', '/administracion'];
+const CONFIG_PATHS = ['/usuarios', '/plantillas', '/rubros', '/incluye', '/administracion'];
 
 interface Item {
   label: string;

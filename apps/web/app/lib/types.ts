@@ -250,6 +250,8 @@ export interface QuoteDto {
   freeCourseByRatio: boolean;
   itinerary: ItineraryDayDto[] | null;
   exclusions: string[];
+  /** "Incluye" lines picked from the catalog, after the ones derived from priced concepts. */
+  extraIncludes: string[];
   coverAttachmentId: string | null;
   showVolumePrices: boolean;
   /** Plane ticket ("Avión"), in its own currency; finalPrice is per student and skips the % comisión. */
@@ -373,6 +375,16 @@ export interface QuoteTemplateDto {
   createdBy: string;
   createdById: string;
   createdAt: string;
+}
+
+/** Catalog phrase for the proposal: Incluye (excluded false) or No incluye (excluded true). */
+export interface ProposalItemDto {
+  id: string;
+  label: string;
+  excluded: boolean;
+  isDefault: boolean;
+  position: number;
+  active: boolean;
 }
 
 export interface ConceptTemplateDto {

@@ -29,6 +29,7 @@ export const GUIDES: RoleGuide[] = [
       'En Inicio, la pestaña "Pendientes" muestra las solicitudes donde te toca actuar; "Mías" las que llevas como titular, "Participando" donde estás de apoyo y "Por oficina" la tabla de solicitudes por oficina.',
       'Crea un escenario: primero los tipos de cambio (botón "Usar tipos de cambio oficiales"), luego los rubros por bloque; la barra de abajo muestra los totales en vivo.',
       'Usa plantillas y proveedores para no capturar dos veces; duplica un escenario para comparar opciones.',
+      'En la pestaña Propuesta elige con un clic las fotos del destino, el itinerario (o tráelo de WeTravel) y lo que incluye y no incluye el viaje.',
       'Cuando esté lista, pulsa "Enviar a autorización". No puedes autorizar tu propia cotización.',
       'Si te la devuelven, corrige y vuelve a enviar: cada cambio crea una versión nueva.',
     ],

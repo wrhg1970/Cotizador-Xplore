@@ -454,6 +454,8 @@ const proposalContent = {
   freePlaceBenefit: FreePlaceBenefit.nullable().optional(),
   itinerary: z.array(ItineraryDay).max(120).nullable().optional(),
   exclusions: z.array(ShortText(300)).max(50).optional(),
+  /** "Incluye" lines picked from the catalog, besides the ones derived from priced concepts. */
+  extraIncludes: z.array(ShortText(300)).max(50).optional(),
   /** Image attachment (JPG/PNG) of the same request shown as the proposal's cover. */
   coverAttachmentId: z.uuid().nullable().optional(),
 };
@@ -524,6 +526,26 @@ export const UpdateConceptTemplate = z
   })
   .partial();
 export type UpdateConceptTemplate = z.infer<typeof UpdateConceptTemplate>;
+
+/** Agency catalog phrase for the proposal's Incluye (excluded false) or No incluye (excluded true). */
+export const ProposalItemInput = z.strictObject({
+  label: ShortText(300),
+  excluded: z.boolean().default(false),
+  isDefault: z.boolean().default(false),
+  position: z.number().int().min(0).max(10_000).default(0),
+});
+export type ProposalItemInput = z.infer<typeof ProposalItemInput>;
+
+export const UpdateProposalItem = z
+  .strictObject({
+    label: ShortText(300),
+    excluded: z.boolean(),
+    isDefault: z.boolean(),
+    position: z.number().int().min(0).max(10_000),
+    active: z.boolean(),
+  })
+  .partial();
+export type UpdateProposalItem = z.infer<typeof UpdateProposalItem>;
 
 /** Supplier / DMC catalog (internal): rates pre-fill quote lines, the quote keeps its own copy. */
 /** Optional text field of a ficha; an empty box clears it. */

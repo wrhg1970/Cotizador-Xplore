@@ -51,6 +51,7 @@ model Agency {
   rolePolicies     RolePolicy[]
   officialRates    OfficialRate[]
   conceptTemplates ConceptTemplate[]
+  proposalItems    ProposalItem[]
   suppliers        Supplier[]
   settings         AppSetting[]
 
@@ -357,6 +358,8 @@ model QuoteVersion {
   itinerary            Json?
   /// "No incluye" lines for the proposal.
   exclusions           String[]            @default([])
+  /// "Incluye" lines picked from the catalog, shown after the ones derived from priced concepts.
+  extraIncludes        String[]            @default([]) @map("extra_includes")
   /// Destination photo on the proposal: an image attachment of the same request.
   coverAttachmentId    String?             @map("cover_attachment_id") @db.Uuid
   coverAttachment      RequestAttachment?  @relation("cover", fields: [coverAttachmentId], references: [id], onDelete: Restrict)
@@ -516,6 +519,25 @@ model ConceptTemplate {
   @@map("concept_templates")
 }
 
+/// Agency catalog of proposal phrases (Incluye / No incluye) picked with one click (Will, 2026-11-13).
+model ProposalItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  agencyId  String   @map("agency_id") @db.Uuid
+  label     String
+  /// true = "No incluye", false = "Incluye".
+  excluded  Boolean  @default(false)
+  /// Already ticked in every new scenario without a template.
+  isDefault Boolean  @default(false) @map("is_default")
+  position  Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Restrict)
+
+  @@unique([agencyId, excluded, label])
+  @@map("proposal_items")
+}
+
 /// Reusable starting point for a scenario (lines, margin, proposal content), shared within one office.
 model QuoteTemplate {
   id                   String            @id @default(uuid()) @db.Uuid
@@ -529,6 +551,7 @@ model QuoteTemplate {
   freePlaceBenefit     FreePlaceBenefit? @map("free_place_benefit")
   itinerary            Json?
   exclusions           String[]          @default([])
+  extraIncludes        String[]          @default([]) @map("extra_includes")
   assumptions          String?
   active               Boolean           @default(true)
   createdById          String            @map("created_by_id") @db.Uuid

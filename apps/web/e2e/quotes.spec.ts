@@ -110,9 +110,18 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await expect(sim).toContainText('Comisión del grupo: 10,540.00 EUR');
   await page.getByLabel('Mostrar al colegio el precio por rango').check();
   await page.getByRole('tab', { name: 'Propuesta' }).click();
+  await page.getByRole('button', { name: 'Itinerario', exact: true }).click();
   await page.getByRole('button', { name: 'Agregar día' }).click();
   await page.getByLabel('Título').fill('Llegada a Roma');
-  await page.getByLabel('Un concepto por línea').fill('Vuelo internacional\nGastos personales');
+  // Incluye / No incluye: one click on a catalog phrase, or a one-off typed with Enter.
+  await page.getByRole('button', { name: 'Incluye / No incluye' }).click();
+  await page.getByRole('button', { name: 'Gastos personales' }).click();
+  await expect(page.getByRole('button', { name: '✕ Gastos personales' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByLabel('Otro concepto: No incluye').fill('Vuelo internacional');
+  await page.getByLabel('Otro concepto: No incluye').press('Enter');
   await page.getByRole('button', { name: 'Guardar y calcular' }).click();
   await sheetTab.click();
   const schedule = page.getByRole('table', { name: 'Plan de pagos por estudiante' });

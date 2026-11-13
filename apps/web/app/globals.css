@@ -3819,3 +3819,41 @@ table.compare thead th.picked {
 .vig-out {
   color: var(--danger);
 }
+
+/* Incluye / No incluye picker: one click per catalog phrase (Will, 2026-11-13). */
+.pick-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 4px 0 8px;
+}
+.pick,
+.pick-other {
+  min-height: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+.pick[aria-pressed='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--ink-text);
+}
+.pick.out[aria-pressed='true'] {
+  background: #fbf1ea;
+  border-color: #f1c9ab;
+  color: var(--accent-strong);
+}
+.pick.fixed {
+  background: var(--bg);
+  border-color: #bcd3e6;
+  color: var(--ink);
+}
+.pick-other {
+  border-style: dashed;
+  width: 12em;
+}

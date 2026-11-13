@@ -360,6 +360,7 @@ export default function QuoteEditorPage() {
           showVolumePrices: draft.showVolumePrices,
           itinerary: draft.itinerary?.map((d) => ({ ...d, details: d.details?.trim() || undefined })) ?? null,
           exclusions: draft.exclusions.map((x) => x.trim()).filter(Boolean),
+          extraIncludes: draft.extraIncludes,
           coverAttachmentId: draft.coverAttachmentId,
           flight: draft.flight && {
             ...draft.flight,
@@ -1173,18 +1174,6 @@ export default function QuoteEditorPage() {
         <div {...tabProps('propuesta')}>
           <fieldset disabled={!editable} className="editor">
             <ProposalContent draft={draft} set={set} />
-
-            <section aria-labelledby="supuestos">
-              <h2 id="supuestos">Supuestos</h2>
-              <label>
-                Supuestos y condiciones
-                <textarea
-                  value={draft.assumptions ?? ''}
-                  maxLength={4000}
-                  onChange={(e) => set({ assumptions: e.target.value })}
-                />
-              </label>
-            </section>
           </fieldset>
         </div>
       </div>

@@ -54,6 +54,7 @@ const FIELD: Record<string, string> = {
   showVolumePrices: 'precio por volumen en la propuesta',
   itinerary: 'itinerario',
   exclusions: 'no incluye',
+  extraIncludes: 'incluye',
   coverAttachmentId: 'portada',
 };
 const kindOf = (action: string): Kind =>

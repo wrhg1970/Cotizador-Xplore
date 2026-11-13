@@ -226,7 +226,9 @@ export function clientProposal(
         (l) => !l.internalOnly && l.category === 'PER_PARTICIPANT' && l.unitCost.gt(0) && l.quantity.gt(0),
       )
       .map((l) => l.description)
-      .concat(dto.flight?.addToCourse ? ['Boleto de avión'] : []),
+      .concat(dto.flight?.addToCourse ? ['Boleto de avión'] : [])
+      .concat(dto.extraIncludes)
+      .filter((d, i, all) => all.indexOf(d) === i),
     /** Avión not added to the course: its own price per student, in its own currency. */
     airTicket:
       dto.flight && !dto.flight.addToCourse && totals?.flight
@@ -404,10 +406,11 @@ export function snapshotHash(v: FullVersion) {
   ] as const;
   for (const k of added) if (rest[k] === null) delete rest[k];
   if (!rest.showVolumePrices) delete (rest as { showVolumePrices?: boolean }).showVolumePrices;
-  const { exclusions, ...kept } = rest;
+  const { exclusions, extraIncludes, ...kept } = rest;
   return calculationHash({
     ...kept,
     ...(exclusions.length ? { exclusions } : {}),
+    ...(extraIncludes.length ? { extraIncludes } : {}),
     // Line notes came later: only a set note enters the hash.
     lines: lines.map(({ id: _l, note, ...l }) => (note ? { ...l, note } : l)),
   });
@@ -444,6 +447,7 @@ export function toDto(v: FullVersion) {
     freeCourseByRatio: v.freeCourseByRatio,
     itinerary: v.itinerary ? ItineraryDay.array().parse(v.itinerary) : null,
     exclusions: v.exclusions,
+    extraIncludes: v.extraIncludes,
     coverAttachmentId: v.coverAttachmentId,
     showVolumePrices: v.showVolumePrices,
     flight,
@@ -515,6 +519,7 @@ async function copyVersion(tx: Tx, src: FullVersion, scenarioId: string, number:
       freePlaceBenefit: src.freePlaceBenefit,
       itinerary: src.itinerary ?? Prisma.DbNull,
       exclusions: src.exclusions,
+      extraIncludes: src.extraIncludes,
       coverAttachmentId: src.coverAttachmentId,
       showVolumePrices: src.showVolumePrices,
       flight: src.flight ?? Prisma.DbNull,
@@ -534,6 +539,18 @@ async function copyVersion(tx: Tx, src: FullVersion, scenarioId: string, number:
     },
     include: full,
   });
+}
+
+/** Catalog phrases ticked by default ("Siempre marcado") for a scenario started without a template. */
+async function defaultProposalItems(tx: Tx, agencyId: string) {
+  const items = await tx.proposalItem.findMany({
+    where: { agencyId, active: true, isDefault: true },
+    orderBy: [{ position: 'asc' }, { label: 'asc' }],
+  });
+  return {
+    extraIncludes: items.filter((i) => !i.excluded).map((i) => i.label),
+    exclusions: items.filter((i) => i.excluded).map((i) => i.label),
+  };
 }
 
 @Controller()
@@ -654,8 +671,10 @@ export class QuotesController {
                 freePlaceBenefit: template.freePlaceBenefit,
                 itinerary: template.itinerary ?? Prisma.DbNull,
                 exclusions: template.exclusions,
+                extraIncludes: template.extraIncludes,
                 assumptions: template.assumptions,
               }),
+              ...(!template && (await defaultProposalItems(tx, user.agencyId))),
               lines: {
                 create: lines.map((l, position) => ({
                   ...l,

@@ -39,6 +39,7 @@ const GROUPS: [string, string][] = [
   ['user.', 'Usuarios y roles'],
   ['role_policy.', 'Permisos por rol'],
   ['concept_template.', 'Catálogo de rubros'],
+  ['proposal_item.', 'Catálogo Incluye / No incluye'],
   ['office.', 'Oficinas'],
   ['auth.', 'Inicios de sesión'],
 ];
