@@ -15,7 +15,15 @@ import {
 } from '../lib/types';
 import { isSystemAdmin, useMe } from '../lib/useMe';
 import { matchesSearch, TrayFilters } from '../TrayFilters';
-import { type Contact, ContactsTab, FichaStrip, FichaTabs, WissifyBadge, WissifyTab } from '../Ficha';
+import {
+  type Contact,
+  ContactsTab,
+  DeleteButton,
+  FichaStrip,
+  FichaTabs,
+  WissifyBadge,
+  WissifyTab,
+} from '../Ficha';
 
 const BLOCK = Object.fromEntries(SHEET_BLOCKS.map((b) => [b.category, b.title])) as Record<
   LineCategory,
@@ -601,6 +609,7 @@ function UsageTab({ id }: { id: string }) {
 }
 
 function SupplierDetail({ id }: { id: string }) {
+  const router = useRouter();
   const me = useMe();
   const admin = isSystemAdmin(me);
   const [s, setS] = useState<SupplierDto | null | undefined>(undefined);
@@ -679,20 +688,35 @@ function SupplierDetail({ id }: { id: string }) {
             />
           </div>
           {admin && (
-            <button
-              type="button"
-              className="secondary"
-              onClick={() =>
-                void run(
-                  `/suppliers/${s.id}`,
-                  'PATCH',
-                  { active: !s.active },
-                  s.active ? 'Proveedor desactivado' : 'Proveedor activado',
-                )
-              }
-            >
-              {s.active ? 'Desactivar' : 'Activar'}
-            </button>
+            <div className="row">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() =>
+                  void run(
+                    `/suppliers/${s.id}`,
+                    'PATCH',
+                    { active: !s.active },
+                    s.active ? 'Proveedor desactivado' : 'Proveedor activado',
+                  )
+                }
+              >
+                {s.active ? 'Desactivar' : 'Activar'}
+              </button>
+              <DeleteButton
+                name={s.name}
+                blocked={
+                  s.quotesEver
+                    ? `No se puede borrar: lo usan ${s.quotesEver} cotización(es). Desactívalo para que ya no aparezca en la hoja.`
+                    : null
+                }
+                detail={`Ninguna cotización lo usa. También se borran sus ${s.rates.length} tarifa(s) y ${s.contacts.length} contacto(s).`}
+                onDelete={async () => {
+                  if (await run(`/suppliers/${s.id}`, 'DELETE', undefined, 'Proveedor borrado'))
+                    router.push('/proveedores');
+                }}
+              />
+            </div>
           )}
         </div>
         {error && (

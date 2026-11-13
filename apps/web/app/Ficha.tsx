@@ -1,6 +1,6 @@
 'use client';
 
-import type { FormEvent, ReactNode } from 'react';
+import { type FormEvent, type ReactNode, useState } from 'react';
 import { fmtDateTime } from './lib/types';
 
 export interface Contact {
@@ -191,5 +191,68 @@ export function WissifyTab({
         no se editan a mano.
       </p>
     </>
+  );
+}
+
+/** "Borrar" for an empty client or supplier: disabled with the reason when it has history, else asks to type the name. */
+export function DeleteButton({
+  name,
+  blocked,
+  detail,
+  onDelete,
+}: {
+  name: string;
+  blocked: string | null;
+  detail: string;
+  onDelete: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="ficha-delete">
+      <button
+        type="button"
+        className="danger"
+        disabled={!!blocked || open}
+        onClick={() => setOpen(true)}
+        aria-describedby={blocked ? 'borrar-motivo' : undefined}
+      >
+        Borrar
+      </button>
+      {blocked && (
+        <p id="borrar-motivo" className="muted">
+          {blocked}
+        </p>
+      )}
+      {open && (
+        <div className="confirm-delete" role="alertdialog" aria-label={`Borrar ${name}`}>
+          <p>
+            <strong>¿Borrar definitivamente “{name}”?</strong> {detail} No se puede deshacer y queda en la
+            bitácora.
+          </p>
+          <label>
+            Escribe el nombre para confirmar
+            <input value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus />
+          </label>
+          <div className="row">
+            <button
+              type="button"
+              className="danger"
+              disabled={typed.trim() !== name.trim() || busy}
+              onClick={() => {
+                setBusy(true);
+                void onDelete().finally(() => setBusy(false));
+              }}
+            >
+              Borrar definitivamente
+            </button>
+            <button type="button" className="secondary" onClick={() => setOpen(false)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

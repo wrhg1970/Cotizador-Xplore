@@ -186,5 +186,35 @@ describe('supplier catalog', () => {
     await api().get(`/api/v1/suppliers/${s.id}/usage`).set('Cookie', advisor).expect(403);
     await api().delete(`/api/v1/supplier-contacts/${cid}`).set('Cookie', quoter).expect(403);
     await api().delete(`/api/v1/supplier-contacts/${cid}`).set('Cookie', sysAdmin).expect(200);
+    // Used by a quote: cannot be deleted.
+    await api().delete(`/api/v1/suppliers/${s.id}`).set('Cookie', sysAdmin).expect(409);
+  });
+
+  it('system admins delete unused suppliers with their rates and contacts', async () => {
+    const s = (
+      await api()
+        .post('/api/v1/suppliers')
+        .set('Cookie', sysAdmin)
+        .send({ name: `Vacío ${uniq()}` })
+    ).body;
+    await api()
+      .post(`/api/v1/suppliers/${s.id}/rates`)
+      .set('Cookie', sysAdmin)
+      .send({ description: 'Bus', category: 'PER_GROUP', unitCost: '10', currency: 'MXN' })
+      .expect(201);
+    await api()
+      .post(`/api/v1/suppliers/${s.id}/contacts`)
+      .set('Cookie', sysAdmin)
+      .send({ name: 'Ana' })
+      .expect(201);
+    const listed = ((await api().get('/api/v1/suppliers').set('Cookie', sysAdmin)).body as Row[]).find(
+      (x) => x.id === s.id,
+    ) as unknown as { quotesEver: number };
+    expect(listed.quotesEver).toBe(0);
+    await api().delete(`/api/v1/suppliers/${s.id}`).set('Cookie', quoter).expect(403);
+    await api().delete(`/api/v1/suppliers/${s.id}`).set('Cookie', sysAdmin).expect(200);
+    expect(await prisma.supplier.findUnique({ where: { id: s.id } })).toBeNull();
+    await prisma.auditLog.findFirstOrThrow({ where: { entityId: s.id, action: 'supplier.deleted' } });
+    await api().delete(`/api/v1/suppliers/${s.id}`).set('Cookie', sysAdmin).expect(404);
   });
 });

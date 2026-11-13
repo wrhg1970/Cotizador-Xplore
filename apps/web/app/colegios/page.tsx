@@ -8,7 +8,15 @@ import { api, errorText } from '../lib/api';
 import { fmtDate, fmtDateTime, STATUS_LABEL } from '../lib/types';
 import { can, useMe } from '../lib/useMe';
 import { matchesSearch, officeOptions, TrayFilters } from '../TrayFilters';
-import { type Contact, ContactsTab, FichaStrip, FichaTabs, WissifyBadge, WissifyTab } from '../Ficha';
+import {
+  type Contact,
+  ContactsTab,
+  DeleteButton,
+  FichaStrip,
+  FichaTabs,
+  WissifyBadge,
+  WissifyTab,
+} from '../Ficha';
 
 /** The ficha's own data (pestaña Datos); all null while the school only exists in requests. */
 interface ClientData {
@@ -48,6 +56,7 @@ interface Detail extends ClientData {
   key: string;
   conversion: number | null;
   canEdit: boolean;
+  canDelete: boolean;
   trips: {
     id: string;
     folio: string;
@@ -361,6 +370,7 @@ function DataTab({ d, onSaved }: { d: Detail; onSaved: (msg: string) => Promise<
 }
 
 function SchoolDetail({ officeId, schoolKey }: { officeId: string; schoolKey: string }) {
+  const router = useRouter();
   const [d, setD] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -414,6 +424,18 @@ function SchoolDetail({ officeId, schoolKey }: { officeId: string; schoolKey: st
     }
   }
 
+  async function removeClient() {
+    setError(null);
+    try {
+      await api(`/schools/client?officeId=${officeId}&key=${encodeURIComponent(schoolKey)}`, {
+        method: 'DELETE',
+      });
+      router.push('/colegios');
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }
+
   async function toggleActive() {
     setError(null);
     try {
@@ -455,11 +477,25 @@ function SchoolDetail({ officeId, schoolKey }: { officeId: string; schoolKey: st
               ]}
             />
           </div>
-          {d.canEdit && (
-            <button type="button" className="secondary" onClick={() => void toggleActive()}>
-              {d.active ? 'Desactivar' : 'Activar'}
-            </button>
-          )}
+          <div className="row">
+            {d.canEdit && (
+              <button type="button" className="secondary" onClick={() => void toggleActive()}>
+                {d.active ? 'Desactivar' : 'Activar'}
+              </button>
+            )}
+            {d.canDelete && (
+              <DeleteButton
+                name={d.name}
+                blocked={
+                  d.trips.length
+                    ? `No se puede borrar: tiene ${d.trips.length} solicitud(es). Desactívalo para ocultarlo.`
+                    : null
+                }
+                detail={`No tiene solicitudes. También se borran sus ${d.contacts.length} contacto(s).`}
+                onDelete={removeClient}
+              />
+            )}
+          </div>
         </div>
         {error && (
           <p className="error" role="alert">

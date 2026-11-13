@@ -79,5 +79,15 @@ test('Proveedores: list with filters, ficha with rates and usage', async ({ brow
 
   await page.goto(`/proveedores?q=${encodeURIComponent(name)}`);
   await expect(page.getByRole('row', { name: new RegExp(name) })).toContainText('Sin vincular');
+
+  // Unused: the system admin deletes it after typing its name.
+  await page.getByRole('link', { name }).click();
+  await page.getByRole('button', { name: 'Borrar', exact: true }).click();
+  const confirm = page.getByRole('alertdialog');
+  await expect(confirm.getByRole('button', { name: 'Borrar definitivamente' })).toBeDisabled();
+  await confirm.getByLabel('Escribe el nombre para confirmar').fill(name);
+  await confirm.getByRole('button', { name: 'Borrar definitivamente' }).click();
+  await expect(page).toHaveURL(/\/proveedores$/);
+  await expect(page.getByRole('link', { name })).toHaveCount(0);
   await ctx.close();
 });
