@@ -195,6 +195,11 @@ export async function quoteWorkbook(q: QuoteDto, req: { folio: string; groupName
   const it = wb.addWorksheet('Itinerario');
   it.addRow(['Día', 'Actividad', 'Detalle']).font = { bold: true };
   for (const d of q.itinerary ?? []) it.addRow([d.day, d.title, d.details ?? '']);
+  if (q.extraIncludes.length) {
+    it.addRow([]);
+    it.addRow(['Incluye además']).font = { bold: true };
+    for (const e of q.extraIncludes) it.addRow(['', e]);
+  }
   if (q.exclusions.length) {
     it.addRow([]);
     it.addRow(['No incluye']).font = { bold: true };

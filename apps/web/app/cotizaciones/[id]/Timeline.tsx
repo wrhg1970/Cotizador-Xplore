@@ -54,7 +54,10 @@ const FIELD: Record<string, string> = {
   showVolumePrices: 'precio por volumen en la propuesta',
   itinerary: 'itinerario',
   exclusions: 'no incluye',
+  extraIncludes: 'incluye',
   coverAttachmentId: 'portada',
+  photoIds: 'fotos',
+  wetravelTrip: 'viaje de WeTravel',
 };
 const kindOf = (action: string): Kind =>
   PRICE.includes(action) ? 'price' : TRANSITION[action] || action === 'request.created' ? 'state' : 'notes';

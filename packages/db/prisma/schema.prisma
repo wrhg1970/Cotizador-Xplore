@@ -51,6 +51,7 @@ model Agency {
   rolePolicies     RolePolicy[]
   officialRates    OfficialRate[]
   conceptTemplates ConceptTemplate[]
+  proposalItems    ProposalItem[]
   suppliers        Supplier[]
   settings         AppSetting[]
 
@@ -357,13 +358,19 @@ model QuoteVersion {
   itinerary            Json?
   /// "No incluye" lines for the proposal.
   exclusions           String[]            @default([])
+  /// "Incluye" lines picked from the catalog, shown after the ones derived from priced concepts.
+  extraIncludes        String[]            @default([]) @map("extra_includes")
   /// Destination photo on the proposal: an image attachment of the same request.
   coverAttachmentId    String?             @map("cover_attachment_id") @db.Uuid
   coverAttachment      RequestAttachment?  @relation("cover", fields: [coverAttachmentId], references: [id], onDelete: Restrict)
+  /// Up to 5 destination photos (image attachments of the same request), in order; the first is the cover.
+  photoIds             String[]            @default([]) @map("photo_ids") @db.Uuid
   /// Shows the price-per-group-size table (prices only, no costs) on the client's proposal.
   showVolumePrices     Boolean             @default(false) @map("show_volume_prices")
   /// Plane ticket "Avión" (contracts FlightInput): net cost, final price per student, currency, shares.
   flight               Json?
+  /// WeTravel trip linked to the proposal (contracts WeTravelTripLink): the school sees "Ver itinerario completo".
+  wetravelTrip         Json?               @map("wetravel_trip")
   /// Optimistic concurrency token for edits.
   rowVersion           Int                 @default(1) @map("row_version")
   createdById          String              @map("created_by_id") @db.Uuid
@@ -516,6 +523,25 @@ model ConceptTemplate {
   @@map("concept_templates")
 }
 
+/// Agency catalog of proposal phrases (Incluye / No incluye) picked with one click (Will, 2026-11-13).
+model ProposalItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  agencyId  String   @map("agency_id") @db.Uuid
+  label     String
+  /// true = "No incluye", false = "Incluye".
+  excluded  Boolean  @default(false)
+  /// Already ticked in every new scenario without a template.
+  isDefault Boolean  @default(false) @map("is_default")
+  position  Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Restrict)
+
+  @@unique([agencyId, excluded, label])
+  @@map("proposal_items")
+}
+
 /// Reusable starting point for a scenario (lines, margin, proposal content), shared within one office.
 model QuoteTemplate {
   id                   String            @id @default(uuid()) @db.Uuid
@@ -529,6 +555,7 @@ model QuoteTemplate {
   freePlaceBenefit     FreePlaceBenefit? @map("free_place_benefit")
   itinerary            Json?
   exclusions           String[]          @default([])
+  extraIncludes        String[]          @default([]) @map("extra_includes")
   assumptions          String?
   active               Boolean           @default(true)
   createdById          String            @map("created_by_id") @db.Uuid
@@ -550,6 +577,8 @@ model RequestAttachment {
   mimeType     String         @map("mime_type")
   size         Int
   content      Bytes
+  /// Stock photo credit shown on the proposal, e.g. "Ana Pérez / Pixabay"; null for own files.
+  credit       String?
   uploadedById String         @map("uploaded_by_id") @db.Uuid
   createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   request      TravelRequest  @relation(fields: [requestId], references: [id], onDelete: Restrict)

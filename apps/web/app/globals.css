@@ -3819,6 +3819,199 @@ table.compare thead th.picked {
 .vig-out {
   color: var(--danger);
 }
+
+/* Incluye / No incluye picker: one click per catalog phrase (Will, 2026-11-13). */
+.pick-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 4px 0 8px;
+}
+.pick,
+.editor button.pick,
+.pick-other {
+  min-height: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+.pick[aria-pressed='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--ink-text);
+}
+.pick.out[aria-pressed='true'] {
+  background: #fbf1ea;
+  border-color: #f1c9ab;
+  color: var(--accent-strong);
+}
+.pick.fixed {
+  background: var(--bg);
+  border-color: #bcd3e6;
+  color: var(--ink);
+}
+.pick-other {
+  border-style: dashed;
+  width: 12em;
+}
+
+/* Proposal photos (Will, 2026-11-13): up to 5, the first is the cover. */
+article.proposal .pv-photos {
+  margin: 14px var(--pv-pad) 0;
+}
+article.proposal .pv-photo-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+article.proposal .pv-photo-strip img {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+}
+article.proposal .pv-photos figcaption {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.photo-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 10px;
+}
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+.photo-grid.small {
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+}
+.photo,
+.editor button.photo {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--subtle);
+}
+.photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+}
+.photo-row .photo {
+  width: 108px;
+}
+.photo[aria-pressed='true'],
+.photo.chosen {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+.photo-n {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+.photo small {
+  position: absolute;
+  left: 5px;
+  bottom: 3px;
+  color: #fff;
+  font-size: 9px;
+  text-shadow: 0 1px 2px #000;
+}
+.photo-tools {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  display: flex;
+  gap: 2px;
+}
+.photo-tools button,
+.editor .photo-tools button {
+  min-height: 0;
+  padding: 0 5px;
+  font-size: 11px;
+  line-height: 18px;
+  border-radius: 4px;
+  background: #ffffffdd;
+  color: var(--ink);
+  border: 0;
+}
+.photo-search input {
+  flex: 1;
+}
+
+/* WeTravel trip linked to the proposal (Will, 2026-11-13). */
+.wt-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  background: var(--bg);
+  border: 1px solid #bcd3e6;
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+}
+.wt-link > strong {
+  color: var(--ink);
+}
+.wt-link p {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.75rem;
+}
+.wt-paste {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+}
+article.proposal .pv-wt {
+  display: inline-block;
+  border: 1px solid var(--pv-navy);
+  border-radius: 999px;
+  padding: 6px 14px;
+  color: var(--pv-navy);
+  font-weight: 600;
+  text-decoration: none;
+}
+@media print {
+  article.proposal .pv-wt::after {
+    content: ' ' attr(href);
+    font-weight: 400;
+  }
+}
+
 .ficha-delete {
   max-width: 420px;
   text-align: right;

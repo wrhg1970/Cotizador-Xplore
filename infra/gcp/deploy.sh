@@ -13,6 +13,8 @@
 # WeTravel (opcional): la primera vez correr con WETRAVEL=1 para guardar la llave de la Partner API;
 # después se conecta sola mientras exista el secreto. WETRAVEL_API_URL apunta al sandbox si se quiere.
 # Banxico (opcional): la primera vez correr con BANXICO=1 para guardar el token del SIE; igual que WeTravel.
+# Pixabay (opcional, fotos gratis en la propuesta): la primera vez correr con PIXABAY=1 para guardar la llave
+# (gratis en https://pixabay.com/api/docs/ (con sesión iniciada)); igual que WeTravel. Sin ella solo se suben fotos propias.
 # Monitoreo (opcional): ALERT_EMAIL=persona@dominio crea revisiones de disponibilidad (web y API con BD)
 # cada 5 minutos y un aviso por correo a esa dirección si fallan. Basta pasarlo una vez.
 # Siempre crea la tarea diaria de Cloud Scheduler (días hábiles, 13:00 hora de CDMX) que llama a /cron/daily.
@@ -152,6 +154,12 @@ if [[ -n "${BANXICO:-}" ]] && ! exists gcloud secrets describe cotizador-banxico
   printf '%s' "$BANXICO_TOKEN" | secret cotizador-banxico-token
 fi
 exists gcloud secrets describe cotizador-banxico-token && BMX_ENV=",BANXICO_TOKEN=cotizador-banxico-token:latest"
+PX_ENV=""
+if [[ -n "${PIXABAY:-}" ]] && ! exists gcloud secrets describe cotizador-pixabay-api-key; then
+  read -rsp "Llave de la API de Pixabay (no se muestra): " PIXABAY_API_KEY && echo
+  printf '%s' "$PIXABAY_API_KEY" | secret cotizador-pixabay-api-key
+fi
+exists gcloud secrets describe cotizador-pixabay-api-key && PX_ENV=",PIXABAY_API_KEY=cotizador-pixabay-api-key:latest"
 
 CRON_SECRET_NAME="cotizador${SUFFIX}-cron-secret"
 exists gcloud secrets describe "$CRON_SECRET_NAME" ||
@@ -168,7 +176,7 @@ echo "== API"
 gcloud run deploy "cotizador-api$SUFFIX" --image="$REPO/api:$TAG" --region="$REGION" --port=4000 \
   --allow-unauthenticated --add-cloudsql-instances="$CONN" \
   --set-env-vars="^|^NODE_ENV=production|API_PUBLIC_URL=$PUBLIC_URL|WEB_ORIGIN=$PUBLIC_URL|ALLOWED_GOOGLE_DOMAINS=$ALLOWED_GOOGLE_DOMAINS|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|VERTEX_PROJECT=$PROJECT_ID$MAIL_ENV$WT_ENV" \
-  --set-secrets=DATABASE_URL=$DB_SECRET:latest,SESSION_SECRET=$SESSION_SECRET_NAME:latest,GOOGLE_CLIENT_SECRET=cotizador-google-client-secret:latest,CRON_SECRET=$CRON_SECRET_NAME:latest,VAPID_PRIVATE_KEY=$VAPID_SECRET_NAME:latest$MAIL_SECRETS$WT_SECRETS$BMX_ENV
+  --set-secrets=DATABASE_URL=$DB_SECRET:latest,SESSION_SECRET=$SESSION_SECRET_NAME:latest,GOOGLE_CLIENT_SECRET=cotizador-google-client-secret:latest,CRON_SECRET=$CRON_SECRET_NAME:latest,VAPID_PRIVATE_KEY=$VAPID_SECRET_NAME:latest$MAIL_SECRETS$WT_SECRETS$BMX_ENV$PX_ENV
 
 echo "== Web"
 gcloud run deploy "cotizador-web$SUFFIX" --image="$REPO/web$SUFFIX:$TAG" --region="$REGION" --port=3000 \

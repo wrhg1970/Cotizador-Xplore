@@ -8,7 +8,7 @@ import { FlightPanel } from './Flight';
 import { chaperoneMirrors, syncChaperoneLines } from '@ee/quote-engine';
 import { api, errorText } from '../../lib/api';
 import { preview, TotalsBar } from './LiveTotals';
-import { PaymentSchedule, ProposalContent } from './ProposalContent';
+import { PaymentSchedule, photosOf, ProposalContent } from './ProposalContent';
 import { ShareLinks } from './ShareLinks';
 import { VersionChanges } from './VersionChanges';
 import { SheetImport } from './SheetImport';
@@ -360,7 +360,9 @@ export default function QuoteEditorPage() {
           showVolumePrices: draft.showVolumePrices,
           itinerary: draft.itinerary?.map((d) => ({ ...d, details: d.details?.trim() || undefined })) ?? null,
           exclusions: draft.exclusions.map((x) => x.trim()).filter(Boolean),
-          coverAttachmentId: draft.coverAttachmentId,
+          extraIncludes: draft.extraIncludes,
+          photoIds: photosOf(draft),
+          wetravelTrip: draft.wetravelTrip,
           flight: draft.flight && {
             ...draft.flight,
             netCost: draft.flight.netCost || '0',
@@ -1172,19 +1174,7 @@ export default function QuoteEditorPage() {
 
         <div {...tabProps('propuesta')}>
           <fieldset disabled={!editable} className="editor">
-            <ProposalContent draft={draft} set={set} />
-
-            <section aria-labelledby="supuestos">
-              <h2 id="supuestos">Supuestos</h2>
-              <label>
-                Supuestos y condiciones
-                <textarea
-                  value={draft.assumptions ?? ''}
-                  maxLength={4000}
-                  onChange={(e) => set({ assumptions: e.target.value })}
-                />
-              </label>
-            </section>
+            <ProposalContent draft={draft} set={set} city={req?.city ?? ''} />
           </fieldset>
         </div>
       </div>

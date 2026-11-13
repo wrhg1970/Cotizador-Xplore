@@ -35,6 +35,7 @@ const GROUPS = [
   [
     { key: 'plantillas', label: 'Plantillas', href: '/plantillas', roles: QUOTING },
     { key: 'rubros', label: 'Rubros', href: '/rubros', sys: true },
+    { key: 'incluye', label: 'Incluye / No incluye', href: '/incluye', sys: true },
     admin('tipos'),
   ],
   [admin('reglas'), admin('metas')],

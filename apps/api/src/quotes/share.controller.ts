@@ -9,6 +9,7 @@ import {
   Inject,
   NotFoundException,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
   Post,
   Req,
@@ -27,7 +28,7 @@ import { PRISMA } from '../prisma.service.js';
 import { canView } from '../requests/request-policy.js';
 import { ZodPipe } from '../zod.pipe.js';
 import { Notifier } from '../notify/notifier.js';
-import { clientProposal, full, proposalContact } from './quotes.controller.js';
+import { clientProposal, full, photoCredits, photoList, proposalContact } from './quotes.controller.js';
 import { agencyOfOffice, toBrand } from '../agency/brand.js';
 
 const uuid = new ParseUUIDPipe({ version: '4' });
@@ -175,6 +176,30 @@ export class ProposalShareController {
     await this.sendCover(s.version.coverAttachmentId, res);
   }
 
+  /** Proposal photo n (0 = cover) for the preview and print view. */
+  @Get('quotes/:id/proposal/photos/:n')
+  async photo(
+    @CurrentUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Param('n', new ParseIntPipe()) n: number,
+    @Res() res: Response,
+  ) {
+    const { v } = await this.version(id, user);
+    await this.sendCover(photoList(v)[n] ?? null, res);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Get('public/proposals/:token/photos/:n')
+  async publicPhoto(
+    @Param('token') token: string,
+    @Param('n', new ParseIntPipe()) n: number,
+    @Res() res: Response,
+  ) {
+    const { s } = await this.share(token);
+    await this.sendCover(photoList(s.version)[n] ?? null, res);
+  }
+
   private async sendCover(attachmentId: string | null, res: Response) {
     const a =
       attachmentId && (await this.prisma.requestAttachment.findUnique({ where: { id: attachmentId } }));
@@ -202,7 +227,13 @@ export class ProposalShareController {
       request,
       id: _id,
       ...proposal
-    } = clientProposal(s.version, r, brand, await proposalContact(this.prisma, r));
+    } = clientProposal(
+      s.version,
+      r,
+      brand,
+      await proposalContact(this.prisma, r),
+      await photoCredits(this.prisma, s.version),
+    );
     const { id: _rid, ...publicRequest } = request;
     const a = s.version.acceptance;
     return {

@@ -448,12 +448,28 @@ export const FlightInput = z.strictObject({
 });
 export type FlightInput = z.infer<typeof FlightInput>;
 
+/** WeTravel trip linked to a proposal (Will, 2026-11-13): chosen from the account or pasted. */
+export const WeTravelTripLink = z.strictObject({
+  uuid: z.string().trim().max(64).optional(),
+  title: ShortText(255),
+  url: z
+    .url()
+    .max(500)
+    .refine((u) => {
+      const { protocol, hostname } = new URL(u);
+      return protocol === 'https:' && (hostname === 'wetravel.com' || hostname.endsWith('.wetravel.com'));
+    }, 'La liga debe ser de wetravel.com'),
+});
+export type WeTravelTripLink = z.infer<typeof WeTravelTripLink>;
+
 /** Proposal content shared by versions and templates. */
 const proposalContent = {
   studentsPerFreePlace: z.number().int().min(1).max(100).nullable().optional(),
   freePlaceBenefit: FreePlaceBenefit.nullable().optional(),
   itinerary: z.array(ItineraryDay).max(120).nullable().optional(),
   exclusions: z.array(ShortText(300)).max(50).optional(),
+  /** "Incluye" lines picked from the catalog, besides the ones derived from priced concepts. */
+  extraIncludes: z.array(ShortText(300)).max(50).optional(),
   /** Image attachment (JPG/PNG) of the same request shown as the proposal's cover. */
   coverAttachmentId: z.uuid().nullable().optional(),
 };
@@ -484,7 +500,15 @@ export const UpdateQuote = z
     paymentPlan: PaymentPlanInput.nullable().optional(),
     /** null removes the plane ticket. */
     flight: FlightInput.nullable().optional(),
+    /** null unlinks the WeTravel trip. */
+    wetravelTrip: WeTravelTripLink.nullable().optional(),
     ...proposalContent,
+    /** Up to 5 destination photos (image attachments of the request), in order; the first becomes the cover. */
+    photoIds: z
+      .array(z.uuid())
+      .max(5, 'Máximo 5 fotos')
+      .refine((ids) => new Set(ids).size === ids.length, 'Foto repetida')
+      .optional(),
     /** Price per group size on the client's proposal (prices only). */
     showVolumePrices: z.boolean().optional(),
     rowVersion: z.number().int().min(1),
@@ -524,6 +548,33 @@ export const UpdateConceptTemplate = z
   })
   .partial();
 export type UpdateConceptTemplate = z.infer<typeof UpdateConceptTemplate>;
+
+/** A Pixabay photo to copy into the request's files (proposal photos). */
+export const PickStockPhoto = z.strictObject({ photoId: z.number().int().positive() });
+export const StockPhotoSearch = z.strictObject({
+  q: ShortText(100),
+  page: z.coerce.number().int().min(1).max(50).default(1),
+});
+
+/** Agency catalog phrase for the proposal's Incluye (excluded false) or No incluye (excluded true). */
+export const ProposalItemInput = z.strictObject({
+  label: ShortText(300),
+  excluded: z.boolean().default(false),
+  isDefault: z.boolean().default(false),
+  position: z.number().int().min(0).max(10_000).default(0),
+});
+export type ProposalItemInput = z.infer<typeof ProposalItemInput>;
+
+export const UpdateProposalItem = z
+  .strictObject({
+    label: ShortText(300),
+    excluded: z.boolean(),
+    isDefault: z.boolean(),
+    position: z.number().int().min(0).max(10_000),
+    active: z.boolean(),
+  })
+  .partial();
+export type UpdateProposalItem = z.infer<typeof UpdateProposalItem>;
 
 /** Supplier / DMC catalog (internal): rates pre-fill quote lines, the quote keeps its own copy. */
 /** Optional text field of a ficha; an empty box clears it. */

@@ -107,6 +107,7 @@ export class QuoteTemplatesController {
           freePlaceBenefit: v.freePlaceBenefit,
           itinerary: v.itinerary ?? Prisma.DbNull,
           exclusions: v.exclusions,
+          extraIncludes: v.extraIncludes,
           assumptions: v.assumptions,
           createdById: user.id,
         },

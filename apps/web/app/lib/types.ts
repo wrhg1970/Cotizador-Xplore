@@ -250,7 +250,13 @@ export interface QuoteDto {
   freeCourseByRatio: boolean;
   itinerary: ItineraryDayDto[] | null;
   exclusions: string[];
+  /** "Incluye" lines picked from the catalog, after the ones derived from priced concepts. */
+  extraIncludes: string[];
   coverAttachmentId: string | null;
+  /** Up to 5 destination photos (request attachments); the first is the cover. */
+  photoIds: string[];
+  /** WeTravel trip linked to the proposal; the school sees "Ver itinerario completo". */
+  wetravelTrip: WeTravelTripDto | null;
   showVolumePrices: boolean;
   /** Plane ticket ("Avión"), in its own currency; finalPrice is per student and skips the % comisión. */
   flight: FlightDto | null;
@@ -373,6 +379,22 @@ export interface QuoteTemplateDto {
   createdBy: string;
   createdById: string;
   createdAt: string;
+}
+
+export interface WeTravelTripDto {
+  uuid?: string;
+  title: string;
+  url: string;
+}
+
+/** Catalog phrase for the proposal: Incluye (excluded false) or No incluye (excluded true). */
+export interface ProposalItemDto {
+  id: string;
+  label: string;
+  excluded: boolean;
+  isDefault: boolean;
+  position: number;
+  active: boolean;
 }
 
 export interface ConceptTemplateDto {

@@ -13,6 +13,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   ServiceUnavailableException,
@@ -22,6 +23,7 @@ import type { Request, Response } from 'express';
 import {
   CreateScenario,
   FlightInput,
+  WeTravelTripLink,
   ItineraryDay,
   PaymentPlanInput,
   QuoteLineInput,
@@ -171,12 +173,32 @@ export async function proposalContact(prisma: PrismaClient, r: TravelRequest): P
   return { name: user?.name ?? null, email: user?.email ?? null, office: office?.name ?? null };
 }
 
+/** The proposal's photos in order: the chosen ones, or the single cover of versions made before. */
+export const photoList = (v: Pick<QuoteVersion, 'photoIds' | 'coverAttachmentId'>) =>
+  v.photoIds.length ? v.photoIds : v.coverAttachmentId ? [v.coverAttachmentId] : [];
+
+/** Stock photo credits ("Ana Pérez / Pixabay") of the proposal's photos, once each, in photo order. */
+export async function photoCredits(
+  prisma: PrismaClient,
+  v: Pick<QuoteVersion, 'photoIds' | 'coverAttachmentId'>,
+) {
+  const ids = photoList(v);
+  if (!ids.length) return [];
+  const rows = await prisma.requestAttachment.findMany({
+    where: { id: { in: ids }, credit: { not: null } },
+    select: { id: true, credit: true },
+  });
+  const by = new Map(rows.map((a) => [a.id, a.credit!]));
+  return [...new Set(ids.map((id) => by.get(id)).filter((c): c is string => !!c))];
+}
+
 /** Client-safe proposal (PRD §PDF): price, group, validity and included concepts; never costs or margin. */
 export function clientProposal(
   v: FullVersion,
   r: TravelRequest,
   brand: AgencyBrand,
   contact: ProposalContact | null = null,
+  credits: string[] = [],
 ) {
   const dto = toDto(v);
   const { totals, validUntil, assumptions } = dto;
@@ -207,8 +229,13 @@ export function clientProposal(
     paymentSchedule: dto.paymentSchedule,
     freePlaces: dto.freePlaces && { count: dto.freePlaces, benefit: dto.freePlaceBenefit },
     itinerary: dto.itinerary ?? [],
+    /** "Ver itinerario completo en WeTravel": the linked trip's public page. */
+    itineraryUrl: dto.wetravelTrip?.url ?? null,
     exclusions: dto.exclusions,
     hasCover: !!v.coverAttachmentId,
+    /** Photos served by index (0 = cover); credits only for stock photos. */
+    photos: photoList(v).length,
+    photoCredits: credits,
     // Prices only (no costs); shown when whoever quotes ticks it.
     volumePrices: v.showVolumePrices ? dto.volumePrices : null,
     // Only the winning proposal carries the payment link, the same one WeTravel's checkout shows.
@@ -226,7 +253,9 @@ export function clientProposal(
         (l) => !l.internalOnly && l.category === 'PER_PARTICIPANT' && l.unitCost.gt(0) && l.quantity.gt(0),
       )
       .map((l) => l.description)
-      .concat(dto.flight?.addToCourse ? ['Boleto de avión'] : []),
+      .concat(dto.flight?.addToCourse ? ['Boleto de avión'] : [])
+      .concat(dto.extraIncludes)
+      .filter((d, i, all) => all.indexOf(d) === i),
     /** Avión not added to the course: its own price per student, in its own currency. */
     airTicket:
       dto.flight && !dto.flight.addToCourse && totals?.flight
@@ -401,13 +430,16 @@ export function snapshotHash(v: FullVersion) {
     'itinerary',
     'coverAttachmentId',
     'flight',
+    'wetravelTrip',
   ] as const;
   for (const k of added) if (rest[k] === null) delete rest[k];
+  if (!rest.photoIds.length) delete (rest as { photoIds?: string[] }).photoIds;
   if (!rest.showVolumePrices) delete (rest as { showVolumePrices?: boolean }).showVolumePrices;
-  const { exclusions, ...kept } = rest;
+  const { exclusions, extraIncludes, ...kept } = rest;
   return calculationHash({
     ...kept,
     ...(exclusions.length ? { exclusions } : {}),
+    ...(extraIncludes.length ? { extraIncludes } : {}),
     // Line notes came later: only a set note enters the hash.
     lines: lines.map(({ id: _l, note, ...l }) => (note ? { ...l, note } : l)),
   });
@@ -444,7 +476,10 @@ export function toDto(v: FullVersion) {
     freeCourseByRatio: v.freeCourseByRatio,
     itinerary: v.itinerary ? ItineraryDay.array().parse(v.itinerary) : null,
     exclusions: v.exclusions,
+    extraIncludes: v.extraIncludes,
     coverAttachmentId: v.coverAttachmentId,
+    photoIds: v.photoIds,
+    wetravelTrip: v.wetravelTrip ? WeTravelTripLink.parse(v.wetravelTrip) : null,
     showVolumePrices: v.showVolumePrices,
     flight,
     paymentSchedule: pay.payments,
@@ -515,9 +550,12 @@ async function copyVersion(tx: Tx, src: FullVersion, scenarioId: string, number:
       freePlaceBenefit: src.freePlaceBenefit,
       itinerary: src.itinerary ?? Prisma.DbNull,
       exclusions: src.exclusions,
+      extraIncludes: src.extraIncludes,
       coverAttachmentId: src.coverAttachmentId,
+      photoIds: src.photoIds,
       showVolumePrices: src.showVolumePrices,
       flight: src.flight ?? Prisma.DbNull,
+      wetravelTrip: src.wetravelTrip ?? Prisma.DbNull,
       createdById: userId,
       lines: {
         create: syncChaperoneLines(
@@ -534,6 +572,18 @@ async function copyVersion(tx: Tx, src: FullVersion, scenarioId: string, number:
     },
     include: full,
   });
+}
+
+/** Catalog phrases ticked by default ("Siempre marcado") for a scenario started without a template. */
+async function defaultProposalItems(tx: Tx, agencyId: string) {
+  const items = await tx.proposalItem.findMany({
+    where: { agencyId, active: true, isDefault: true },
+    orderBy: [{ position: 'asc' }, { label: 'asc' }],
+  });
+  return {
+    extraIncludes: items.filter((i) => !i.excluded).map((i) => i.label),
+    exclusions: items.filter((i) => i.excluded).map((i) => i.label),
+  };
 }
 
 @Controller()
@@ -654,8 +704,10 @@ export class QuotesController {
                 freePlaceBenefit: template.freePlaceBenefit,
                 itinerary: template.itinerary ?? Prisma.DbNull,
                 exclusions: template.exclusions,
+                extraIncludes: template.extraIncludes,
                 assumptions: template.assumptions,
               }),
+              ...(!template && (await defaultProposalItems(tx, user.agencyId))),
               lines: {
                 create: lines.map((l, position) => ({
                   ...l,
@@ -810,6 +862,7 @@ export class QuotesController {
       r,
       toBrand(await agencyOfOffice(this.prisma, r.officeId)),
       await proposalContact(this.prisma, r),
+      await photoCredits(this.prisma, v),
     );
   }
 
@@ -892,6 +945,22 @@ export class QuotesController {
           message: 'No se captura tipo de cambio de la moneda de venta consigo misma',
         });
 
+      if (fields.photoIds) {
+        const ok = await tx.requestAttachment.count({
+          where: {
+            id: { in: fields.photoIds },
+            requestId: v.scenario.requestId,
+            mimeType: { startsWith: 'image/' },
+          },
+        });
+        if (ok !== fields.photoIds.length)
+          throw new BadRequestException({
+            code: 'VALIDATION_ERROR',
+            message: 'Las fotos deben ser imágenes JPG o PNG de esta solicitud',
+          });
+        // The first photo is the cover; old clients keep sending coverAttachmentId alone.
+        fields.coverAttachmentId = fields.photoIds[0] ?? null;
+      }
       if (fields.coverAttachmentId) {
         const cover = await tx.requestAttachment.findFirst({
           where: { id: fields.coverAttachmentId, requestId: v.scenario.requestId },
@@ -910,6 +979,7 @@ export class QuotesController {
         paymentPlan,
         itinerary,
         flight,
+        wetravelTrip,
         ...rest
       } = fields;
       const { count } = await tx.quoteVersion.updateMany({
@@ -924,6 +994,7 @@ export class QuotesController {
           ...(paymentPlan !== undefined ? { paymentPlan: json(paymentPlan) } : {}),
           ...(itinerary !== undefined ? { itinerary: json(itinerary) } : {}),
           ...(flight !== undefined ? { flight: json(flight) } : {}),
+          ...(wetravelTrip !== undefined ? { wetravelTrip: json(wetravelTrip) } : {}),
           rowVersion: { increment: 1 },
           // Editing (e.g. after being returned) moves the version to the current gratuities rule.
           freeCourseByRatio: true,
@@ -1235,6 +1306,33 @@ export class QuotesController {
       throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
     try {
       return await this.wetravel.linkPayments(r.wetravelLinkId);
+    } catch (e) {
+      if (!(e instanceof WeTravelError)) throw e;
+      throw new BadGatewayException(e.message);
+    }
+  }
+
+  /** Trips of EE's WeTravel account to link to a proposal; `q` (3+ letters) searches the title. */
+  @Get('wetravel/trips')
+  async wetravelTrips(@CurrentUser() user: AuthUser, @Query('q') q?: string) {
+    return this.weTravelCall(user, (wt) =>
+      wt.listTrips(typeof q === 'string' ? q.trim().slice(0, 100) : undefined),
+    );
+  }
+
+  /** A trip's itinerary as proposal days, to copy into the editor (the quoter can still change it). */
+  @Get('wetravel/trips/:uuid/itinerary')
+  async wetravelItinerary(@CurrentUser() user: AuthUser, @Param('uuid') tripUuid: string) {
+    if (!/^[\w-]{1,64}$/.test(tripUuid)) throw new NotFoundException('Viaje no encontrado');
+    return this.weTravelCall(user, (wt) => wt.tripItinerary(tripUuid));
+  }
+
+  private async weTravelCall<T>(user: AuthUser, run: (wt: WeTravel) => Promise<T>): Promise<T> {
+    // shortcut: the server's WeTravel key is EE's account; other agencies need their own key first (multi-agency step 5).
+    if (!this.wetravel || user.agencyId !== EE_AGENCY_ID)
+      throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
+    try {
+      return await run(this.wetravel);
     } catch (e) {
       if (!(e instanceof WeTravelError)) throw e;
       throw new BadGatewayException(e.message);

@@ -44,8 +44,13 @@ export interface Proposal {
   volumePrices?: { participants: number; pricePerParticipant: string }[] | null;
   freePlaces: { count: number; benefit: keyof typeof FREE_PLACE_LABEL } | null;
   itinerary: ItineraryDayDto[];
+  /** Public page of the linked WeTravel trip. */
+  itineraryUrl?: string | null;
   exclusions: string[];
   hasCover: boolean;
+  /** How many photos (0 = cover), served by position; credits of the stock ones. */
+  photos?: number;
+  photoCredits?: string[];
   /** WeTravel checkout, only on the winning proposal. */
   paymentUrl: string | null;
   /** The agency's brand; null fields fall back to Xplore Together. */
@@ -72,8 +77,12 @@ export function ProposalView({
 }: {
   p: Proposal;
   actions: ReactNode;
+  /** The cover's URL; the other photos sit next to it under photos/{n}. */
   coverSrc: string;
 }) {
+  const extraPhotos = Array.from({ length: Math.max((p.photos ?? 0) - 1, 0) }, (_, i) =>
+    coverSrc.replace(/cover$/, `photos/${i + 1}`),
+  );
   const legend = !p.authorized && <p className="legend">{PENDING_LEGEND}</p>;
   const r = p.request;
   const days = tripDays(r.departureDate, r.returnDate);
@@ -169,6 +178,23 @@ export function ProposalView({
         </div>
       </div>
 
+      {(extraPhotos.length > 0 || (p.photoCredits?.length ?? 0) > 0) && (
+        <figure className="pv-photos">
+          {extraPhotos.length > 0 && (
+            <div className="pv-photo-strip">
+              {extraPhotos.map((src, i) => (
+                <img key={src} src={src} alt={`Foto ${i + 2} de ${r.city}`} />
+              ))}
+            </div>
+          )}
+          {(p.photoCredits?.length ?? 0) > 0 && (
+            <figcaption>
+              Fotos: {p.photoCredits!.map((c) => c.replace(/ \/ Pixabay$/, '')).join(', ')} en Pixabay
+            </figcaption>
+          )}
+        </figure>
+      )}
+
       {p.paymentUrl && (
         <p className="pv-pay">
           <a className="button pay" href={p.paymentUrl} target="_blank" rel="noopener noreferrer">
@@ -229,7 +255,7 @@ export function ProposalView({
         </section>
       )}
 
-      {p.itinerary.length > 0 && (
+      {(p.itinerary.length > 0 || p.itineraryUrl) && (
         <section>
           <h2>Itinerario</h2>
           <ol className="timeline">
@@ -248,6 +274,13 @@ export function ProposalView({
               </li>
             ))}
           </ol>
+          {p.itineraryUrl && (
+            <p>
+              <a className="pv-wt" href={p.itineraryUrl} target="_blank" rel="noreferrer">
+                Ver itinerario completo en WeTravel ↗
+              </a>
+            </p>
+          )}
         </section>
       )}
 
