@@ -39,6 +39,85 @@ export interface LinkPayments {
 export interface WeTravel {
   createPaymentLink(body: PaymentLinkBody): Promise<PaymentLink>;
   linkPayments(linkUuid: string): Promise<LinkPayments>;
+  /** Upcoming, not archived trips of the account, by departure; `query` searches title or external id. */
+  listTrips(query?: string): Promise<WeTravelTrip[]>;
+  /** The trip's itinerary as proposal days (GET /trips/{uuid}/itinerary). */
+  tripItinerary(uuid: string): Promise<{ day: number; title: string; details?: string }[]>;
+}
+
+export interface WeTravelTrip {
+  uuid: string;
+  title: string;
+  /** Public trip page, e.g. https://www.wetravel.com/trips/epic-london-trip-12345678 */
+  url: string;
+  startDate: string | null;
+  endDate: string | null;
+}
+
+/** Only https pages on wetravel.com (or a subdomain) are ever stored or shown to the school. */
+export const isWeTravelUrl = (u: unknown): u is string => {
+  try {
+    const url = new URL(String(u));
+    return (
+      url.protocol === 'https:' && (url.hostname === 'wetravel.com' || url.hostname.endsWith('.wetravel.com'))
+    );
+  } catch {
+    return false;
+  }
+};
+
+export function toTrip(t: Record<string, unknown>): WeTravelTrip | null {
+  if (typeof t.uuid !== 'string' || typeof t.title !== 'string' || !isWeTravelUrl(t.url)) return null;
+  const date = (d: unknown) =>
+    typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : null;
+  return {
+    uuid: t.uuid,
+    title: t.title.slice(0, 255),
+    url: t.url,
+    startDate: date(t.start_date),
+    endDate: date(t.end_date),
+  };
+}
+
+interface ItinerarySection {
+  type?: string;
+  title?: string;
+  headline?: string;
+  hidden_from_traveler?: boolean;
+  items?: { title?: string; hidden_from_traveler?: boolean }[];
+}
+
+const plain = (s: unknown) =>
+  typeof s === 'string'
+    ? s
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/\s+/g, ' ')
+        .trim()
+    : '';
+
+/**
+ * WeTravel itinerary → proposal days: each visible "general" section is a day (its title), its visible
+ * item titles the detail. Other section types (map, organizer, inclusions…) are not days.
+ */
+export function itineraryDays(body: { sections?: ItinerarySection[] }) {
+  return (body.sections ?? [])
+    .filter((s) => s.type === 'general' && !s.hidden_from_traveler)
+    .slice(0, 120)
+    .map((s, i) => {
+      const details = (s.items ?? [])
+        .filter((it) => !it.hidden_from_traveler)
+        .map((it) => plain(it.title))
+        .filter(Boolean)
+        .join(' · ')
+        .slice(0, 2000);
+      return {
+        day: i + 1,
+        title: (plain(s.title) || plain(s.headline) || `Día ${i + 1}`).slice(0, 200),
+        ...(details ? { details } : {}),
+      };
+    });
 }
 
 interface Transaction {
@@ -229,5 +308,27 @@ export class HttpWeTravel implements WeTravel {
       if (!(res.pagination as { has_next?: boolean } | undefined)?.has_next) break;
     }
     return sumPayments(all);
+  }
+
+  async listTrips(query?: string) {
+    const q = new URLSearchParams({
+      per_page: '50',
+      archived: 'false',
+      sort_by: 'departure_date',
+      sort_order: 'asc',
+      ...(query && query.length >= 3 ? { query } : {}),
+    });
+    const res = await this.call(`${this.baseUrl}/trips?${q}`, 'leer los viajes');
+    return ((res.data as Record<string, unknown>[] | undefined) ?? [])
+      .map(toTrip)
+      .filter((t): t is WeTravelTrip => !!t);
+  }
+
+  async tripItinerary(uuid: string) {
+    const res = await this.call(
+      `${this.baseUrl}/trips/${encodeURIComponent(uuid)}/itinerary`,
+      'leer el itinerario',
+    );
+    return itineraryDays((res.data ?? res) as { sections?: ItinerarySection[] });
   }
 }

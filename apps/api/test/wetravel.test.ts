@@ -1,6 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PaymentLinkBody, WeTravel } from '../src/integrations/wetravel.js';
-import { sumPayments, WeTravelError, wetravelReason } from '../src/integrations/wetravel.js';
+import {
+  itineraryDays,
+  sumPayments,
+  toTrip,
+  WeTravelError,
+  wetravelReason,
+} from '../src/integrations/wetravel.js';
 import { loginAs, makeApp, makeOffice, makeUser, prisma, uniq } from './helpers.js';
 
 class FakeWeTravel implements WeTravel {
@@ -18,6 +24,23 @@ class FakeWeTravel implements WeTravel {
     return { collected: { MXN: 1000000 }, payments: 2, payers: 2, lastPaymentAt: '2026-11-01T10:00:00Z' };
   }
   read: string[] = [];
+  queries: (string | undefined)[] = [];
+  async listTrips(query?: string) {
+    if (this.fail) throw new WeTravelError(400, 'WeTravel respondió 400 al leer los viajes: bad filter');
+    this.queries.push(query);
+    return [
+      {
+        uuid: '12345678',
+        title: 'Montreal Summer Camp 2027',
+        url: 'https://www.wetravel.com/trips/montreal-12345678',
+        startDate: '2027-06-25',
+        endDate: '2027-07-02',
+      },
+    ];
+  }
+  async tripItinerary(uuid: string) {
+    return uuid === '12345678' ? [{ day: 1, title: 'Llegada', details: 'Aeropuerto · Hotel' }] : [];
+  }
 }
 
 const wt = new FakeWeTravel();
@@ -211,5 +234,115 @@ describe('WeTravel error reason', () => {
     expect(await wetravelReason(res({ errors: [{ field: 'trip_uuids' }] }))).toBe('{"field":"trip_uuids"}');
     expect(await wetravelReason(res({ error: 'x'.repeat(500) }))).toHaveLength(200);
     expect(await wetravelReason(new Response('<html>', { status: 400 }))).toBe('');
+  });
+});
+
+describe('WeTravel itinerary for the proposal', () => {
+  it('maps visible general sections to days and only keeps wetravel.com trip pages', () => {
+    expect(
+      itineraryDays({
+        sections: [
+          { type: 'overview', title: 'Resumen' },
+          {
+            type: 'general',
+            title: 'Llegada a <b>Montreal</b>',
+            items: [
+              { title: 'Aeropuerto' },
+              { title: 'Oculto', hidden_from_traveler: true },
+              { title: 'Hotel &amp; cena' },
+            ],
+          },
+          { type: 'general', title: 'Interno', hidden_from_traveler: true },
+          { type: 'general', headline: 'Viejo Montreal' },
+          { type: 'map', title: 'Mapa' },
+        ],
+      }),
+    ).toEqual([
+      { day: 1, title: 'Llegada a Montreal', details: 'Aeropuerto · Hotel & cena' },
+      { day: 2, title: 'Viejo Montreal' },
+    ]);
+    expect(itineraryDays({})).toEqual([]);
+    const trip = { uuid: '1', title: 'T', start_date: '2027-06-25T00:00:00.000Z' };
+    expect(toTrip({ ...trip, url: 'https://www.wetravel.com/trips/t-1' })).toMatchObject({
+      startDate: '2027-06-25',
+    });
+    expect(toTrip({ ...trip, url: 'https://evil.example/wetravel.com' })).toBeNull();
+    expect(toTrip({ ...trip, url: 'javascript:alert(1)' })).toBeNull();
+  });
+
+  it('lists trips, brings the itinerary and links the trip so the school sees it', async () => {
+    const trips = await ctx
+      .http()
+      .get('/api/v1/wetravel/trips?q=Montreal')
+      .set('Cookie', c.quoter)
+      .expect(200);
+    expect(trips.body[0]).toMatchObject({
+      uuid: '12345678',
+      url: 'https://www.wetravel.com/trips/montreal-12345678',
+    });
+    expect(wt.queries.at(-1)).toBe('Montreal');
+    const days = await ctx
+      .http()
+      .get('/api/v1/wetravel/trips/12345678/itinerary')
+      .set('Cookie', c.quoter)
+      .expect(200);
+    expect(days.body).toEqual([{ day: 1, title: 'Llegada', details: 'Aeropuerto · Hotel' }]);
+    await ctx
+      .http()
+      .get('/api/v1/wetravel/trips/..%2F..%2Fadmin/itinerary')
+      .set('Cookie', c.quoter)
+      .expect(404);
+    await ctx.http().get('/api/v1/wetravel/trips').expect(401);
+
+    const req = await prisma.travelRequest.create({
+      data: {
+        folio: `EE-2030-${uniq().toUpperCase().slice(0, 6)}`,
+        officeId: officeA,
+        requesterId: ids.quoter!,
+        assigneeId: ids.quoter!,
+        status: 'QUOTING',
+        groupName: 'Grupo itinerario',
+        city: 'Montreal',
+        countryCode: 'CA',
+        departureDate: new Date('2027-06-25'),
+        returnDate: new Date('2027-07-02'),
+        participants: 10,
+      },
+    });
+    const draft = (
+      await ctx
+        .http()
+        .post(`/api/v1/requests/${req.id}/scenarios`)
+        .set('Cookie', c.quoter)
+        .send({ name: 'Opción 1', saleCurrency: 'CAD' })
+        .expect(201)
+    ).body.latest;
+    const patch = (wetravelTrip: unknown) =>
+      ctx
+        .http()
+        .patch(`/api/v1/quotes/${draft.id}`)
+        .set('Cookie', c.quoter)
+        .send({ wetravelTrip, rowVersion: 1 });
+    await patch({ title: 'Falsa', url: 'https://evil.example/trips/1' }).expect(400);
+    await patch({ title: 'Falsa', url: 'http://www.wetravel.com/trips/1' }).expect(400);
+    const trip = trips.body[0];
+    const saved = await patch({ uuid: trip.uuid, title: trip.title, url: trip.url }).expect(200);
+    expect(saved.body.wetravelTrip).toEqual({ uuid: trip.uuid, title: trip.title, url: trip.url });
+    const p = await ctx
+      .http()
+      .get(`/api/v1/quotes/${draft.id}/proposal`)
+      .set('Cookie', c.advisor)
+      .expect(200);
+    expect(p.body.itineraryUrl).toBe(trip.url);
+  });
+
+  it('turns a WeTravel refusal into a 502 with its reason', async () => {
+    wt.fail = true;
+    try {
+      const res = await ctx.http().get('/api/v1/wetravel/trips').set('Cookie', c.quoter).expect(502);
+      expect(res.body.message).toContain('bad filter');
+    } finally {
+      wt.fail = false;
+    }
   });
 });

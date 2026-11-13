@@ -57,6 +57,7 @@ const FIELD: Record<string, string> = {
   extraIncludes: 'incluye',
   coverAttachmentId: 'portada',
   photoIds: 'fotos',
+  wetravelTrip: 'viaje de WeTravel',
 };
 const kindOf = (action: string): Kind =>
   PRICE.includes(action) ? 'price' : TRANSITION[action] || action === 'request.created' ? 'state' : 'notes';

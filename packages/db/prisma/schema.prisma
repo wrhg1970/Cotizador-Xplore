@@ -369,6 +369,8 @@ model QuoteVersion {
   showVolumePrices     Boolean             @default(false) @map("show_volume_prices")
   /// Plane ticket "Avión" (contracts FlightInput): net cost, final price per student, currency, shares.
   flight               Json?
+  /// WeTravel trip linked to the proposal (contracts WeTravelTripLink): the school sees "Ver itinerario completo".
+  wetravelTrip         Json?               @map("wetravel_trip")
   /// Optimistic concurrency token for edits.
   rowVersion           Int                 @default(1) @map("row_version")
   createdById          String              @map("created_by_id") @db.Uuid

@@ -448,6 +448,20 @@ export const FlightInput = z.strictObject({
 });
 export type FlightInput = z.infer<typeof FlightInput>;
 
+/** WeTravel trip linked to a proposal (Will, 2026-11-13): chosen from the account or pasted. */
+export const WeTravelTripLink = z.strictObject({
+  uuid: z.string().trim().max(64).optional(),
+  title: ShortText(255),
+  url: z
+    .url()
+    .max(500)
+    .refine((u) => {
+      const { protocol, hostname } = new URL(u);
+      return protocol === 'https:' && (hostname === 'wetravel.com' || hostname.endsWith('.wetravel.com'));
+    }, 'La liga debe ser de wetravel.com'),
+});
+export type WeTravelTripLink = z.infer<typeof WeTravelTripLink>;
+
 /** Proposal content shared by versions and templates. */
 const proposalContent = {
   studentsPerFreePlace: z.number().int().min(1).max(100).nullable().optional(),
@@ -486,6 +500,8 @@ export const UpdateQuote = z
     paymentPlan: PaymentPlanInput.nullable().optional(),
     /** null removes the plane ticket. */
     flight: FlightInput.nullable().optional(),
+    /** null unlinks the WeTravel trip. */
+    wetravelTrip: WeTravelTripLink.nullable().optional(),
     ...proposalContent,
     /** Up to 5 destination photos (image attachments of the request), in order; the first becomes the cover. */
     photoIds: z

@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { api, errorText } from '../../lib/api';
 import { MAX_BYTES, toBase64 } from './SheetImport';
-import { fmtDate, paymentLabel, type ProposalItemDto, type QuoteDto } from '../../lib/types';
+import {
+  fmtDate,
+  type ItineraryDayDto,
+  paymentLabel,
+  type ProposalItemDto,
+  type QuoteDto,
+} from '../../lib/types';
 
 const SUBTABS = [
   ['fotos', 'Fotos'],
@@ -39,6 +45,7 @@ export function ProposalContent({
       {sub === 'itinerario' && (
         <section aria-labelledby="itinerario">
           <h2 id="itinerario">Itinerario</h2>
+          <WeTravelLink draft={draft} set={set} city={city} />
           {itinerary.map((d, i) => (
             <div className="row" key={i}>
               <label>
@@ -109,6 +116,137 @@ export function ProposalContent({
         </section>
       )}
     </>
+  );
+}
+
+type Trip = { uuid: string; title: string; url: string; startDate: string | null; endDate: string | null };
+const isWeTravel = (u: string) => {
+  try {
+    const url = new URL(u);
+    return (
+      url.protocol === 'https:' && (url.hostname === 'wetravel.com' || url.hostname.endsWith('.wetravel.com'))
+    );
+  } catch {
+    return false;
+  }
+};
+
+/** Links the proposal to a WeTravel trip: pick one of the account's trips and bring its days, or paste its link. */
+function WeTravelLink({
+  draft,
+  set,
+  city,
+}: {
+  draft: QuoteDto;
+  set: (patch: Partial<QuoteDto>) => void;
+  city: string;
+}) {
+  const [trips, setTrips] = useState<Trip[] | null>(null);
+  const [query, setQuery] = useState(city);
+  const [picked, setPicked] = useState('');
+  const [pasted, setPasted] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const linked = draft.wetravelTrip;
+  const has = (draft.itinerary ?? []).length > 0;
+
+  async function load() {
+    setError(null);
+    try {
+      const q = query.trim();
+      setTrips(await api<Trip[]>(`/wetravel/trips${q.length >= 3 ? `?q=${encodeURIComponent(q)}` : ''}`));
+    } catch (e) {
+      setError(errorText(e));
+      setTrips([]);
+    }
+  }
+  async function bring() {
+    const t = trips?.find((x) => x.uuid === picked);
+    if (!t) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const days = await api<ItineraryDayDto[]>(`/wetravel/trips/${encodeURIComponent(t.uuid)}/itinerary`);
+      set({
+        wetravelTrip: { uuid: t.uuid, title: t.title, url: t.url },
+        ...(days.length ? { itinerary: days } : {}),
+      });
+      if (!days.length) setError('Ese viaje no tiene días en su itinerario de WeTravel; quedó ligado.');
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="wt-link">
+      <strong>WeTravel</strong>
+      {linked ? (
+        <span>
+          Ligada a{' '}
+          <a href={linked.url} target="_blank" rel="noreferrer">
+            {linked.title} ↗
+          </a>{' '}
+          <button type="button" className="secondary" onClick={() => set({ wetravelTrip: null })}>
+            Quitar liga
+          </button>
+        </span>
+      ) : trips === null ? (
+        <span className="row">
+          <input
+            aria-label="Buscar viaje en WeTravel"
+            value={query}
+            maxLength={100}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <button type="button" className="secondary" onClick={() => void load()}>
+            Ver viajes de WeTravel
+          </button>
+        </span>
+      ) : (
+        <span className="row">
+          <select aria-label="Viaje de WeTravel" value={picked} onChange={(e) => setPicked(e.target.value)}>
+            <option value="">{trips.length ? 'Elige un viaje…' : 'Sin viajes'}</option>
+            {trips.map((t) => (
+              <option key={t.uuid} value={t.uuid}>
+                {t.title}
+                {t.startDate ? ` · ${fmtDate(t.startDate)}` : ''}
+              </option>
+            ))}
+          </select>
+          <button type="button" disabled={!picked || busy} onClick={() => void bring()}>
+            {has ? 'Reemplazar con su itinerario' : 'Traer itinerario'}
+          </button>
+          <button type="button" className="secondary" onClick={() => setTrips(null)}>
+            Buscar otro
+          </button>
+        </span>
+      )}
+      {!linked && (
+        <label className="wt-paste">
+          o pega la liga del viaje
+          <input
+            type="url"
+            placeholder="https://www.wetravel.com/trips/…"
+            value={pasted}
+            maxLength={500}
+            onChange={(e) => setPasted(e.target.value)}
+            onBlur={() => {
+              const u = pasted.trim();
+              if (!u) return;
+              if (!isWeTravel(u)) return setError('La liga debe ser de wetravel.com');
+              set({ wetravelTrip: { title: 'Itinerario en WeTravel', url: u } });
+              setPasted('');
+            }}
+          />
+        </label>
+      )}
+      {error && <p className="muted">{error}</p>}
+      <p className="muted">
+        El colegio verá el botón “Ver itinerario completo en WeTravel”. Los días traídos se pueden editar.
+      </p>
+    </div>
   );
 }
 

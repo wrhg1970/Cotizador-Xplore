@@ -44,6 +44,8 @@ export interface Proposal {
   volumePrices?: { participants: number; pricePerParticipant: string }[] | null;
   freePlaces: { count: number; benefit: keyof typeof FREE_PLACE_LABEL } | null;
   itinerary: ItineraryDayDto[];
+  /** Public page of the linked WeTravel trip. */
+  itineraryUrl?: string | null;
   exclusions: string[];
   hasCover: boolean;
   /** How many photos (0 = cover), served by position; credits of the stock ones. */
@@ -253,7 +255,7 @@ export function ProposalView({
         </section>
       )}
 
-      {p.itinerary.length > 0 && (
+      {(p.itinerary.length > 0 || p.itineraryUrl) && (
         <section>
           <h2>Itinerario</h2>
           <ol className="timeline">
@@ -272,6 +274,13 @@ export function ProposalView({
               </li>
             ))}
           </ol>
+          {p.itineraryUrl && (
+            <p>
+              <a className="pv-wt" href={p.itineraryUrl} target="_blank" rel="noreferrer">
+                Ver itinerario completo en WeTravel ↗
+              </a>
+            </p>
+          )}
         </section>
       )}
 

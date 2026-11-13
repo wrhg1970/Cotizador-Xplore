@@ -13,6 +13,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   ServiceUnavailableException,
@@ -22,6 +23,7 @@ import type { Request, Response } from 'express';
 import {
   CreateScenario,
   FlightInput,
+  WeTravelTripLink,
   ItineraryDay,
   PaymentPlanInput,
   QuoteLineInput,
@@ -227,6 +229,8 @@ export function clientProposal(
     paymentSchedule: dto.paymentSchedule,
     freePlaces: dto.freePlaces && { count: dto.freePlaces, benefit: dto.freePlaceBenefit },
     itinerary: dto.itinerary ?? [],
+    /** "Ver itinerario completo en WeTravel": the linked trip's public page. */
+    itineraryUrl: dto.wetravelTrip?.url ?? null,
     exclusions: dto.exclusions,
     hasCover: !!v.coverAttachmentId,
     /** Photos served by index (0 = cover); credits only for stock photos. */
@@ -426,6 +430,7 @@ export function snapshotHash(v: FullVersion) {
     'itinerary',
     'coverAttachmentId',
     'flight',
+    'wetravelTrip',
   ] as const;
   for (const k of added) if (rest[k] === null) delete rest[k];
   if (!rest.photoIds.length) delete (rest as { photoIds?: string[] }).photoIds;
@@ -474,6 +479,7 @@ export function toDto(v: FullVersion) {
     extraIncludes: v.extraIncludes,
     coverAttachmentId: v.coverAttachmentId,
     photoIds: v.photoIds,
+    wetravelTrip: v.wetravelTrip ? WeTravelTripLink.parse(v.wetravelTrip) : null,
     showVolumePrices: v.showVolumePrices,
     flight,
     paymentSchedule: pay.payments,
@@ -549,6 +555,7 @@ async function copyVersion(tx: Tx, src: FullVersion, scenarioId: string, number:
       photoIds: src.photoIds,
       showVolumePrices: src.showVolumePrices,
       flight: src.flight ?? Prisma.DbNull,
+      wetravelTrip: src.wetravelTrip ?? Prisma.DbNull,
       createdById: userId,
       lines: {
         create: syncChaperoneLines(
@@ -972,6 +979,7 @@ export class QuotesController {
         paymentPlan,
         itinerary,
         flight,
+        wetravelTrip,
         ...rest
       } = fields;
       const { count } = await tx.quoteVersion.updateMany({
@@ -986,6 +994,7 @@ export class QuotesController {
           ...(paymentPlan !== undefined ? { paymentPlan: json(paymentPlan) } : {}),
           ...(itinerary !== undefined ? { itinerary: json(itinerary) } : {}),
           ...(flight !== undefined ? { flight: json(flight) } : {}),
+          ...(wetravelTrip !== undefined ? { wetravelTrip: json(wetravelTrip) } : {}),
           rowVersion: { increment: 1 },
           // Editing (e.g. after being returned) moves the version to the current gratuities rule.
           freeCourseByRatio: true,
@@ -1297,6 +1306,33 @@ export class QuotesController {
       throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
     try {
       return await this.wetravel.linkPayments(r.wetravelLinkId);
+    } catch (e) {
+      if (!(e instanceof WeTravelError)) throw e;
+      throw new BadGatewayException(e.message);
+    }
+  }
+
+  /** Trips of EE's WeTravel account to link to a proposal; `q` (3+ letters) searches the title. */
+  @Get('wetravel/trips')
+  async wetravelTrips(@CurrentUser() user: AuthUser, @Query('q') q?: string) {
+    return this.weTravelCall(user, (wt) =>
+      wt.listTrips(typeof q === 'string' ? q.trim().slice(0, 100) : undefined),
+    );
+  }
+
+  /** A trip's itinerary as proposal days, to copy into the editor (the quoter can still change it). */
+  @Get('wetravel/trips/:uuid/itinerary')
+  async wetravelItinerary(@CurrentUser() user: AuthUser, @Param('uuid') tripUuid: string) {
+    if (!/^[\w-]{1,64}$/.test(tripUuid)) throw new NotFoundException('Viaje no encontrado');
+    return this.weTravelCall(user, (wt) => wt.tripItinerary(tripUuid));
+  }
+
+  private async weTravelCall<T>(user: AuthUser, run: (wt: WeTravel) => Promise<T>): Promise<T> {
+    // shortcut: the server's WeTravel key is EE's account; other agencies need their own key first (multi-agency step 5).
+    if (!this.wetravel || user.agencyId !== EE_AGENCY_ID)
+      throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
+    try {
+      return await run(this.wetravel);
     } catch (e) {
       if (!(e instanceof WeTravelError)) throw e;
       throw new BadGatewayException(e.message);

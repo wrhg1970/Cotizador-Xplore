@@ -362,6 +362,7 @@ export default function QuoteEditorPage() {
           exclusions: draft.exclusions.map((x) => x.trim()).filter(Boolean),
           extraIncludes: draft.extraIncludes,
           photoIds: photosOf(draft),
+          wetravelTrip: draft.wetravelTrip,
           flight: draft.flight && {
             ...draft.flight,
             netCost: draft.flight.netCost || '0',

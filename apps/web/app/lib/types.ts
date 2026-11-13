@@ -255,6 +255,8 @@ export interface QuoteDto {
   coverAttachmentId: string | null;
   /** Up to 5 destination photos (request attachments); the first is the cover. */
   photoIds: string[];
+  /** WeTravel trip linked to the proposal; the school sees "Ver itinerario completo". */
+  wetravelTrip: WeTravelTripDto | null;
   showVolumePrices: boolean;
   /** Plane ticket ("Avión"), in its own currency; finalPrice is per student and skips the % comisión. */
   flight: FlightDto | null;
@@ -377,6 +379,12 @@ export interface QuoteTemplateDto {
   createdBy: string;
   createdById: string;
   createdAt: string;
+}
+
+export interface WeTravelTripDto {
+  uuid?: string;
+  title: string;
+  url: string;
 }
 
 /** Catalog phrase for the proposal: Incluye (excluded false) or No incluye (excluded true). */
