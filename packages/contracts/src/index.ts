@@ -237,6 +237,8 @@ export const SetRequestTeam = z
 export const CreateSchoolContact = z.strictObject({
   officeId: z.uuid(),
   schoolName: ShortText(200),
+  /** The ficha's key, so a renamed client keeps its contacts. */
+  key: z.string().min(1).max(200).optional(),
   name: ShortText(150),
   role: OptionalText(150),
   email: z.email().max(200).optional(),
@@ -522,19 +524,83 @@ export const UpdateConceptTemplate = z
 export type UpdateConceptTemplate = z.infer<typeof UpdateConceptTemplate>;
 
 /** Supplier / DMC catalog (internal): rates pre-fill quote lines, the quote keeps its own copy. */
+/** Optional text field of a ficha; an empty box clears it. */
+const Field = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .transform((v) => v || null)
+    .optional();
+/** Mexican RFC (12 or 13 characters) or a foreign tax id; free text but short and without spaces. */
+const TaxId = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^$|^[A-Z0-9&Ñ-]{6,20}$/, 'RFC no válido')
+  .transform((v) => v || null)
+  .optional();
+const Website = z
+  .string()
+  .trim()
+  .max(300)
+  .regex(/^$|^https?:\/\/\S+$/, 'El sitio web debe empezar con http:// o https://')
+  .transform((v) => v || null)
+  .optional();
+
 export const SupplierInput = z.strictObject({
   name: ShortText(200),
-  kind: OptionalText(100),
-  country: OptionalText(100),
-  email: z.email().max(320).optional(),
-  phone: OptionalText(50),
-  notes: OptionalText(2000),
+  kind: Field(100),
+  country: Field(100),
+  email: z
+    .email()
+    .max(320)
+    .or(z.literal('').transform(() => null))
+    .optional(),
+  phone: Field(50),
+  notes: Field(2000),
+  legalName: Field(200),
+  taxId: TaxId,
+  website: Website,
 });
 export type SupplierInput = z.infer<typeof SupplierInput>;
 export const UpdateSupplier = SupplierInput.extend({ active: z.boolean() })
   .partial()
   .refine((b) => Object.keys(b).length > 0, 'Nada que actualizar');
 export type UpdateSupplier = z.infer<typeof UpdateSupplier>;
+
+/** A person at a supplier or client (Contactos tab). */
+export const ContactInput = z.strictObject({
+  name: ShortText(150),
+  role: OptionalText(150),
+  email: z.email().max(200).optional(),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^[+\d][\d\s()-]{6,24}$/, 'Teléfono no válido')
+    .optional(),
+});
+export type ContactInput = z.infer<typeof ContactInput>;
+
+/** Client ficha "Datos". `key` names a school that so far only exists in requests; omitted on "Nuevo cliente". */
+export const ClientInput = z.strictObject({
+  officeId: z.uuid(),
+  key: z.string().min(1).max(200).optional(),
+  name: ShortText(200),
+  kind: Field(60),
+  legalName: Field(200),
+  taxId: TaxId,
+  levels: Field(150),
+  website: Website,
+  address: Field(300),
+  postalCode: Field(10),
+  city: Field(100),
+  state: Field(100),
+  country: Field(100),
+  notes: Field(2000),
+  active: z.boolean().optional(),
+});
+export type ClientInput = z.infer<typeof ClientInput>;
 
 export const SupplierRateInput = z.strictObject({
   description: ShortText(300),

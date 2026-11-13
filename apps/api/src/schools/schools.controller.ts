@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Delete,
   ForbiddenException,
@@ -9,16 +10,17 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { CreateSchoolContact } from '@ee/contracts';
-import type { Prisma, PrismaClient } from '@ee/db';
+import { ClientInput, CreateSchoolContact } from '@ee/contracts';
+import type { Client, Prisma, PrismaClient } from '@ee/db';
 import { z } from 'zod';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/auth.types.js';
-import { hasOfficeRole, officeScope, officesWithRole } from '../auth/authz.js';
+import { canDo, hasOfficeRole, officeScope, officesWithRole } from '../auth/authz.js';
 import { CurrentUser } from '../auth/session.guard.js';
 import { PRISMA } from '../prisma.service.js';
 import { ZodPipe } from '../zod.pipe.js';
@@ -37,6 +39,23 @@ export const schoolKey = (name: string) =>
 const SchoolQuery = z.strictObject({ officeId: z.uuid(), key: z.string().min(1).max(200) });
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 const conversion = (won: number, lost: number) => (won + lost ? won / (won + lost) : null);
+/** The ficha's own data; null fields while the school only exists in requests. */
+const clientDto = (c: Client | null | undefined) => ({
+  kind: c?.kind ?? null,
+  legalName: c?.legalName ?? null,
+  taxId: c?.taxId ?? null,
+  levels: c?.levels ?? null,
+  website: c?.website ?? null,
+  address: c?.address ?? null,
+  postalCode: c?.postalCode ?? null,
+  city: c?.city ?? null,
+  state: c?.state ?? null,
+  country: c?.country ?? null,
+  notes: c?.notes ?? null,
+  active: c?.active ?? true,
+  wissifyId: c?.wissifyId ?? null,
+  wissifySyncedAt: c?.wissifySyncedAt?.toISOString() ?? null,
+});
 
 /**
  * Ficha por colegio: trips, conversion and contacts per school and office, built from the
@@ -71,20 +90,35 @@ export class SchoolsController {
         status: true,
         departureDate: true,
         officeId: true,
-        office: { select: { code: true } },
+        office: { select: { code: true, name: true } },
       },
     });
+    const scope = officeScope(user);
+    const [clients, contacts, offices] = await Promise.all([
+      this.prisma.client.findMany({ where: { officeId: { in: scope } } }),
+      this.prisma.schoolContact.findMany({
+        where: { officeId: { in: scope } },
+        select: { officeId: true, schoolKey: true, name: true, role: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.office.findMany({
+        where: { id: { in: scope } },
+        select: { id: true, code: true, name: true },
+      }),
+    ]);
+    const officeOf = new Map(offices.map((o) => [o.id, o]));
     const schools = new Map<
       string,
       {
         officeId: string;
         officeCode: string;
+        officeName: string;
         key: string;
         name: string;
         requests: number;
         won: number;
         lost: number;
-        lastDeparture: Date;
+        lastDeparture: Date | null;
       }
     >();
     for (const r of rows) {
@@ -94,6 +128,7 @@ export class SchoolsController {
       const s = schools.get(id) ?? {
         officeId: r.officeId,
         officeCode: r.office.code,
+        officeName: r.office.name,
         key,
         name: r.clientName!.trim(),
         requests: 0,
@@ -104,11 +139,44 @@ export class SchoolsController {
       s.requests++;
       if (r.status === 'WON') s.won++;
       if (r.status === 'LOST') s.lost++;
-      if (r.departureDate > s.lastDeparture) s.lastDeparture = r.departureDate;
+      if (!s.lastDeparture || r.departureDate > s.lastDeparture) s.lastDeparture = r.departureDate;
       schools.set(id, s);
     }
-    return [...schools.values()]
-      .map((s) => ({ ...s, conversion: conversion(s.won, s.lost), lastDeparture: day(s.lastDeparture) }))
+    // "Nuevo cliente" rows with no request yet.
+    for (const c of clients) {
+      const id = `${c.officeId}|${c.key}`;
+      const o = officeOf.get(c.officeId);
+      if (!schools.has(id) && o)
+        schools.set(id, {
+          officeId: c.officeId,
+          officeCode: o.code,
+          officeName: o.name,
+          key: c.key,
+          name: c.name,
+          requests: 0,
+          won: 0,
+          lost: 0,
+          lastDeparture: null,
+        });
+    }
+    const clientOf = new Map(clients.map((c) => [`${c.officeId}|${c.key}`, c]));
+    const primary = new Map<string, { name: string; role: string | null }>();
+    for (const c of contacts) {
+      const id = `${c.officeId}|${c.schoolKey}`;
+      if (!primary.has(id)) primary.set(id, { name: c.name, role: c.role });
+    }
+    return [...schools]
+      .map(([id, s]) => {
+        const c = clientOf.get(id);
+        return {
+          ...s,
+          name: c?.name ?? s.name,
+          ...clientDto(c),
+          contact: primary.get(id) ?? null,
+          conversion: conversion(s.won, s.lost),
+          lastDeparture: day(s.lastDeparture),
+        };
+      })
       .sort((a, b) => b.requests - a.requests || a.name.localeCompare(b.name, 'es'));
   }
 
@@ -140,11 +208,16 @@ export class SchoolsController {
       select: { id: true, name: true, role: true, email: true, phone: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     });
-    if (!trips.length && !contacts.length) throw new NotFoundException('Colegio no encontrado');
+    const client = await this.prisma.client.findUnique({
+      where: { officeId_key: { officeId: q.officeId, key: q.key } },
+    });
+    if (!trips.length && !contacts.length && !client) throw new NotFoundException('Cliente no encontrado');
     const won = trips.filter((t) => t.status === 'WON').length;
     const lost = trips.filter((t) => t.status === 'LOST').length;
     return {
-      name: trips[0]?.clientName?.trim() ?? q.key,
+      name: client?.name ?? trips[0]?.clientName?.trim() ?? q.key,
+      ...clientDto(client),
+      canEdit: canDo(user, q.officeId, 'canEdit'),
       officeId: q.officeId,
       key: q.key,
       conversion: conversion(won, lost),
@@ -159,6 +232,41 @@ export class SchoolsController {
     };
   }
 
+  /** Ficha "Datos": saves a client; without `key` it is a "Nuevo cliente" (409 if it already has a ficha). */
+  @Put('client')
+  async saveClient(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Body(new ZodPipe(ClientInput)) body: ClientInput,
+  ) {
+    this.assertMember(user, body.officeId);
+    const { officeId, key: given, ...data } = body;
+    const key = given ?? schoolKey(data.name);
+    if (!key) throw new ForbiddenException('Nombre de cliente no válido');
+    return this.prisma.$transaction(async (tx) => {
+      const before = await tx.client.findUnique({ where: { officeId_key: { officeId, key } } });
+      if (!given && before) throw new ConflictException('Ya existe un cliente con ese nombre en la oficina');
+      if (!canDo(user, officeId, before ? 'canEdit' : 'canCreate'))
+        throw new ForbiddenException('Tu rol no puede editar clientes');
+      const c = await tx.client.upsert({
+        where: { officeId_key: { officeId, key } },
+        create: { ...data, officeId, key },
+        update: data,
+      });
+      // Field names only: RFC, address and notes stay in their table.
+      await audit(tx, {
+        actorUserId: user.id,
+        action: before ? 'client.updated' : 'client.created',
+        entityType: 'Client',
+        entityId: c.id,
+        officeId,
+        correlationId: req.correlationId,
+        diff: { key, fields: Object.keys(data), ...('active' in data ? { active: data.active } : {}) },
+      });
+      return { officeId, key };
+    });
+  }
+
   @Post('contacts')
   async addContact(
     @CurrentUser() user: AuthUser,
@@ -166,11 +274,12 @@ export class SchoolsController {
     @Body(new ZodPipe(CreateSchoolContact)) body: z.infer<typeof CreateSchoolContact>,
   ) {
     this.assertMember(user, body.officeId);
-    const key = schoolKey(body.schoolName);
+    const { key: given, ...contact } = body;
+    const key = given ?? schoolKey(body.schoolName);
     if (!key) throw new ForbiddenException('Nombre de colegio no válido');
     return this.prisma.$transaction(async (tx) => {
       const c = await tx.schoolContact.create({
-        data: { ...body, schoolKey: key, schoolName: body.schoolName.trim(), createdById: user.id },
+        data: { ...contact, schoolKey: key, schoolName: body.schoolName.trim(), createdById: user.id },
       });
       // Ids only: the contact's name, email and phone stay in their table.
       await audit(tx, {

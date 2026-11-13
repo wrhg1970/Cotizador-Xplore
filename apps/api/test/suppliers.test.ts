@@ -5,14 +5,21 @@ let ctx: Awaited<ReturnType<typeof makeApp>>;
 let sysAdmin: string;
 let quoter: string;
 let advisor: string;
+let office: string;
+let quoterId: string;
+let otherQuoter: string;
 
 beforeAll(async () => {
   ctx = await makeApp();
-  const office = (await makeOffice()).id;
-  const login = async (role: 'SYSTEM_ADMIN' | 'QUOTER' | 'ADVISOR') =>
-    (await loginAs(ctx, (await makeUser([{ officeId: office, role }])).email)).cookie!;
+  office = (await makeOffice()).id;
+  const login = async (role: 'SYSTEM_ADMIN' | 'QUOTER' | 'ADVISOR', officeId = office) => {
+    const u = await makeUser([{ officeId, role }]);
+    if (role === 'QUOTER' && officeId === office) quoterId = u.id;
+    return (await loginAs(ctx, u.email)).cookie!;
+  };
   sysAdmin = await login('SYSTEM_ADMIN');
   quoter = await login('QUOTER');
+  otherQuoter = await login('QUOTER', (await makeOffice()).id);
   advisor = await login('ADVISOR');
 });
 afterAll(async () => {
@@ -102,5 +109,82 @@ describe('supplier catalog', () => {
       .set('Cookie', sysAdmin)
       .send({ ...bad, unitCost: '1' })
       .expect(404);
+  });
+
+  it('ficha: tax data, contacts and quote usage limited to offices whose costs I see', async () => {
+    const name = `DMC Ficha ${uniq()}`;
+    const s = (
+      await api()
+        .post('/api/v1/suppliers')
+        .set('Cookie', sysAdmin)
+        .send({ name, taxId: 'abc010101xy9', website: 'https://dmc.example' })
+        .expect(201)
+    ).body;
+    await api()
+      .patch(`/api/v1/suppliers/${s.id}`)
+      .set('Cookie', sysAdmin)
+      .send({ website: 'dmc.example' })
+      .expect(400);
+    const contact = { name: 'Kate Moore', role: 'Ventas', email: 'kate@example.com' };
+    await api().post(`/api/v1/suppliers/${s.id}/contacts`).set('Cookie', quoter).send(contact).expect(403);
+    const cid = (
+      await api().post(`/api/v1/suppliers/${s.id}/contacts`).set('Cookie', sysAdmin).send(contact).expect(201)
+    ).body.id;
+    const log = await prisma.auditLog.findFirstOrThrow({ where: { entityId: cid } });
+    expect(JSON.stringify(log.diff)).not.toContain('Kate');
+
+    const r = await prisma.travelRequest.create({
+      data: {
+        folio: `EE-2027-${uniq().toUpperCase()}`,
+        officeId: office,
+        requesterId: quoterId,
+        status: 'SENT',
+        groupName: 'Viaje Roma',
+        clientName: 'Colegio X',
+        city: 'Roma',
+        countryCode: 'IT',
+        departureDate: new Date('2027-03-01'),
+        returnDate: new Date('2027-03-08'),
+        participants: 10,
+      },
+    });
+    const sc = await prisma.quoteScenario.create({
+      data: { requestId: r.id, name: 'A', createdById: quoterId },
+    });
+    await prisma.quoteVersion.create({
+      data: {
+        scenarioId: sc.id,
+        number: 1,
+        saleCurrency: 'EUR',
+        participants: 10,
+        chaperones: 0,
+        staff: 0,
+        createdById: quoterId,
+        lines: {
+          create: [0, 1].map((position) => ({
+            position,
+            category: 'PER_PARTICIPANT' as const,
+            description: `Hotel ${position}`,
+            quantity: 1,
+            unitCost: 85,
+            currency: 'EUR',
+            costSource: name,
+          })),
+        },
+      },
+    });
+    const row = ((await api().get('/api/v1/suppliers').set('Cookie', quoter)).body as Row[]).find(
+      (x) => x.id === s.id,
+    ) as unknown as Record<string, unknown>;
+    expect(row).toMatchObject({ taxId: 'ABC010101XY9', quotes12m: 1, wissifyId: null });
+    expect(row.contacts).toEqual([expect.objectContaining({ id: cid, name: 'Kate Moore' })]);
+    const usage = (await api().get(`/api/v1/suppliers/${s.id}/usage`).set('Cookie', quoter).expect(200)).body;
+    expect(usage).toHaveLength(2);
+    expect(usage[0]).toMatchObject({ unitCost: '85.00', request: { folio: r.folio } });
+    // A quoter of another office sees the supplier but not this office's quotes.
+    expect((await api().get(`/api/v1/suppliers/${s.id}/usage`).set('Cookie', otherQuoter)).body).toEqual([]);
+    await api().get(`/api/v1/suppliers/${s.id}/usage`).set('Cookie', advisor).expect(403);
+    await api().delete(`/api/v1/supplier-contacts/${cid}`).set('Cookie', quoter).expect(403);
+    await api().delete(`/api/v1/supplier-contacts/${cid}`).set('Cookie', sysAdmin).expect(200);
   });
 });
