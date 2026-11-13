@@ -427,6 +427,8 @@ export interface SupplierDto {
   active: boolean;
   /** Quote versions of the last 12 months that took this supplier (offices whose costs I see). */
   quotes12m: number;
+  /** Admins only: quote versions that ever took this supplier; 0 = can be deleted. */
+  quotesEver?: number;
   contacts: { id: string; name: string; role: string | null; email: string | null; phone: string | null }[];
   rates: SupplierRateDto[];
 }
