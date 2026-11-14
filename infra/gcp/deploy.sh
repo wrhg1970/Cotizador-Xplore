@@ -94,12 +94,41 @@ if ! exists gcloud secrets describe cotizador-google-client-secret; then
   read -rsp "Client secret de Google OAuth (no se muestra): " GOOGLE_CLIENT_SECRET && echo
   printf '%s' "$GOOGLE_CLIENT_SECRET" | secret cotizador-google-client-secret
 fi
-# Cloud Build usa la misma cuenta de servicio en proyectos nuevos y ya no recibe permisos automáticos.
+# Cloud Build usa la cuenta por defecto de Compute en proyectos nuevos y ya no recibe permisos automáticos.
+gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$RUNTIME_SA" \
+  --role=roles/cloudbuild.builds.builder --condition=None >/dev/null
+
+echo "== Cuentas de servicio"
+# Una cuenta por ambiente para la API y las migraciones (solo sus secretos) y una sin permisos para la web:
+# staging no puede leer los secretos de producción ni al revés.
+service_account() { # service_account <nombre> <descripción> : imprime el correo
+  local email="$1@$PROJECT_ID.iam.gserviceaccount.com"
+  if ! exists gcloud iam service-accounts describe "$email"; then
+    gcloud iam service-accounts create "$1" --display-name="$2" >/dev/null
+    sleep 15 # IAM tarda unos segundos en reconocer la cuenta nueva
+  fi
+  echo "$email"
+}
+APP_SA="$(service_account "cotizador-run${SUFFIX:--staging}" "Cotizador $ENV: API y migraciones")"
+WEB_SA="$(service_account cotizador-web "Cotizador: web, sin permisos")"
 # aiplatform.user: the sheet importer calls Gemini on Vertex AI with this account, no API keys.
-for role in roles/secretmanager.secretAccessor roles/cloudsql.client roles/cloudbuild.builds.builder roles/aiplatform.user; do
-  gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$RUNTIME_SA" \
+for role in roles/cloudsql.client roles/aiplatform.user; do
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$APP_SA" \
     --role="$role" --condition=None >/dev/null
 done
+# Acceso secreto por secreto: los de este ambiente y los compartidos (OAuth, correo, integraciones).
+grant_secrets() {
+  local s
+  for s in "$DB_SECRET" "$SESSION_SECRET_NAME" "cotizador${SUFFIX}-cron-secret" "cotizador${SUFFIX}-vapid-key" \
+    cotizador-google-client-secret cotizador-smtp-password cotizador-wetravel-api-key \
+    cotizador-banxico-token cotizador-pixabay-api-key; do
+    exists gcloud secrets describe "$s" &&
+      gcloud secrets add-iam-policy-binding "$s" --member="serviceAccount:$APP_SA" \
+        --role=roles/secretmanager.secretAccessor --condition=None >/dev/null
+  done
+  return 0
+}
+grant_secrets
 
 build() { # build <target> [api_origin] [image]
   gcloud builds submit --config infra/gcp/cloudbuild.yaml \
@@ -114,13 +143,13 @@ build "web" "$API_URL" "web$SUFFIX"
 
 echo "== Migraciones"
 gcloud run jobs deploy "cotizador-migrate$SUFFIX" --image="$REPO/migrate:$TAG" --region="$REGION" \
-  --set-cloudsql-instances="$CONN" --set-secrets=DATABASE_URL=$DB_SECRET:latest
+  --service-account="$APP_SA" --set-cloudsql-instances="$CONN" --set-secrets=DATABASE_URL=$DB_SECRET:latest
 gcloud run jobs execute "cotizador-migrate$SUFFIX" --region="$REGION" --wait
 
 if [[ -n "${SEED_ADMIN_EMAIL:-}" ]]; then
   echo "== Primer administrador"
   gcloud run jobs deploy "cotizador-seed$SUFFIX" --image="$REPO/migrate:$TAG" --region="$REGION" \
-    --set-cloudsql-instances="$CONN" --set-secrets=DATABASE_URL=$DB_SECRET:latest \
+    --service-account="$APP_SA" --set-cloudsql-instances="$CONN" --set-secrets=DATABASE_URL=$DB_SECRET:latest \
     --command=pnpm --args=--filter,@ee/db,seed \
     --set-env-vars="^|^SEED_OFFICE_CODE=${SEED_OFFICE_CODE:?}|SEED_OFFICE_NAME=${SEED_OFFICE_NAME:?}|SEED_ADMIN_EMAIL=$SEED_ADMIN_EMAIL|SEED_ADMIN_NAME=${SEED_ADMIN_NAME:?}"
   gcloud run jobs execute "cotizador-seed$SUFFIX" --region="$REGION" --wait
@@ -170,17 +199,51 @@ VAPID_SECRET_NAME="cotizador${SUFFIX}-vapid-key"
 exists gcloud secrets describe "$VAPID_SECRET_NAME" ||
   openssl ecparam -name prime256v1 -genkey -noout | secret "$VAPID_SECRET_NAME"
 
+grant_secrets
+
 echo "== API"
 # shortcut: la API queda pública para que web la alcance sin tokens de servicio;
 # las rutas ya exigen sesión. Pasar a ingress interno + VPC cuando haya más tráfico.
 gcloud run deploy "cotizador-api$SUFFIX" --image="$REPO/api:$TAG" --region="$REGION" --port=4000 \
-  --allow-unauthenticated --add-cloudsql-instances="$CONN" \
+  --allow-unauthenticated --service-account="$APP_SA" --add-cloudsql-instances="$CONN" \
   --set-env-vars="^|^NODE_ENV=production|API_PUBLIC_URL=$PUBLIC_URL|WEB_ORIGIN=$PUBLIC_URL|ALLOWED_GOOGLE_DOMAINS=$ALLOWED_GOOGLE_DOMAINS|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|VERTEX_PROJECT=$PROJECT_ID$MAIL_ENV$WT_ENV" \
   --set-secrets=DATABASE_URL=$DB_SECRET:latest,SESSION_SECRET=$SESSION_SECRET_NAME:latest,GOOGLE_CLIENT_SECRET=cotizador-google-client-secret:latest,CRON_SECRET=$CRON_SECRET_NAME:latest,VAPID_PRIVATE_KEY=$VAPID_SECRET_NAME:latest$MAIL_SECRETS$WT_SECRETS$BMX_ENV$PX_ENV
 
 echo "== Web"
 gcloud run deploy "cotizador-web$SUFFIX" --image="$REPO/web$SUFFIX:$TAG" --region="$REGION" --port=3000 \
-  --allow-unauthenticated
+  --allow-unauthenticated --service-account="$WEB_SA"
+
+echo "== Permisos de la cuenta por defecto"
+# Se quitan solo cuando ningún servicio ni job de los dos ambientes la usa: si prod aún no se redespliega,
+# sus instancias nuevas seguirían necesitando leer los secretos con ella.
+on_default() { # on_default services|jobs <nombre> <campo> : 0 si existe y corre con la cuenta por defecto
+  local sa
+  sa="$(gcloud run "$1" describe "$2" --region="$REGION" --format="value($3)" 2>/dev/null)" || return 1
+  [[ -z "$sa" || "$sa" == "$RUNTIME_SA" ]]
+}
+SVC_SA=spec.template.spec.serviceAccountName
+JOB_SA=spec.template.spec.template.spec.serviceAccountName
+STILL_DEFAULT=""
+for s in cotizador-api cotizador-web cotizador-api-prod cotizador-web-prod; do
+  on_default services "$s" "$SVC_SA" && STILL_DEFAULT+=" $s"
+done
+for j in cotizador-migrate cotizador-migrate-prod; do
+  on_default jobs "$j" "$JOB_SA" && STILL_DEFAULT+=" $j"
+done
+if [[ -z "$STILL_DEFAULT" ]]; then
+  for role in roles/secretmanager.secretAccessor roles/cloudsql.client roles/aiplatform.user; do
+    gcloud projects remove-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$RUNTIME_SA" \
+      --role="$role" --condition=None >/dev/null 2>&1 || true
+  done
+  echo "La cuenta por defecto ya no lee secretos ni la base."
+else
+  echo "Aviso: todavía usan la cuenta por defecto:$STILL_DEFAULT. Despliega el otro ambiente para retirarle permisos."
+fi
+if gcloud projects get-iam-policy "$PROJECT_ID" --flatten='bindings[].members' \
+  --filter="bindings.role=roles/editor AND bindings.members=serviceAccount:$RUNTIME_SA" \
+  --format='value(bindings.role)' | grep -q editor; then
+  echo "Aviso: $RUNTIME_SA tiene el rol Editor del proyecto; ver docs/DEPLOYMENT.md (Seguridad) antes de quitarlo."
+fi
 
 echo "== Tarea diaria (Banxico y avisos)"
 # shortcut: el secreto viaja como header y queda visible para quien vea la tarea en el proyecto;

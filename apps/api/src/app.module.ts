@@ -1,11 +1,12 @@
 import { type DynamicModule, Module } from '@nestjs/common';
+import type { Request } from 'express';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { SimulationController } from './auth/simulation.controller.js';
 import { AuthController } from './auth/auth.controller.js';
 import { AuthService } from './auth/auth.service.js';
 import { GoogleOidcProvider, OIDC, type OidcProvider } from './auth/oidc.js';
-import { SessionGuard } from './auth/session.guard.js';
+import { rateLimitKey, SessionGuard } from './auth/session.guard.js';
 import { ENV, type Env } from './env.js';
 import { HealthController } from './health.controller.js';
 import { PrismaShutdown, prismaProvider } from './prisma.service.js';
@@ -95,6 +96,7 @@ export class AppModule {
       imports: [
         ThrottlerModule.forRoot({
           throttlers: [{ ttl: 60_000, limit: 300 }],
+          getTracker: (req) => rateLimitKey(req as Request),
           // Tests log in many times per minute; the limit itself is covered in a dedicated test.
           skipIf: () => env.NODE_ENV === 'test',
         }),
