@@ -78,7 +78,7 @@ test('Reportes: KPI, tabs by office, country, supplier and month', async ({ brow
   await ctx.addCookies([admin.cookie]);
   const page = await ctx.newPage();
   await page.goto('/reportes');
-  await page.getByLabel('Oficina').selectOption(office.id);
+  await page.locator('select').and(page.getByLabel('Oficina')).selectOption(office.id);
   const kpis = page.getByRole('region', { name: 'Indicadores' });
   await expect(kpis).toContainText('Solicitudes3');
   await expect(kpis).toContainText('Vendidas1');
