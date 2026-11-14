@@ -1,0 +1,23 @@
+# Security and version updates, grouped so they arrive as few PRs as possible.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 3
+    groups:
+      security:
+        applies-to: security-updates
+        patterns: ['*']
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: docker
+    directory: /
+    schedule: { interval: monthly }
+    ignore:
+      # Node stays on the 22 LTS line until a planned upgrade.
+      - dependency-name: node
+        update-types: [version-update:semver-major]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }

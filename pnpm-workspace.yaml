@@ -7,3 +7,7 @@ onlyBuiltDependencies:
   - esbuild
   - prisma
   - sharp
+# Security patches for transitive dependencies (pnpm audit, 2026-11-14).
+overrides:
+  multer: '>=2.5.0'
+  uuid: '^11.1.1'

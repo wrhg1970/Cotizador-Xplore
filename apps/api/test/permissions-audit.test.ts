@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loginAs, makeApp, makeOffice, makeUser, prisma, testEnv, uniq } from './helpers.js';
+import { loginAs, makeAgency, makeApp, makeOffice, makeUser, prisma, testEnv, uniq } from './helpers.js';
 
 /**
  * Permission audit (post-launch item 7): nobody reaches another office's records by id, by list or
@@ -150,6 +150,25 @@ describe('office isolation (IDOR/BOLA sweep)', () => {
         groupName: 'Secreto de la oficina B',
       });
     });
+
+  it('the system admin of another agency gets 403/404 on every record and list of EE', async () => {
+    const agency = (await makeAgency()).id;
+    const office = (await makeOffice(agency)).id;
+    const admin = await makeUser([{ officeId: office, role: 'SYSTEM_ADMIN' }], 'INVITED', agency);
+    const c = (await loginAs(ctx, admin.email)).cookie!;
+    const leaks: string[] = [];
+    for (const [method, path, body] of byId()) {
+      const res = await call(c, method, path, body);
+      if (![400, 403, 404].includes(res.status) || JSON.stringify(res.body).includes('Secreto'))
+        leaks.push(`${method.toUpperCase()} ${path} → ${res.status}`);
+    }
+    for (const p of ['/requests', `/requests?officeId=${officeB}`, '/dashboard/executive', '/schools']) {
+      const res = await call(c, 'get', p);
+      if (res.status < 300 && ((res.text ?? '').includes('Secreto') || (res.text ?? '').includes(b.request)))
+        leaks.push(`${p} → ${res.status}`);
+    }
+    expect(leaks).toEqual([]);
+  });
 
   for (const role of ROLES)
     it(`${role} of office A never sees office B in lists, dashboards or reports`, async () => {
