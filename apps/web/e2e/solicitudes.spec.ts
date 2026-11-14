@@ -66,15 +66,17 @@ test('Solicitudes: stage tabs, search and Filas / Tarjetas / Kanban', async ({ b
   await page.getByRole('button', { name: 'Tarjetas' }).click();
   await expect(page.getByRole('article', { name: /Inmersión Boston/ })).toContainText('Boston, US');
   // Every card is the same size with its stage and buttons at the same spot (foot pinned to the bottom).
-  const boxes = await page.getByRole('article').evaluateAll((els) =>
-    els.map((e) => {
-      const box = e.getBoundingClientRect();
-      const foot = e.querySelector('.foot')!.getBoundingClientRect();
-      return `${Math.round(box.height)}/${Math.round(box.bottom - foot.bottom)}`;
-    }),
-  );
-  expect(boxes).toHaveLength(3);
-  expect(new Set(boxes).size).toBe(1);
+  // Polled: the cards can still be re-laying out (e.g. the role-dependent buttons) right after the switch.
+  const sizes = () =>
+    page.getByRole('article').evaluateAll((els) =>
+      els.map((e) => {
+        const box = e.getBoundingClientRect();
+        const foot = e.querySelector('.foot')!.getBoundingClientRect();
+        return `${Math.round(box.height)}/${Math.round(box.bottom - foot.bottom)}`;
+      }),
+    );
+  await expect.poll(async () => (await sizes()).length).toBe(3);
+  await expect.poll(async () => new Set(await sizes()).size).toBe(1);
 
   // Cotizaciones shows the same expedientes (V2 "Administrador de Solicitudes y Propuestas").
   await page.goto(`/cotizaciones?officeId=${office.id}`);
