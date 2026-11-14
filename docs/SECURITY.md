@@ -42,11 +42,11 @@
 Registrar, contener, revocar credenciales, preservar evidencia, evaluar alcance, notificar conforme a obligaciones legales y realizar análisis post-incidente. Definir contactos y tiempos antes de producción.
 
 ## Checklist antes de producción
-- [ ] Revisión de seguridad independiente.
-- [ ] Pruebas IDOR/BOLA y separación por agencia (`apps/api/test/agency-isolation.test.ts` cubre las rutas principales; falta extender `permissions-audit.test.ts` a dos agencias).
+- [ ] Revisión de seguridad independiente (revisión interna 2026-11-14: sin críticos; cuentas de servicio por ambiente, bases separadas, límite por sesión y cabeceras web corregidos).
+- [x] Pruebas IDOR/BOLA y separación por agencia (`apps/api/test/agency-isolation.test.ts` y, desde 2026-11-14, `permissions-audit.test.ts` con el administrador del sistema de otra agencia contra las 29 rutas por id).
 - [x] Pruebas IDOR/BOLA y separación por oficina (`apps/api/test/permissions-audit.test.ts`, 2026-10-28: 29 rutas por id y 12 listados/reportes, para los 5 roles de oficina, con control positivo).
 - [ ] OAuth y sesión revisados.
 - [ ] Pruebas de autorización de PDF/XLSX.
-- [ ] Restauración de backup probada.
-- [ ] Secretos y dependencias escaneados.
+- [ ] Restauración de backup probada (pasos en `docs/DEPLOYMENT.md`, Respaldos).
+- [x] Secretos y dependencias escaneados (gitleaks y `pnpm audit --audit-level high` en CI, Dependabot semanal; 2026-11-14 sin avisos).
 - [ ] Aviso de privacidad, retención y términos aprobados.

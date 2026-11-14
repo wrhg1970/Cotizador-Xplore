@@ -111,6 +111,26 @@ PROJECT_ID=<id-del-proyecto> ALLOWED_GOOGLE_DOMAINS=estudiantesembajadores.com \
 ## Respaldos
 `deploy.sh` deja la instancia de Cloud SQL con respaldo diario (08:00 UTC) guardado 30 días, recuperación a un punto en el tiempo de 7 días y protección contra borrado. Staging y producción comparten instancia, así que el mismo respaldo cubre ambas bases. Para restaurar: Cloud SQL → instancia `cotizador-db` → Respaldos → Restaurar (o "Clonar a un punto en el tiempo" para recuperar sin tocar la instancia viva). Los respaldos se borran si se elimina la instancia; la protección contra borrado lo evita.
 
+### Probar una restauración (una vez antes del lanzamiento y luego cada trimestre)
+Desde Cloud Shell. Crea una copia de la instancia (no toca la viva), revisa que tenga los datos y la borra. Cuesta centavos.
+
+```sh
+gcloud sql instances clone cotizador-db cotizador-db-prueba --project=xploretogether-cotizador   # 10-20 min
+PW="$(gcloud secrets versions access latest --secret=cotizador-prod-database-url | sed -E 's#^postgresql://[^:]+:([^@]+)@.*#\1#')"
+PGPASSWORD="$PW" gcloud sql connect cotizador-db-prueba --user=ee_app_prod --database=ee_quotes_prod
+#   en psql:  select count(*), max(created_at) from travel_requests;   y  \q
+gcloud sql instances patch cotizador-db-prueba --no-deletion-protection
+gcloud sql instances delete cotizador-db-prueba
+```
+La prueba pasa si el conteo y la fecha más reciente coinciden con lo que se ve en la app. Anotar fecha y resultado en `docs/SECURITY.md`.
+
+## Seguridad del despliegue
+- **Cuentas de servicio** (desde 2026-11-14): la API y las migraciones de cada ambiente corren con su propia cuenta (`cotizador-run-staging`, `cotizador-run-prod`), que solo lee los secretos de su ambiente y los compartidos; la web corre con `cotizador-web`, sin permisos. Cuando los dos ambientes ya usan sus cuentas, `deploy.sh` le quita a la cuenta por defecto de Compute el acceso a secretos, base y Vertex (conserva el de Cloud Build). Si el script avisa que esa cuenta tiene el rol **Editor**, quitarlo en IAM después de un despliegue exitoso de staging y prod; si un build falla después, volver a darle `roles/cloudbuild.builds.builder` (el script lo hace solo).
+- **Bases separadas**: la migración `20261114120000_database_isolation` hace a cada usuario dueño de su base y quita el acceso por defecto, así el usuario de staging ya no entra a `ee_quotes_prod` ni al revés (el usuario `postgres` conserva acceso). Si el log del job de migraciones muestra `database isolation: could not take ownership`, avisar: la instancia tiene otro dueño y hay que hacerlo a mano.
+- **Límite de peticiones**: 300 por minuto por sesión (antes era uno para todos, por la IP compartida de Cloud Run) y 10 inicios de sesión por minuto por IP.
+- **Cabeceras de la web**: CSP, `X-Frame-Options: DENY`, HSTS, `Referrer-Policy` y `Permissions-Policy` en `apps/web/next.config.ts`. Si una foto o imagen externa nueva no carga, agregar su dominio a `img-src`.
+- Pendientes conocidos: la API sigue pública en su URL run.app (pasar a ingreso interno requiere VPC); el secreto de la tarea diaria viaja como encabezado (pasar a token OIDC de Cloud Scheduler).
+
 ## Monitoreo
 Agregar `ALERT_EMAIL=persona@estudiantesembajadores.com` al deploy (una vez por ambiente basta). Crea en Cloud Monitoring:
 - Revisiones de disponibilidad cada 5 minutos: `cotizador[-prod]-web` (`/login` del servicio web) y `cotizador[-prod]-api` (`/api/v1/health/ready`, que también prueba la base de datos).

@@ -3,7 +3,7 @@
 #   docker build --target api .      → API (NestJS)
 #   docker build --target web --build-arg API_ORIGIN=http://api:4000 .  → web (Next.js standalone)
 #   docker build --target migrate .  → runs `prisma migrate deploy` (and `seed`) against DATABASE_URL
-FROM node:22.20.0-bookworm-slim AS base
+FROM node:22.23.5-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true NEXT_TELEMETRY_DISABLED=1
 RUN corepack enable
 WORKDIR /app
@@ -33,7 +33,7 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD node -e "fetch('http://localhost:'+process.env.API_PORT+'/api/v1/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
 CMD ["node", "apps/api/dist/main.js"]
 
-FROM node:22.20.0-bookworm-slim AS web
+FROM node:22.23.5-bookworm-slim AS web
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
 COPY --from=build --chown=node:node /app/apps/web/.next/standalone ./

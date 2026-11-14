@@ -147,3 +147,23 @@ describe('login rate limit (US-182)', () => {
     }
   });
 });
+
+describe('rate limit key (behind Cloud Run every request shares one socket IP)', () => {
+  it('counts per session when signed in, else per client IP', async () => {
+    const { createApp } = await import('../src/app.js');
+    const { testEnv, FakeOidc } = await import('./helpers.js');
+    const app = await createApp(testEnv({ NODE_ENV: 'development' }), new FakeOidc());
+    await app.init();
+    try {
+      const request = (await import('supertest')).default;
+      const login = () => request(app.getHttpServer()).get('/api/v1/auth/google/login');
+      for (let i = 0; i < 10; i++) await login().set('X-Forwarded-For', '203.0.113.1').expect(302);
+      await login().set('X-Forwarded-For', '203.0.113.1').expect(429);
+      // Another person on the same proxy still gets in.
+      await login().set('X-Forwarded-For', '203.0.113.2').expect(302);
+      await login().set('Cookie', 'ee_session=abc').set('X-Forwarded-For', '203.0.113.1').expect(302);
+    } finally {
+      await app.close();
+    }
+  });
+});

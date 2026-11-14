@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
+import { createHash } from 'node:crypto';
 import { ENV, type Env } from '../env.js';
 import { AuthService } from './auth.service.js';
 import type { AuthUser } from './auth.types.js';
@@ -26,6 +27,20 @@ export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionConte
   if (!user) throw new UnauthorizedException();
   return user;
 });
+
+/**
+ * Rate-limit key. Behind Cloud Run and the web's /api proxy every request shares one socket IP, so
+ * req.ip would make one bucket for the whole company: signed-in calls count per session instead.
+ * shortcut: anonymous calls (login, school link) use the first X-Forwarded-For hop, which a client can
+ * forge to dodge the limit; fine while those routes are token- or Google-protected, revisit with a WAF.
+ */
+export function rateLimitKey(req: Request): string {
+  const token: unknown = req.cookies?.[SESSION_COOKIE];
+  if (typeof token === 'string' && token)
+    return `s:${createHash('sha256').update(token).digest('hex').slice(0, 32)}`;
+  const first = req.header('x-forwarded-for')?.split(',')[0]?.trim();
+  return `ip:${first || req.ip || 'unknown'}`;
+}
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
