@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from 'react';
 import { api, errorText } from '../../lib/api';
+import { thousands } from '../../lib/format';
 import { type ItineraryDayDto, type QuoteLineDto, SHEET_BLOCKS } from '../../lib/types';
 
 export interface ImportProposal {
@@ -127,7 +128,7 @@ export function SheetImport({
                         {l.internalOnly && <span className="muted"> (interno)</span>}
                       </td>
                       <td className="num">{l.quantity}</td>
-                      <td className="num">{l.unitCost}</td>
+                      <td className="num">{thousands(l.unitCost)}</td>
                       <td>{l.currency}</td>
                     </tr>
                   ))}

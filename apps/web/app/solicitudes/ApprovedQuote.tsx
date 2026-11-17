@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { RequestStatus } from '@ee/contracts';
 import { api } from '../lib/api';
+import { thousands } from '../lib/format';
 import { fmtDate, type QuoteDto, type ScenarioDto } from '../lib/types';
 
 /** The request's approved (or sent) quote, on top of its ficha (Will, 2026-11-10). */
@@ -64,17 +65,17 @@ export function ApprovedQuote({
           <div className="price">
             Precio por estudiante
             <strong>
-              {t.pricePerParticipant} {cur}
+              {thousands(t.pricePerParticipant)} {cur}
             </strong>
-            {t.pricePerParticipantMxn && <>≈ {t.pricePerParticipantMxn} MXN</>}
+            {t.pricePerParticipantMxn && <>≈ {thousands(t.pricePerParticipantMxn)} MXN</>}
           </div>
           <div className="group-total" role="group" aria-label="Total del grupo">
             <span className="group-total-label">Total del grupo</span>
             <strong className="group-total-value">
-              {t.groupPrice} {cur}
+              {thousands(t.groupPrice)} {cur}
             </strong>
             <span>
-              {t.pricePerParticipant} × {q.participants} estudiantes
+              {thousands(t.pricePerParticipant)} × {q.participants} estudiantes
             </span>
           </div>
         </>

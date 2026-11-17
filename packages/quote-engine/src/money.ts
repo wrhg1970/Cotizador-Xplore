@@ -35,3 +35,14 @@ export function roundMoney(
 ): Dec {
   return value.toDecimalPlaces(decimalPlaces, mode === 'HALF_UP' ? D.ROUND_HALF_UP : D.ROUND_HALF_EVEN);
 }
+
+/**
+ * "42828.00" → "42,828.00": thousands with commas for display across the app, web, Excel text and
+ * email (Will, 2026-11-17). Works on the exact string, so decimals are never re-rounded; anything
+ * that isn't a plain number (dates, "—", free text) comes back unchanged. Inputs keep raw values.
+ */
+export function thousands(x: string | number | null | undefined): string {
+  const s = x == null ? '' : String(x);
+  if (!/^-?\d+(\.\d+)?$/.test(s)) return s;
+  return s.replace(/^-?\d+/, (int) => int.replace(/\B(?=(\d{3})+$)/g, ','));
+}

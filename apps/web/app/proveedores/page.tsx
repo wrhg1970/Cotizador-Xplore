@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { type FormEvent, Suspense, useCallback, useEffect, useState } from 'react';
 import { CurrencyCode, LineCategory, type QuoteVersionStatus } from '@ee/contracts';
 import { amount } from '../aprobaciones/format';
+import { thousands } from '../lib/format';
 import { api, errorText } from '../lib/api';
 import {
   fmtDate,
@@ -476,7 +477,7 @@ function RatesTab({
                         }}
                       />
                     ) : (
-                      r.unitCost
+                      thousands(r.unitCost)
                     )}
                   </td>
                   <td>{r.currency}</td>

@@ -64,8 +64,8 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await page.getByLabel('Tipo de cambio a MXN (aproximado)').fill('20.39');
   // Totals update while typing, with the server's formulas, before anything is saved.
   const bar = page.getByRole('region', { name: 'Totales del viaje' });
-  await expect(bar).toContainText('5141.00');
-  await expect(bar).toContainText('104825.00 MXN');
+  await expect(bar).toContainText('5,141.00');
+  await expect(bar).toContainText('104,825.00 MXN');
   await expect(bar).toContainText('Cambios sin guardar');
   await page.getByRole('button', { name: 'Guardar y calcular' }).click();
   await expect(bar).toContainText('Guardado');

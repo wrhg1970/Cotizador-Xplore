@@ -1,5 +1,6 @@
 import { D, paymentSchedule, QuoteEngineError } from '@ee/quote-engine';
 import { downloadCsv } from '../../lib/csv';
+import { thousands } from '../../lib/format';
 import { fmtDate, FREQUENCY_LABEL, type PaymentPlanDto, type QuoteDto } from '../../lib/types';
 import type { Preview } from './LiveTotals';
 
@@ -8,6 +9,8 @@ const fromPct = (pct: string) => String(Number((Number(pct) / 100).toFixed(6)));
 const today = () => new Date().toISOString().slice(0, 10);
 const inAMonth = () => new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
 const n2 = (x: InstanceType<typeof D>) => x.toFixed(2);
+/** On screen with thousands; the CSV keeps n2 so Excel reads plain numbers. */
+const m2 = (x: InstanceType<typeof D>) => thousands(n2(x));
 
 /** Live schedule from the unsaved price with the engine the server uses; null + reason when it can't. */
 function liveSchedule(plan: PaymentPlanDto, price: string) {
@@ -247,18 +250,18 @@ export function PaymentPlan({
                       <td>{label(r.number)}</td>
                       <td>{fmtDate(r.dueDate)}</td>
                       <td className="num">{share(r.amount)}</td>
-                      <td className="num">{n2(r.amount)}</td>
-                      {mxn && <td className="num">{n2(r.amount.mul(mxn))}</td>}
-                      <td className="num">{n2(mxn ? group(r.amount).mul(mxn) : group(r.amount))}</td>
+                      <td className="num">{m2(r.amount)}</td>
+                      {mxn && <td className="num">{m2(r.amount.mul(mxn))}</td>}
+                      <td className="num">{m2(mxn ? group(r.amount).mul(mxn) : group(r.amount))}</td>
                     </tr>
                   ))}
                   <tr className="total strong">
                     <td colSpan={3}>Total acumulado del plan ({rows.length} exhibiciones)</td>
                     <td className="num">100.00%</td>
-                    <td className="num">{live.price}</td>
-                    {mxn && <td className="num">{n2(new D(live.price).mul(mxn))}</td>}
+                    <td className="num">{thousands(live.price)}</td>
+                    {mxn && <td className="num">{m2(new D(live.price).mul(mxn))}</td>}
                     <td className="num">
-                      {n2(mxn ? group(new D(live.price)).mul(mxn) : group(new D(live.price)))}
+                      {m2(mxn ? group(new D(live.price)).mul(mxn) : group(new D(live.price)))}
                     </td>
                   </tr>
                 </tbody>

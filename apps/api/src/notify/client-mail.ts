@@ -1,3 +1,4 @@
+import { thousands } from '@ee/quote-engine';
 import type { ClientMailBrand } from '../agency/brand.js';
 import type { Mail } from './notifier.js';
 
@@ -82,7 +83,7 @@ export function paymentReminderMail(p: {
     subject: `Recordatorio de pago ${p.number}: ${p.groupName} (${p.folio})`,
     body: [
       'Hola:',
-      `Te recordamos que el pago ${p.number} del viaje ${p.groupName} vence el ${p.dueDate}: ${p.amount} ${p.currency} por estudiante.`,
+      `Te recordamos que el pago ${p.number} del viaje ${p.groupName} vence el ${p.dueDate}: ${thousands(p.amount)} ${p.currency} por estudiante.`,
       'Si ya realizaste el pago, ignora este mensaje. Gracias.',
     ],
     ...(p.url && { button: { label: 'Pagar en línea', url: p.url } }),

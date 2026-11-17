@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { thousands } from '@ee/quote-engine';
 import type { QuoteDto } from './quotes.controller.js';
 
 const CATEGORY: Record<string, string> = {
@@ -112,7 +113,7 @@ function eeSheet(wb: ExcelJS.Workbook, q: QuoteDto, req: { folio: string; groupN
             'title',
           ],
           ...(q.flight.supplier ? [[`Proveedor: ${q.flight.supplier}`, null] as Row] : []),
-          [`Precio neto por boleto (${q.flight.currency} ${q.flight.netCost})`, null],
+          [`Precio neto por boleto (${q.flight.currency} ${thousands(q.flight.netCost)})`, null],
           [
             `Boletos: estudiantes${q.flight.shareChaperones ? ' + chaperones escuela' : ''}${q.flight.shareStaff ? ' + chaperones EE' : ''}`,
             f.tickets,
@@ -121,7 +122,7 @@ function eeSheet(wb: ExcelJS.Workbook, q: QuoteDto, req: { folio: string; groupN
           ['Costo por estudiante', f.costPerParticipant],
           ...(f.added ? [] : [['Utilidad aérea por estudiante', f.marginPerParticipant] as Row]),
           [
-            `Precio final por estudiante (${q.flight.currency} ${q.flight.finalPrice})`,
+            `Precio final por estudiante (${q.flight.currency} ${thousands(q.flight.finalPrice)})`,
             f.pricePerParticipant,
             'strong',
           ],
@@ -171,6 +172,8 @@ export async function quoteWorkbook(q: QuoteDto, req: { folio: string; groupName
       l.note ?? '',
     ]),
   );
+
+  for (const c of [4, 6]) detail.getColumn(c).numFmt = MONEY;
 
   const pay = wb.addWorksheet('Plan de pagos');
   if (q.paymentPlan) {

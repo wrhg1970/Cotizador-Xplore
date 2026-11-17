@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useState } from 'react';
+import { thousands } from '../lib/format';
 import { fmtDate, PRIORITY_LABEL, SPEC_LABEL, type TravelRequestDto } from '../lib/types';
 
 /** What the requester captured when opening the request; rows for a `<dl className="facts">`. */
@@ -24,7 +25,7 @@ export function RequestFactRows({ r }: { r: TravelRequestDto }) {
       <dt>Presupuesto</dt>
       <dd>
         {r.budget
-          ? `${r.budget.amount} ${r.budget.currency} ${r.budget.basis === 'TOTAL' ? 'total del grupo' : 'por participante'}`
+          ? `${thousands(r.budget.amount)} ${r.budget.currency} ${r.budget.basis === 'TOTAL' ? 'total del grupo' : 'por participante'}`
           : 'No indicado'}
       </dd>
       {r.clientName && (

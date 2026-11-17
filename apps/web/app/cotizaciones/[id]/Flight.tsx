@@ -2,7 +2,7 @@ import { CurrencyCode } from '@ee/contracts';
 import { D } from '@ee/quote-engine';
 import type { FlightDto, QuoteDto, SupplierDto } from '../../lib/types';
 import type { Preview } from './LiveTotals';
-import { thousands as n } from './SheetSummary';
+import { thousands as n } from '../../lib/format';
 
 const NEW_FLIGHT = (currency: CurrencyCode): FlightDto => ({
   netCost: '0',

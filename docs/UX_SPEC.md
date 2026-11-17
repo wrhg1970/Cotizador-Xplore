@@ -8,6 +8,7 @@
 - No usar tablas financieras densas sin filtros, encabezados fijos y totales claros.
 - Guardado de borrador y mensajes claros de validación.
 - Accesibilidad WCAG 2.2 AA como objetivo.
+- Montos con coma de miles y punto decimal en toda la app, propuesta/PDF, Excel y correos (ej. 12,500.00; `thousands` en `@ee/quote-engine`, 2026-11-17). Los campos editables y los CSV conservan el número sin comas.
 
 ## Navegación
 1. Inicio

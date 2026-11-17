@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
+import { thousands } from '../lib/format';
 import {
   fmtDate,
   requestLabel,
@@ -379,7 +380,7 @@ function Who({ r }: { r: Row }) {
         {r.participants} alum. · {r.chaperones} chap. · {r.program ? `${r.program} · ` : ''}Solicita:{' '}
         {r.requester.name}
         {r.budget &&
-          ` · Presupuesto: ${r.budget.amount} ${r.budget.currency}${r.budget.basis === 'TOTAL' ? '' : ' por alumno'}`}
+          ` · Presupuesto: ${thousands(r.budget.amount)} ${r.budget.currency}${r.budget.basis === 'TOTAL' ? '' : ' por alumno'}`}
       </div>
     </>
   );

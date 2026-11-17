@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { thousands } from '../lib/format';
 import { PENDING_LEGEND } from '../lib/types';
 
 export interface ProposalRow {
@@ -45,7 +46,9 @@ export function Proposals({ requestId }: { requestId: string }) {
                   </Link>
                 </td>
                 <td>{p.participants}</td>
-                <td>{p.pricePerParticipant ? `${p.pricePerParticipant} ${p.saleCurrency}` : '—'}</td>
+                <td>
+                  {p.pricePerParticipant ? `${thousands(p.pricePerParticipant)} ${p.saleCurrency}` : '—'}
+                </td>
                 <td>{p.authorized ? 'Autorizado' : <strong className="error">{PENDING_LEGEND}</strong>}</td>
               </tr>
             ))}
