@@ -20,7 +20,12 @@ export const visibleOffices = <T extends OfficeOption>(
   list: T[],
   v: OfficeView,
   isActive: (o: T) => boolean,
-) => (v.officeId ? list.filter((o) => o.id === v.officeId) : v.all ? list : list.filter((o) => o.code === ALWAYS_SHOWN || isActive(o)));
+) =>
+  v.officeId
+    ? list.filter((o) => o.id === v.officeId)
+    : v.all
+      ? list
+      : list.filter((o) => o.code === ALWAYS_SHOWN || isActive(o));
 
 /** Section header for the office tables of Inicio / Mi Dashboard and Dashboard ejecutivo. */
 export function OfficeFilter({
