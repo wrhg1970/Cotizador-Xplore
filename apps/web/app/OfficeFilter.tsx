@@ -12,12 +12,15 @@ export interface OfficeView {
 }
 export const DEFAULT_OFFICE_VIEW: OfficeView = { all: false, officeId: '' };
 
+/** Corporativo (Nuevo León) is always listed in the default view, even with nothing in progress. */
+const ALWAYS_SHOWN = 'CORP';
+
 /** Applies the view; `isActive` says whether an office has requests in Borrador, Por asignar or En cotización. */
 export const visibleOffices = <T extends OfficeOption>(
   list: T[],
   v: OfficeView,
   isActive: (o: T) => boolean,
-) => (v.officeId ? list.filter((o) => o.id === v.officeId) : v.all ? list : list.filter(isActive));
+) => (v.officeId ? list.filter((o) => o.id === v.officeId) : v.all ? list : list.filter((o) => o.code === ALWAYS_SHOWN || isActive(o)));
 
 /** Section header for the office tables of Inicio / Mi Dashboard and Dashboard ejecutivo. */
 export function OfficeFilter({
