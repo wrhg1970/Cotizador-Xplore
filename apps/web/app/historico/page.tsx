@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { type ChangeEvent, useEffect, useState } from 'react';
 import { MAX_BYTES, toBase64 } from '../cotizaciones/[id]/SheetImport';
 import { api, errorText } from '../lib/api';
+import { thousands } from '../lib/format';
 
 interface Office {
   id: string;
@@ -189,7 +190,7 @@ export default function HistoryPage() {
                         >
                           {p.options.map((o, k) => (
                             <option key={o.name} value={k}>
-                              {o.name}: {o.pricePerParticipant} {o.saleCurrency} × {o.participants}
+                              {o.name}: {thousands(o.pricePerParticipant)} {o.saleCurrency} × {o.participants}
                             </option>
                           ))}
                         </select>

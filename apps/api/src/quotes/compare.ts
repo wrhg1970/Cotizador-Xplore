@@ -1,3 +1,4 @@
+import { thousands } from '@ee/quote-engine';
 import type { QuoteDto } from './quotes.controller.js';
 
 export interface FieldChange {
@@ -24,7 +25,7 @@ const FIELDS: [keyof QuoteDto, string][] = [
   ['mxnRate', 'Tipo de cambio a MXN'],
 ];
 
-const lineText = (l: QuoteDto['lines'][number]) => `${l.quantity} × ${l.unitCost} ${l.currency}`;
+const lineText = (l: QuoteDto['lines'][number]) => `${l.quantity} × ${thousands(l.unitCost)} ${l.currency}`;
 const key = (l: QuoteDto['lines'][number]) => `${l.category}|${l.description.trim().toLowerCase()}`;
 
 /** What changed from one version to the next: headline fields, totals and lines (matched by concept). */
@@ -37,7 +38,7 @@ export function compareVersions(prev: QuoteDto, cur: QuoteDto) {
   }
   const flight = (q: QuoteDto) =>
     q.flight
-      ? `neto ${q.flight.netCost} · final ${q.flight.finalPrice} ${q.flight.currency} · prorrateo escuela ${q.flight.shareChaperones ? 'Sí' : 'No'} · EE ${q.flight.shareStaff ? 'Sí' : 'No'} · sumar al curso ${q.flight.addToCourse ? 'Sí' : 'No'}${q.flight.supplier ? ` · proveedor ${q.flight.supplier}` : ''}`
+      ? `neto ${thousands(q.flight.netCost)} · final ${thousands(q.flight.finalPrice)} ${q.flight.currency} · prorrateo escuela ${q.flight.shareChaperones ? 'Sí' : 'No'} · EE ${q.flight.shareStaff ? 'Sí' : 'No'} · sumar al curso ${q.flight.addToCourse ? 'Sí' : 'No'}${q.flight.supplier ? ` · proveedor ${q.flight.supplier}` : ''}`
       : null;
   if (flight(prev) !== flight(cur))
     fields.push({ field: 'flight', label: 'Avión', from: flight(prev), to: flight(cur) });

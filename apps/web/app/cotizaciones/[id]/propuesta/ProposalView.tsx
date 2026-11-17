@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { BrandColors, HEX, Logo } from '../../../Logo';
-import { thousands } from '../SheetSummary';
+import { thousands } from '../../../lib/format';
 import {
   fmtDate,
   FREE_PLACE_LABEL,

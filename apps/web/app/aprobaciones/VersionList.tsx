@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, errorText } from '../lib/api';
+import { thousands } from '../lib/format';
 import { CHANNEL_LABEL, fmtDate, fmtDateTime, QUOTE_STATUS_LABEL, STATUS_LABEL } from '../lib/types';
 
 interface Row {
@@ -96,7 +97,7 @@ export function VersionList({ status }: { status?: 'IN_REVIEW' | 'SENT' }) {
                 <Link href={`/cotizaciones/${v.id}`}>{v.label}</Link>
               </td>
               <td>{fmtDate(v.request.departureDate)}</td>
-              <td className="num">{v.price ? `${v.price} ${v.currency}` : '—'}</td>
+              <td className="num">{v.price ? `${thousands(v.price)} ${v.currency}` : '—'}</td>
               {status === 'IN_REVIEW' ? (
                 <>
                   <td>{v.preparedBy}</td>

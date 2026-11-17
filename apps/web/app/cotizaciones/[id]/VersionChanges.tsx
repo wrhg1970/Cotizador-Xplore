@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
+import { thousands } from '../../lib/format';
 
 interface Comparison {
   previous: { id: string; number: number } | null;
@@ -15,7 +16,7 @@ interface Comparison {
 }
 
 const CHANGE = { ADDED: 'Nuevo', REMOVED: 'Quitado', CHANGED: 'Cambió' } as const;
-const show = (x: string | number | null) => (x === null || x === '' ? '—' : String(x));
+const show = (x: string | number | null) => (x === null || x === '' ? '—' : thousands(x));
 
 /** "Comparar contra versión anterior": headline fields, totals and concepts that changed. */
 export function VersionChanges({ quoteId, rowVersion }: { quoteId: string; rowVersion: number }) {

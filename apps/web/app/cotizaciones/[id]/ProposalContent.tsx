@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, errorText } from '../../lib/api';
+import { thousands } from '../../lib/format';
 import { MAX_BYTES, toBase64 } from './SheetImport';
 import {
   fmtDate,
@@ -611,7 +612,7 @@ export function PaymentSchedule({ q }: { q: Pick<QuoteDto, 'paymentSchedule'> & 
           <tr key={p.number}>
             <td>{paymentLabel(p, count)}</td>
             <td>{fmtDate(p.dueDate)}</td>
-            <td className="num">{p.amount}</td>
+            <td className="num">{thousands(p.amount)}</td>
           </tr>
         ))}
       </tbody>

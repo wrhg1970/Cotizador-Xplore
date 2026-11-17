@@ -9,6 +9,7 @@ import {
   roundMoney,
   syncChaperoneLines,
 } from '@ee/quote-engine';
+import { thousands } from '../../lib/format';
 import type { QuoteDto } from '../../lib/types';
 
 const money = (x: InstanceType<typeof D>) => roundMoney(x, 2).toFixed(2);
@@ -155,28 +156,28 @@ export function TotalsBar({
         <dl>
           <div>
             <dt>Costo por estudiante</dt>
-            <dd>{p.cost}</dd>
+            <dd>{thousands(p.cost)}</dd>
           </div>
           <div>
             <dt>% Comisión (utilidad)</dt>
             <dd className="hl">
-              {p.pct}% ({p.marginEach})
+              {p.pct}% ({thousands(p.marginEach)})
             </dd>
           </div>
           <div className="main">
             <dt>Precio por estudiante</dt>
             <dd>
-              {p.price} <small>{currency}</small>
+              {thousands(p.price)} <small>{currency}</small>
             </dd>
           </div>
           <div>
             <dt>Total del grupo</dt>
-            <dd>{p.group}</dd>
+            <dd>{thousands(p.group)}</dd>
           </div>
           {p.mxn && (
             <div>
               <dt>Aprox. por estudiante</dt>
-              <dd className="ok">{p.mxn} MXN</dd>
+              <dd className="ok">{thousands(p.mxn)} MXN</dd>
             </div>
           )}
         </dl>

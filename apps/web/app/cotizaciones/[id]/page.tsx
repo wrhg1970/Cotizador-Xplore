@@ -7,6 +7,7 @@ import { CurrencyCode, LineCategory } from '@ee/contracts';
 import { FlightPanel } from './Flight';
 import { chaperoneMirrors, syncChaperoneLines } from '@ee/quote-engine';
 import { api, errorText } from '../../lib/api';
+import { thousands } from '../../lib/format';
 import { preview, TotalsBar } from './LiveTotals';
 import { PaymentSchedule, photosOf, ProposalContent } from './ProposalContent';
 import { ShareLinks } from './ShareLinks';
@@ -797,9 +798,9 @@ export default function QuoteEditorPage() {
                     {!live.ok
                       ? '—'
                       : b.category !== 'FLIGHT'
-                        ? `${live.byCategory[b.category]} ${draft.saleCurrency}`
+                        ? `${thousands(live.byCategory[b.category])} ${draft.saleCurrency}`
                         : live.flight
-                          ? `${live.flight.price} ${live.flight.currency} / est.${live.flight.added ? '' : ' · aparte'}`
+                          ? `${thousands(live.flight.price)} ${live.flight.currency} / est.${live.flight.added ? '' : ' · aparte'}`
                           : 'Sin avión'}
                   </span>
                 </button>
@@ -820,7 +821,7 @@ export default function QuoteEditorPage() {
                 </span>
                 {live.ok && live.flight && (
                   <span className="num subtotal">
-                    {live.flight.price} {live.flight.currency} / est.
+                    {thousands(live.flight.price)} {live.flight.currency} / est.
                   </span>
                 )}
               </div>
@@ -875,7 +876,7 @@ export default function QuoteEditorPage() {
                     </span>
                     {live.ok && (
                       <span className="num subtotal">
-                        {live.byCategory[b.category]} {draft.saleCurrency}
+                        {thousands(live.byCategory[b.category])} {draft.saleCurrency}
                       </span>
                     )}
                   </div>
@@ -957,7 +958,7 @@ export default function QuoteEditorPage() {
                                     onChange={(e) => setLine(i, { note: e.target.value })}
                                   />
                                 </td>
-                                <td className="num">{live.ok ? live.lineTotals[i] : '—'}</td>
+                                <td className="num">{live.ok ? thousands(live.lineTotals[i]) : '—'}</td>
                                 <td>
                                   <button
                                     className="secondary small"
@@ -1023,7 +1024,7 @@ export default function QuoteEditorPage() {
                           <option value="">Agregar tarifa de proveedor…</option>
                           {rates.map((r) => (
                             <option key={r.id} value={r.id}>
-                              {r.supplier}: {r.description} ({r.unitCost} {r.currency})
+                              {r.supplier}: {r.description} ({thousands(r.unitCost)} {r.currency})
                             </option>
                           ))}
                         </select>

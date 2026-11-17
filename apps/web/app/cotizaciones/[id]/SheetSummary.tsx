@@ -1,9 +1,8 @@
 import { D } from '@ee/quote-engine';
+import { thousands } from '../../lib/format';
 import { type QuoteDto, SHEET_BLOCKS } from '../../lib/types';
 
 const pct = (rate: string) => `${Number((Number(rate) * 100).toFixed(2))}%`;
-/** "42828.00" → "42,828.00": thousands with commas, on the exact string (Will, 2026-11-10). */
-export const thousands = (x: string) => x.replace(/^(-?\d+)/, (int) => int.replace(/\B(?=(\d{3})+$)/g, ','));
 const n = thousands;
 
 /** Saved figures laid out like Finance's EE sheet: concepts on the left, chaperones on the right. */

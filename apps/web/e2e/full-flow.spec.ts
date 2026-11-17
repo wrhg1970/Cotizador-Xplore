@@ -62,7 +62,7 @@ test('full flow: login, quote, authorize, send and win', async ({ browser, page 
   await quo.getByRole('button', { name: 'Guardar y calcular' }).click();
   const bar = quo.getByRole('region', { name: 'Totales del viaje' });
   await expect(bar).toContainText('Guardado');
-  await expect(bar).toContainText('5000.00');
+  await expect(bar).toContainText('5,000.00');
   await quo.getByRole('button', { name: 'Enviar a autorización' }).click();
   await expect(quo.locator('.badge')).toHaveText('En revisión');
   const quoteUrl = quo.url();

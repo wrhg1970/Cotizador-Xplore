@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { atGroupSize, calculateQuote, D, freePlaces, type QuoteInput, safeDivide } from '@ee/quote-engine';
 import { downloadCsv } from '../../lib/csv';
 import type { QuoteDto } from '../../lib/types';
-import { thousands } from './SheetSummary';
+import { thousands } from '../../lib/format';
 
 type Dec = InstanceType<typeof D>;
 const n2 = (x: Dec) => x.toFixed(2);
@@ -232,10 +232,10 @@ export function VolumeMatrix({
                   {r.chaps}
                   {r.free !== null && ` (${r.free} ${r.free === 1 ? 'gratuidad' : 'gratuidades'})`}
                 </td>
-                <td className="num">{n2(r.leader)}</td>
-                <td className="num strong">{n2(r.price)}</td>
-                {r.each && <td className="num">{n2(r.each)}</td>}
-                {r.group && <td className="num">{n2(r.group)}</td>}
+                <td className="num">{thousands(n2(r.leader))}</td>
+                <td className="num strong">{thousands(n2(r.price))}</td>
+                {r.each && <td className="num">{thousands(n2(r.each))}</td>}
+                {r.group && <td className="num">{thousands(n2(r.group))}</td>}
                 <td>
                   {r.active ? (
                     <span className="pill dark">Activo</span>
