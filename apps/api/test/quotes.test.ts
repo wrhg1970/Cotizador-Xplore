@@ -429,12 +429,22 @@ describe('authorization (US-071..076)', () => {
     expect(ee.get('% Comisión (sobre el precio final)')).toBe(0.18);
     expect(ee.get('PRECIO FINAL (EUR)')).toBe(5129);
     expect(ee.get('Total del grupo')).toBe(51290);
-    expect(ee.get('Viáticos 16 días')).toBe(1600);
+    expect(ee.get('Viáticos 16 días EE')).toBe(1600);
     expect(ee.get('SubTotal chaperones')).toBe(1700);
     expect(ee.get('Total chaperones')).toBe(1850);
     const lines = values('Conceptos');
     expect(lines).toContainEqual(['Por estudiante', 'Precio neto', 1, 3900, 'EUR', 3900, 'No', '', '']);
-    expect(lines).toContainEqual(['Por chaperón EE', 'Viáticos 16 días', 16, 50, 'EUR', 1600, 'No', '', '']);
+    expect(lines).toContainEqual([
+      'Por chaperón EE',
+      'Viáticos 16 días EE',
+      16,
+      50,
+      'EUR',
+      1600,
+      'No',
+      '',
+      '',
+    ]);
     expect(values('Plan de pagos')).toContainEqual(['Sin plan de pagos']);
     await api().get(`/api/v1/quotes/${v.id}/export.xlsx`).set('Cookie', c.advisor).expect(404);
     expect((await prisma.travelRequest.findUniqueOrThrow({ where: { id: requestId } })).status).toBe('SENT');
