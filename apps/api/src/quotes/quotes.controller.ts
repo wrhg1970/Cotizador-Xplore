@@ -291,6 +291,7 @@ export function needsTwoLevels(rules: ApprovalRules, v: FullVersion): boolean {
 
 export const REJECTED_PREFIX = 'Rechazada: ';
 export const REVOKED_PREFIX = 'Aprobación revocada: ';
+export const WITHDRAWN_COMMENT = 'Retirada de autorización para editar';
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -1188,6 +1189,26 @@ export class QuotesController {
     });
     void this.notifier.notify({ kind: 'RETURNED', versionId: id }, user.id);
     return dto;
+  }
+
+  /**
+   * The quoter takes back a version still waiting for authorization so it can be edited again
+   * (Will, 2026-11-18). Only before full approval; any first signature is dropped with the round.
+   */
+  @Post('quotes/:id/withdraw')
+  async withdraw(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
+  ) {
+    return this.review(user, req, id, body.rowVersion, 'quote.approval_withdrawn', (v, r) => {
+      this.assertWork(user, r);
+      if (v.status !== 'IN_REVIEW')
+        throw new ForbiddenException('Solo se retira una versión que espera autorización');
+      const comment = body.comment ? `${WITHDRAWN_COMMENT}: ${body.comment}` : WITHDRAWN_COMMENT;
+      return { status: 'RETURNED', decision: 'RETURNED', comment };
+    });
   }
 
   /** Branded email with a fresh 30-day school link; inside the send transaction, so a failed send records nothing. */

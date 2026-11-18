@@ -122,6 +122,30 @@ describe('Aprobada step and one approved scenario per request', () => {
     expect((await prisma.quoteVersion.findUniqueOrThrow({ where: { id: b.id } })).status).toBe('IN_REVIEW');
   });
 
+  it('the quoter withdraws a version waiting for approval to edit it again; approved stays locked', async () => {
+    await act(c.approver, b.id, 'withdraw', { rowVersion: b.rowVersion }).expect(403);
+    await act(c.quoter, a.id, 'withdraw', { rowVersion: a.rowVersion }).expect(403); // already approved
+    await act(c.quoter, b.id, 'withdraw', { rowVersion: b.rowVersion - 1 }).expect(409);
+    const w = await act(c.quoter, b.id, 'withdraw', { rowVersion: b.rowVersion }).expect(201);
+    expect(w.body.status).toBe('RETURNED');
+    expect(w.body.reviews.at(-1)).toMatchObject({
+      decision: 'RETURNED',
+      comment: 'Retirada de autorización para editar',
+    });
+    const log = await prisma.auditLog.findFirstOrThrow({
+      where: { entityId: b.id, action: 'quote.approval_withdrawn' },
+    });
+    expect(log.diff).toMatchObject({ status: { from: 'IN_REVIEW', to: 'RETURNED' } });
+    await act(c.quoter, b.id, 'withdraw', { rowVersion: w.body.rowVersion }).expect(403); // not in review anymore
+    b = (
+      await api()
+        .patch(`/api/v1/quotes/${b.id}`)
+        .set('Cookie', c.quoter)
+        .send({ targetMarginRate: '0.2', rowVersion: w.body.rowVersion })
+        .expect(200)
+    ).body;
+  });
+
   it('revokes an approval: reason required, only approvers, audited; then another scenario can win', async () => {
     await act(c.approver, a.id, 'revoke', { rowVersion: a.rowVersion }).expect(400);
     await act(c.quoter, a.id, 'revoke', { rowVersion: a.rowVersion, comment: 'x' }).expect(403);
@@ -142,6 +166,7 @@ describe('Aprobada step and one approved scenario per request', () => {
     expect(log.diff).toMatchObject({ status: { from: 'APPROVED', to: 'RETURNED' } });
     expect(await detailStage()).toBe(2);
 
+    b = await submit(b);
     b = (await act(c.approver, b.id, 'approve', { rowVersion: b.rowVersion }).expect(201)).body;
     expect(b).toMatchObject({ status: 'APPROVED' });
     expect(await detailStage()).toBe(3);
