@@ -1,4 +1,4 @@
-import { D } from '@ee/quote-engine';
+import { chaperoneLabel, D } from '@ee/quote-engine';
 import { thousands } from '../../lib/format';
 import { type QuoteDto, SHEET_BLOCKS } from '../../lib/types';
 
@@ -28,7 +28,7 @@ export function SheetSummary({ q }: { q: QuoteDto }) {
       .map(({ l, total }, k) => (
         <tr key={`${category}-${k}`}>
           <td>
-            {l.description}
+            {chaperoneLabel(l.category, l.description)}
             {l.internalOnly && <span className="muted"> (interno)</span>}
           </td>
           <td className="num">{n(total)}</td>

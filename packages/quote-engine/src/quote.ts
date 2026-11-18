@@ -75,6 +75,16 @@ function headcount(q: QuoteInput, free: ReturnType<typeof gratuities>, l: QuoteI
   return isChaperoneCourse(l.description) ? all - (staff ? free.staff : free.chaperones) : all;
 }
 
+/**
+ * Name shown where school and EE chaperone concepts sit together (hoja guardada, Excel):
+ * "Seguro Escuela" / "Seguro EE" (Will, 2026-11-18). Stored descriptions stay as typed.
+ */
+export function chaperoneLabel(category: string, description: string) {
+  const who = category === 'PER_STAFF' ? 'EE' : category === 'PER_CHAPERONE' ? 'Escuela' : null;
+  if (!who || plain(description).split(/\s+/).includes(plain(who))) return description;
+  return `${description} ${who}`;
+}
+
 /** Chaperones' insurance, kit and transfer cost exactly what a student's do (Will, 2026-11-06). */
 const MIRRORED = new Set(['seguro', 'kit', 'transfer']);
 const firstWord = (s: string) => plain(s).split(/\s+/)[0] ?? '';

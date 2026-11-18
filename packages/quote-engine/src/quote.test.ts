@@ -4,6 +4,7 @@ import { marginRateForPrice } from './pricing.js';
 import {
   atGroupSize,
   calculateQuote,
+  chaperoneLabel,
   chaperoneMirrors,
   marginForPrice,
   syncChaperoneLines,
@@ -247,6 +248,14 @@ describe('Gratuidades por ratio and chaperone concepts (Will, 2026-11-06)', () =
     expect(r.byCategory.PER_CHAPERONE.toString()).toBe(String(2 * 1000 + 3 * (30 + 50 + 40)));
   });
 
+  it('2 school chaperones + 1 EE (caso Blossom): each pays seguro, kit and transfer', () => {
+    const r = calculateQuote(input({ chaperones: 2, staff: 1, studentsPerFreePlace: 10 }));
+    expect(r.gratuities).toEqual({ total: 1, staff: 1, chaperones: 0 });
+    // Seguro, Kit, Transfer of the school (×2) and Seguro EE (×1); EE course is the free one.
+    expect([5, 6, 7, 9].map((i) => r.lineTotals[i]!.toString())).toEqual(['60', '100', '80', '30']);
+    expect(r.lineTotals[8]!.toString()).toBe('0');
+  });
+
   it('without a ratio, or for a student scholarship, every chaperone pays the course', () => {
     const full = String(3 * 1000 + 3 * 120);
     expect(calculateQuote(input({})).byCategory.PER_CHAPERONE.toString()).toBe(full);
@@ -328,5 +337,15 @@ describe('Avión (Will, 2026-11-11)', () => {
         targetMarginRate: rate,
       }).pricePerParticipant.toFixed(0),
     ).toBe('2100');
+  });
+});
+
+describe('chaperoneLabel (Will, 2026-11-18)', () => {
+  it('tells school and EE chaperone concepts apart, once', () => {
+    expect(chaperoneLabel('PER_CHAPERONE', 'Seguro')).toBe('Seguro Escuela');
+    expect(chaperoneLabel('PER_STAFF', 'Kit')).toBe('Kit EE');
+    expect(chaperoneLabel('PER_STAFF', 'Kit EE')).toBe('Kit EE');
+    expect(chaperoneLabel('PER_CHAPERONE', 'Transfer escuela')).toBe('Transfer escuela');
+    expect(chaperoneLabel('PER_PARTICIPANT', 'Kit EE')).toBe('Kit EE');
   });
 });

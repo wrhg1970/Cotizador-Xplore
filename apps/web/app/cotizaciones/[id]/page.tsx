@@ -917,6 +917,12 @@ export default function QuoteEditorPage() {
                                     title={mirrors.has(i) ? 'Igual que el del estudiante' : undefined}
                                     onChange={(e) => setLine(i, { quantity: e.target.value.trim() })}
                                   />
+                                  {(l.category === 'PER_CHAPERONE' || l.category === 'PER_STAFF') && (
+                                    <span className="muted">
+                                      {' '}
+                                      × {l.category === 'PER_STAFF' ? draft.staff : draft.chaperones}
+                                    </span>
+                                  )}
                                 </td>
                                 <td>
                                   <input
