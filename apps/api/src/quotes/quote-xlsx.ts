@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { thousands } from '@ee/quote-engine';
+import { chaperoneLabel, thousands } from '@ee/quote-engine';
 import type { QuoteDto } from './quotes.controller.js';
 
 const CATEGORY: Record<string, string> = {
@@ -70,7 +70,10 @@ function eeSheet(wb: ExcelJS.Workbook, q: QuoteDto, req: { folio: string; groupN
     q.lines
       .map((l, i) => ({ l, total: t.lineTotals[i] }))
       .filter(({ l }) => l.category === category)
-      .map(({ l, total }) => [l.internalOnly ? `${l.description} (interno)` : l.description, total]);
+      .map(({ l, total }) => {
+        const name = chaperoneLabel(l.category, l.description);
+        return [l.internalOnly ? `${name} (interno)` : name, total];
+      });
 
   const top = ws.rowCount + 1;
   const left: Row[] = [
@@ -162,7 +165,7 @@ export async function quoteWorkbook(q: QuoteDto, req: { folio: string; groupName
   q.lines.forEach((l, i) =>
     detail.addRow([
       CATEGORY[l.category] ?? l.category,
-      l.description,
+      chaperoneLabel(l.category, l.description),
       num(l.quantity),
       num(l.unitCost),
       l.currency,
