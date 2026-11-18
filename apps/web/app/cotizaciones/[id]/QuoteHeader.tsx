@@ -40,7 +40,9 @@ function duty(s: QuoteDto['status'], role: Role): string {
     case 'IN_REVIEW':
       return role === 'approver'
         ? 'Revisa las cifras y autoriza o devuelve con comentarios.'
-        : 'Espera la autorización; nadie autoriza su propia cotización.';
+        : works
+          ? 'Espera la autorización. Para cambiar algo, retírala de autorización y edítala.'
+          : 'Espera la autorización; nadie autoriza su propia cotización.';
     case 'APPROVED':
       return works
         ? 'Genera la propuesta PDF y registra el envío al colegio.'

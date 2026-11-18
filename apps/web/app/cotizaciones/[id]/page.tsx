@@ -553,6 +553,11 @@ export default function QuoteEditorPage() {
                 {q.status === 'APPROVED' ? 'Ir a registrar el envío' : 'Ir al paso de autorización'}
               </button>
             )}
+            {works && q.status === 'IN_REVIEW' && (
+              <button type="button" className="secondary" onClick={() => void act('withdraw')}>
+                Retirar de autorización y editar
+              </button>
+            )}
           </>
         }
       />
