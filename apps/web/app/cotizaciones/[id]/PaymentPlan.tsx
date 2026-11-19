@@ -12,19 +12,31 @@ const n2 = (x: InstanceType<typeof D>) => x.toFixed(2);
 /** On screen with thousands; the CSV keeps n2 so Excel reads plain numbers. */
 const m2 = (x: InstanceType<typeof D>) => thousands(n2(x));
 
-/** Live schedule from the unsaved price with the engine the server uses; null + reason when it can't. */
+const run = (plan: PaymentPlanDto, price: string, amounts: boolean) =>
+  paymentSchedule(new D(price), {
+    ...plan,
+    depositRate: plan.depositRate ? new D(plan.depositRate) : null,
+    depositAmount: plan.depositAmount ? new D(plan.depositAmount) : null,
+    overrides: plan.overrides?.map((o) => ({
+      ...o,
+      amount: amounts && o.amount && Number(o.amount) > 0 ? new D(o.amount) : null,
+    })),
+  });
+
+/**
+ * Live schedule from the unsaved price with the engine the server uses. When hand-edited amounts don't fit,
+ * the reason comes back with the automatic split so the table (and the input being typed in) stays on screen.
+ */
 function liveSchedule(plan: PaymentPlanDto, price: string) {
   try {
-    return {
-      rows: paymentSchedule(new D(price), {
-        ...plan,
-        depositRate: plan.depositRate ? new D(plan.depositRate) : null,
-        depositAmount: plan.depositAmount ? new D(plan.depositAmount) : null,
-      }),
-    };
+    return { rows: run(plan, price, true), reason: null };
   } catch (e) {
     if (!(e instanceof QuoteEngineError)) throw e;
-    return { reason: e.message };
+    try {
+      return { rows: plan.overrides?.length ? run(plan, price, false) : null, reason: e.message };
+    } catch {
+      return { rows: null, reason: e.message };
+    }
   }
 }
 
@@ -44,12 +56,30 @@ export function PaymentPlan({
 }) {
   const plan = draft.paymentPlan;
   const setPlan = (patch: Partial<PaymentPlanDto>) => plan && set({ paymentPlan: { ...plan, ...patch } });
+  // A new count, cadence or start date makes the hand-edited months meaningless: back to the even split.
+  const reshape = (patch: Partial<PaymentPlanDto>) => {
+    if (!plan) return;
+    const { overrides: _o, ...rest } = plan;
+    set({ paymentPlan: { ...rest, ...patch } });
+  };
+  const edits = plan?.overrides ?? [];
+  const edit = (n: number) => edits.find((o) => o.number === n);
+  /** Sets or clears one field of installment n; an override with nothing left is dropped. */
+  const editPayment = (n: number, field: 'amount' | 'dueDate', value: string) => {
+    if (!plan) return;
+    const next = { ...edit(n), number: n, [field]: value.trim() || undefined };
+    const others = edits.filter((o) => o.number !== n);
+    const overrides =
+      next.amount || next.dueDate ? [...others, next].sort((a, b) => a.number - b.number) : others;
+    const { overrides: _o, ...rest } = plan;
+    set({ paymentPlan: overrides.length ? { ...rest, overrides } : rest });
+  };
   const deposit =
     plan?.depositAmount !== undefined ? 'amount' : plan?.depositRate !== undefined ? 'rate' : 'none';
   const cur = draft.saleCurrency;
   const mxn = cur === 'MXN' ? null : draft.mxnRate ? new D(draft.mxnRate) : null;
   const sched = plan && live.ok ? liveSchedule(plan, live.price) : null;
-  const rows = sched && 'rows' in sched ? sched.rows : null;
+  const rows = sched?.rows ?? null;
   const count = rows?.filter((r) => r.number > 0).length ?? 0;
   const label = (n: number) =>
     n === 0
@@ -185,7 +215,7 @@ export function PaymentPlan({
                 Frecuencia
                 <select
                   value={plan.frequency}
-                  onChange={(e) => setPlan({ frequency: e.target.value as PaymentPlanDto['frequency'] })}
+                  onChange={(e) => reshape({ frequency: e.target.value as PaymentPlanDto['frequency'] })}
                 >
                   {Object.entries(FREQUENCY_LABEL).map(([v, l]) => (
                     <option key={v} value={v}>
@@ -199,7 +229,7 @@ export function PaymentPlan({
                 <input
                   type="date"
                   value={plan.firstDueDate}
-                  onChange={(e) => setPlan({ firstDueDate: e.target.value })}
+                  onChange={(e) => reshape({ firstDueDate: e.target.value })}
                 />
               </label>
             </div>
@@ -217,7 +247,7 @@ export function PaymentPlan({
                   type="button"
                   aria-pressed={plan.installments === n}
                   aria-label={`${n} ${n === 1 ? 'pago' : 'pagos'}`}
-                  onClick={() => setPlan({ installments: n })}
+                  onClick={() => reshape({ installments: n })}
                 >
                   <strong>{n}</strong>
                   <small>{n === 1 ? 'pago' : 'pagos'}</small>
@@ -225,10 +255,24 @@ export function PaymentPlan({
               ))}
             </div>
           </fieldset>
-          {sched && 'reason' in sched && <p className="error">Plan de pagos: {sched.reason}</p>}
+          {sched?.reason && <p className="error">Plan de pagos: {sched.reason}</p>}
           {!live.ok && <p className="muted">El calendario aparece en cuanto la hoja tenga precio.</p>}
+          {rows && live.ok && editable && (
+            <div className="section-head" style={{ marginTop: 8 }}>
+              <span className="muted">
+                {edits.length
+                  ? `${edits.length} ${edits.length === 1 ? 'pago editado' : 'pagos editados'}; el resto se reparte solo. Cambiar número de pagos, frecuencia o primer pago borra las ediciones.`
+                  : 'Puedes editar el monto o la fecha de cada pago; el resto se reparte solo.'}
+              </span>
+              {edits.length > 0 && (
+                <button type="button" className="secondary" onClick={() => reshape({})}>
+                  Volver al reparto automático
+                </button>
+              )}
+            </div>
+          )}
           {rows && live.ok && (
-            <div className="table-wrap">
+            <fieldset disabled={!editable} className="editor plain table-wrap">
               <table aria-label="Plan de pagos en vivo" className="dark-head">
                 <thead>
                   <tr>
@@ -244,17 +288,48 @@ export function PaymentPlan({
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.number}>
-                      <td>{r.number ? `#${r.number}` : 'Inscripción'}</td>
-                      <td>{label(r.number)}</td>
-                      <td>{fmtDate(r.dueDate)}</td>
-                      <td className="num">{share(r.amount)}</td>
-                      <td className="num">{m2(r.amount)}</td>
-                      {mxn && <td className="num">{m2(r.amount.mul(mxn))}</td>}
-                      <td className="num">{m2(mxn ? group(r.amount).mul(mxn) : group(r.amount))}</td>
-                    </tr>
-                  ))}
+                  {rows.map((r) => {
+                    const e = edit(r.number);
+                    const inputs = editable && r.number > 0;
+                    return (
+                      <tr key={r.number}>
+                        <td>{r.number ? `#${r.number}` : 'Inscripción'}</td>
+                        <td>{label(r.number)}</td>
+                        <td>
+                          {inputs ? (
+                            <input
+                              type="date"
+                              aria-label={`Fecha del pago ${r.number}`}
+                              className={e?.dueDate ? 'edited' : undefined}
+                              value={r.dueDate}
+                              onChange={(ev) => editPayment(r.number, 'dueDate', ev.target.value)}
+                            />
+                          ) : (
+                            fmtDate(r.dueDate)
+                          )}
+                        </td>
+                        <td className="num">{share(r.amount)}</td>
+                        <td className="num">
+                          {inputs ? (
+                            <input
+                              inputMode="decimal"
+                              aria-label={`Monto del pago ${r.number} (${cur})`}
+                              className={e?.amount ? 'edited num' : 'num'}
+                              size={9}
+                              value={e?.amount ?? n2(r.amount)}
+                              onChange={(ev) =>
+                                editPayment(r.number, 'amount', ev.target.value.replace(/,/g, ''))
+                              }
+                            />
+                          ) : (
+                            m2(r.amount)
+                          )}
+                        </td>
+                        {mxn && <td className="num">{m2(r.amount.mul(mxn))}</td>}
+                        <td className="num">{m2(mxn ? group(r.amount).mul(mxn) : group(r.amount))}</td>
+                      </tr>
+                    );
+                  })}
                   <tr className="total strong">
                     <td colSpan={3}>Total acumulado del plan ({rows.length} exhibiciones)</td>
                     <td className="num">100.00%</td>
@@ -266,7 +341,7 @@ export function PaymentPlan({
                   </tr>
                 </tbody>
               </table>
-            </div>
+            </fieldset>
           )}
           {mxn && (
             <p className="muted">Pesos aproximados al tipo de cambio de la cotización ({draft.mxnRate}).</p>

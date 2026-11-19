@@ -67,7 +67,7 @@ Layout tomado del prototipo V2 y validado con Finanzas (Will, 2026-10-26):
 
 ## Plan de pagos y lugares liberados (Sprint B, 2026-10-27)
 - Por estudiante, sobre el precio final ya redondeado. Inscripción opcional: % del precio (truncado a centavos) o monto fijo menor que el precio.
-- Parcialidades iguales truncadas a centavos; la última absorbe el residuo, así la suma da exactamente el precio. Fechas: mensual (mismo día, ajustado al fin de mes), quincenal (+14 días) o semanal (+7).
+- Parcialidades iguales truncadas a centavos; la última absorbe el residuo, así la suma da exactamente el precio. Pagos editados a mano (2026-11-19): el monto o la fecha que se edita queda fijo; el saldo se reparte en partes iguales entre los pagos no editados y el último de ellos absorbe el residuo. Si los editados se pasan del precio, no dejan saldo para los demás o (todos editados) no suman el precio, el plan no cuadra y la versión no puede enviarse a autorización. Cambiar número de pagos, frecuencia o primer pago borra las ediciones. Fechas: mensual (mismo día, ajustado al fin de mes), quincenal (+14 días) o semanal (+7).
 - Gratuidades por ratio (antes «lugares liberados») = ⌊estudiantes ÷ N⌋. Hasta 2026-11-06 eran solo informativas; ver la sección siguiente.
 - Los campos nuevos entran al hash de aprobación solo cuando tienen valor, para no invalidar autorizaciones previas.
 

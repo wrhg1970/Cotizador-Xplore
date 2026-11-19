@@ -1543,6 +1543,14 @@ fieldset.editor {
   padding: 3px 8px;
   border-radius: 8px;
 }
+.editor td input.num {
+  text-align: right;
+}
+/* Hand-edited payment in the payment plan; the rest is split automatically. */
+.editor td input.edited {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
 .editor td button.small {
   min-height: 28px;
   padding: 2px 9px;

@@ -110,5 +110,15 @@ describe('payment plan', () => {
       PaymentPlanInput.safeParse({ ...base, depositAmount: '100', depositDueDate: '2027-02-01' }).success,
     ).toBe(false);
     expect(PaymentPlanInput.safeParse({ ...base, installments: 16 }).success).toBe(false);
+    const edited = (overrides: unknown) => PaymentPlanInput.safeParse({ ...base, overrides }).success;
+    expect(
+      edited([
+        { number: 2, amount: '200.00' },
+        { number: 3, dueDate: '2027-03-20' },
+      ]),
+    ).toBe(true);
+    expect(edited([{ number: 7, amount: '200' }])).toBe(false);
+    expect(edited([{ number: 2, amount: '0' }])).toBe(false);
+    expect(edited([{ number: 2 }, { number: 2, amount: '1' }])).toBe(false);
   });
 });

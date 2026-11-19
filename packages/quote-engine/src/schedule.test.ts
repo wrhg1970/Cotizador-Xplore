@@ -48,6 +48,42 @@ describe('paymentSchedule', () => {
     expect(weekly[2]!.dueDate).toBe('2026-12-15');
   });
 
+  it('keeps hand-edited payments and splits the rest among the others', () => {
+    const plan = {
+      depositRate: dec('0.15'),
+      depositDueDate: '2026-12-01',
+      installments: 6,
+      frequency: 'MONTHLY' as const,
+      firstDueDate: '2027-01-15',
+      overrides: [
+        { number: 1, amount: dec('200') },
+        { number: 2, dueDate: '2027-02-20' },
+        { number: 4, amount: dec('200') },
+      ],
+    };
+    const ps = paymentSchedule(dec('2450'), plan);
+    expect(ps.map((p) => [p.number, p.dueDate, p.amount.toFixed(2)])).toEqual([
+      [0, '2026-12-01', '367.50'],
+      [1, '2027-01-15', '200.00'],
+      [2, '2027-02-20', '420.62'],
+      [3, '2027-03-15', '420.62'],
+      [4, '2027-04-15', '200.00'],
+      [5, '2027-05-15', '420.62'],
+      [6, '2027-06-15', '420.64'],
+    ]);
+    expect(sum(ps).toString()).toBe('2450');
+    // Edited payments that leave nothing for the rest, or all edited and off the price, are rejected.
+    const all = (amount: string) =>
+      Array.from({ length: 2 }, (_, i) => ({ number: i + 1, amount: dec(amount) }));
+    const two = { installments: 2, frequency: 'MONTHLY' as const, firstDueDate: '2027-01-01' };
+    expect(() =>
+      paymentSchedule(dec('100'), { ...two, overrides: [{ number: 1, amount: dec('100') }] }),
+    ).toThrow(/no queda saldo/);
+    expect(() => paymentSchedule(dec('100'), { ...two, overrides: all('40') })).toThrow(/faltan 20.00/);
+    expect(() => paymentSchedule(dec('100'), { ...two, overrides: all('60') })).toThrow(/por 20.00/);
+    expect(sum(paymentSchedule(dec('100'), { ...two, overrides: all('50') })).toString()).toBe('100');
+  });
+
   it('rejects impossible plans', () => {
     const base = { installments: 2, frequency: 'MONTHLY' as const, firstDueDate: '2027-01-01' };
     expect(() => paymentSchedule(dec('100'), { ...base, installments: 16 })).toThrow(/15/);

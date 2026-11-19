@@ -11,6 +11,14 @@ export interface PaymentPlan {
   installments: number;
   frequency: Frequency;
   firstDueDate: string;
+  /** Installments edited by hand (1..n): a fixed amount and/or date; the others share what is left. */
+  overrides?: PaymentOverride[] | null;
+}
+
+export interface PaymentOverride {
+  number: number;
+  amount?: Dec | null;
+  dueDate?: string | null;
 }
 
 export interface Payment {
@@ -31,8 +39,9 @@ const addDays = (iso: string, days: number) =>
   new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
 /**
- * Per-student schedule for a final price: optional registration, then equal installments rounded down
- * to cents; the last one takes the remainder so the schedule always adds up to the price exactly.
+ * Per-student schedule for a final price: optional registration, then installments. Hand-edited amounts
+ * stay fixed; the rest is split equally, rounded down to cents, and the last free installment takes the
+ * remainder so the schedule always adds up to the price exactly (or it throws).
  */
 export function paymentSchedule(price: Dec, plan: PaymentPlan): Payment[] {
   if (!Number.isInteger(plan.installments) || plan.installments < 1 || plan.installments > 15)
@@ -51,16 +60,38 @@ export function paymentSchedule(price: Dec, plan: PaymentPlan): Payment[] {
     payments.push({ number: 0, dueDate: plan.depositDueDate, amount: deposit });
   }
   const rest = price.minus(deposit);
-  const each = rest.div(plan.installments).toDecimalPlaces(2, D.ROUND_DOWN);
-  for (let i = 0; i < plan.installments; i++) {
-    const last = i === plan.installments - 1;
+  const byNumber = new Map((plan.overrides ?? []).map((o) => [o.number, o]));
+  const fixed = (n: number) => byNumber.get(n)?.amount ?? null;
+  const numbers = Array.from({ length: plan.installments }, (_, i) => i + 1);
+  const free = numbers.filter((n) => !fixed(n));
+  const left = numbers.reduce((a, n) => a.minus(fixed(n) ?? 0), rest);
+  if (left.isNegative())
+    throw new QuoteEngineError(
+      'INVALID_AMOUNT',
+      `Los pagos editados se pasan del precio por ${left.abs().toFixed(2)}`,
+    );
+  if (free.length && left.isZero())
+    throw new QuoteEngineError(
+      'INVALID_AMOUNT',
+      'Los pagos editados ya suman el precio; no queda saldo para los demás',
+    );
+  if (!free.length && !left.isZero())
+    throw new QuoteEngineError(
+      'INVALID_AMOUNT',
+      `Los pagos editados no cubren el precio: faltan ${left.toFixed(2)}`,
+    );
+  const each = free.length ? left.div(free.length).toDecimalPlaces(2, D.ROUND_DOWN) : new D(0);
+  const lastFree = free[free.length - 1];
+  for (const n of numbers) {
+    const i = n - 1;
     payments.push({
-      number: i + 1,
+      number: n,
       dueDate:
-        plan.frequency === 'MONTHLY'
+        byNumber.get(n)?.dueDate ??
+        (plan.frequency === 'MONTHLY'
           ? addMonths(plan.firstDueDate, i)
-          : addDays(plan.firstDueDate, i * (plan.frequency === 'BIWEEKLY' ? 14 : 7)),
-      amount: last ? rest.minus(each.mul(plan.installments - 1)) : each,
+          : addDays(plan.firstDueDate, i * (plan.frequency === 'BIWEEKLY' ? 14 : 7))),
+      amount: fixed(n) ?? (n === lastFree ? left.minus(each.mul(free.length - 1)) : each),
     });
   }
   return payments;

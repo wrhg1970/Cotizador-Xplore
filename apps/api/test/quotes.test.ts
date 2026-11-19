@@ -739,6 +739,44 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
       .expect(400);
   });
 
+  it('hand-edited payments stay fixed, the rest is split, and an edit that overshoots blocks approval', async () => {
+    const v = (await newScenario(c.quoter).expect(201)).body.latest;
+    const overrides = [
+      { number: 1, amount: '500.00' },
+      { number: 3, dueDate: '2027-04-10' },
+    ];
+    const res = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ ...option1, validUntil: '2026-12-31', paymentPlan: { ...plan, overrides }, rowVersion: 1 })
+      .expect(200);
+    expect(res.body.paymentPlan.overrides).toEqual(overrides);
+    const pay = res.body.paymentSchedule as { number: number; dueDate: string; amount: string }[];
+    expect(pay[1]).toEqual({ number: 1, dueDate: '2027-01-31', amount: '500.00' });
+    expect(pay[3]!.dueDate).toBe('2027-04-10');
+    expect(pay.reduce((a, p) => a + Number(p.amount), 0).toFixed(2)).toBe('5129.00');
+    const p = await api().get(`/api/v1/quotes/${v.id}/proposal`).set('Cookie', c.advisor).expect(200);
+    expect(p.body.paymentSchedule).toEqual(pay);
+    const over = await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ paymentPlan: { ...plan, overrides: [{ number: 1, amount: '9000' }] }, rowVersion: 2 })
+      .expect(200);
+    expect(over.body.warnings.map((w: { message: string }) => w.message)).toEqual([
+      expect.stringContaining('se pasan del precio'),
+    ]);
+    await api()
+      .post(`/api/v1/quotes/${v.id}/submit`)
+      .set('Cookie', c.quoter)
+      .send({ rowVersion: 3 })
+      .expect(400);
+    await api()
+      .patch(`/api/v1/quotes/${v.id}`)
+      .set('Cookie', c.quoter)
+      .send({ paymentPlan: { ...plan, overrides: [{ number: 7, amount: '10' }] }, rowVersion: 3 })
+      .expect(400);
+  });
+
   it('templates: saved from a version, used for a new scenario, scoped to the office', async () => {
     const v = (await newScenario(c.quoter).expect(201)).body.latest;
     await api()
