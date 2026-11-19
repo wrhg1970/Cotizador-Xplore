@@ -124,6 +124,7 @@ function schedule(v: FullVersion, price: Dec | null) {
       ...p,
       depositRate: p.depositRate ? new D(p.depositRate) : null,
       depositAmount: p.depositAmount ? new D(p.depositAmount) : null,
+      overrides: p.overrides?.map((o) => ({ ...o, amount: o.amount ? new D(o.amount) : null })),
     });
     return {
       payments: payments.map((x) => ({ number: x.number, dueDate: x.dueDate, amount: x.amount.toFixed(2) })),

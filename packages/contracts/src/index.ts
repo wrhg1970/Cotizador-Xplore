@@ -409,6 +409,25 @@ export const PaymentPlanInput = z
     installments: z.number().int().min(1).max(15),
     frequency: z.enum(['MONTHLY', 'BIWEEKLY', 'WEEKLY']),
     firstDueDate: IsoDate,
+    /** Installments edited by hand; the engine splits the rest of the price among the others. */
+    overrides: z
+      .array(
+        z.strictObject({
+          number: z.number().int().min(1).max(15),
+          amount: DecimalString.refine((a) => Number(a) > 0, 'Debe ser mayor que cero').optional(),
+          dueDate: IsoDate.optional(),
+        }),
+      )
+      .max(15)
+      .optional(),
+  })
+  .refine((p) => (p.overrides ?? []).every((o) => o.number <= p.installments), {
+    message: 'Hay pagos editados fuera del número de pagos',
+    path: ['overrides'],
+  })
+  .refine((p) => new Set((p.overrides ?? []).map((o) => o.number)).size === (p.overrides ?? []).length, {
+    message: 'Pago editado repetido',
+    path: ['overrides'],
   })
   .refine((p) => !(p.depositRate && p.depositAmount), {
     message: 'Inscripción en % o en monto, no ambas',

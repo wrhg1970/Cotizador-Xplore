@@ -94,7 +94,13 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await page.getByRole('button', { name: '6 pagos' }).click();
   const livePlan = page.getByRole('table', { name: 'Plan de pagos en vivo' });
   await expect(livePlan.getByRole('row', { name: /Inscripción/ })).toContainText('780.00');
-  await expect(livePlan.getByRole('row', { name: /Pago 6 de 6/ })).toContainText('736.70');
+  const lastPayment = livePlan.getByLabel('Monto del pago 6 (EUR)');
+  await expect(lastPayment).toHaveValue('736.70');
+  // Month by month: a hand-edited payment stays fixed and the rest of the price is split among the others.
+  await livePlan.getByLabel('Monto del pago 1 (EUR)').fill('1000');
+  await expect(lastPayment).toHaveValue('684.00'); // (4420 - 1000) / 5
+  await page.getByRole('button', { name: 'Volver al reparto automático' }).click();
+  await expect(lastPayment).toHaveValue('736.70');
   const planCsv = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Exportar plan (Excel / CSV)' }).click();
   expect((await planCsv).suggestedFilename()).toMatch(/plan-de-pagos\.csv$/);

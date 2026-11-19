@@ -349,6 +349,8 @@ export interface PaymentPlanDto {
   installments: number;
   frequency: 'MONTHLY' | 'BIWEEKLY' | 'WEEKLY';
   firstDueDate: string;
+  /** Installments edited by hand (contracts PaymentPlanInput.overrides). */
+  overrides?: { number: number; amount?: string; dueDate?: string }[];
 }
 export interface PaymentDto {
   number: number;
