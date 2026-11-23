@@ -1140,16 +1140,52 @@ input[type='radio'] {
   font-size: 0.8rem;
 }
 
-/* Solicitudes: denser table so all nine columns fit beside the side menu; compact row actions. */
+/* Solicitudes > Filas (opción B, 2026-11-23): two-line rows, one-line stage, icon actions in a row. */
 .req-table th,
 .req-table td {
-  padding: 10px 8px;
-  font-size: 0.9rem;
+  padding: 6px 6px;
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
-/* In the table the actions stack so the column stays narrow. */
+.req-table .muted {
+  font-size: 0.78rem;
+}
+.req-cut {
+  display: block;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.req-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.req-stage .badge {
+  font-size: 0.72rem;
+  padding: 1px 6px;
+}
+.req-stage .stage-bar {
+  width: 40px;
+  margin: 0;
+}
+.req-stage .stage-bar span {
+  height: 4px;
+}
 .req-actions .row {
-  flex-direction: column;
-  align-items: stretch !important;
+  flex-wrap: nowrap;
+  gap: 3px !important;
+}
+.req-actions .req-act {
+  min-height: 0;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
 }
 .req-act {
   padding: 5px 12px;
