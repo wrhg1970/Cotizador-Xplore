@@ -32,12 +32,13 @@ async function ready(name: string) {
     .set('Cookie', c.quoter)
     .send({ lines, targetMarginRate: '0.18', validUntil: '2026-12-31', rowVersion: 1 })
     .expect(200);
-  return v.body as { id: string; rowVersion: number };
+  return v.body as { id: string; rowVersion: number; scenarioId: string };
 }
 const submit = async (v: { id: string; rowVersion: number }) =>
   (await act(c.quoter, v.id, 'submit', { rowVersion: v.rowVersion }).expect(201)).body as {
     id: string;
     rowVersion: number;
+    scenarioId: string;
   };
 const stageInList = async (stage: string) =>
   (
@@ -90,7 +91,7 @@ afterAll(async () => {
 });
 
 describe('Aprobada step and one approved scenario per request', () => {
-  let a: { id: string; rowVersion: number };
+  let a: { id: string; rowVersion: number; scenarioId: string };
   let b: { id: string; rowVersion: number };
 
   it('moves from Por aprobar to Aprobada when a scenario is authorized', async () => {
@@ -120,6 +121,13 @@ describe('Aprobada step and one approved scenario per request', () => {
     await act(c.quoter, third.id, 'submit', { rowVersion: third.rowVersion }).expect(409);
     // Nothing changed on the refused version.
     expect((await prisma.quoteVersion.findUniqueOrThrow({ where: { id: b.id } })).status).toBe('IN_REVIEW');
+    // The approved one can't be duplicated until its approval is revoked.
+    const dup = await api()
+      .post(`/api/v1/scenarios/${a.scenarioId}/duplicate`)
+      .set('Cookie', c.quoter)
+      .send({ name: 'Copia' })
+      .expect(409);
+    expect(dup.body.code).toBe('SCENARIO_APPROVED');
   });
 
   it('the quoter withdraws a version waiting for approval to edit it again; approved stays locked', async () => {
@@ -165,6 +173,11 @@ describe('Aprobada step and one approved scenario per request', () => {
     });
     expect(log.diff).toMatchObject({ status: { from: 'APPROVED', to: 'RETURNED' } });
     expect(await detailStage()).toBe(2);
+    await api()
+      .post(`/api/v1/scenarios/${a.scenarioId}/duplicate`)
+      .set('Cookie', c.quoter)
+      .send({ name: 'Copia' })
+      .expect(201);
 
     b = await submit(b);
     b = (await act(c.approver, b.id, 'approve', { rowVersion: b.rowVersion }).expect(201)).body;

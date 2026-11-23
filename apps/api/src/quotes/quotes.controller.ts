@@ -750,6 +750,12 @@ export class QuotesController {
       if (!src) throw new NotFoundException('Escenario no encontrado');
       const r = await this.request(tx, src.requestId, user);
       this.assertWork(user, r);
+      // An approved scenario is copied only after its approval is revoked (Will, 2026-11-23).
+      if (await tx.quoteVersion.count({ where: { scenarioId: id, status: 'APPROVED' } }))
+        throw new ConflictException({
+          code: 'SCENARIO_APPROVED',
+          message: 'Revoca la aprobación de este escenario antes de duplicarlo',
+        });
       const scenario = await tx.quoteScenario.create({
         data: { requestId: r.id, name: body.name, createdById: user.id },
       });
