@@ -287,23 +287,24 @@ function Inbox({ basePath, title, subtitle }: InboxProps) {
                         <span className="ofc-code">{r.office.code}</span>
                       </div>
                     </td>
-                    <td style={{ whiteSpace: 'normal', minWidth: 200 }}>
-                      <Who r={r} />
+                    <td className="req-two">
+                      <RowWho r={r} />
                     </td>
-                    <td style={{ whiteSpace: 'normal', minWidth: 140 }}>
+                    <td className="req-two">
                       {r.city}, {r.countryCode}
+                      {r.dueDate && ` · entrega ${fmtDate(r.dueDate).slice(0, -5)}`}
                       <div className="muted">
-                        {fmtDate(r.departureDate)} → {fmtDate(r.returnDate)}
+                        {sameYear(r) ? fmtDate(r.departureDate).slice(0, -5) : fmtDate(r.departureDate)} →{' '}
+                        {fmtDate(r.returnDate)}
                       </div>
-                      {r.dueDate && <div className="muted">Entrega: {fmtDate(r.dueDate)}</div>}
                     </td>
-                    <td style={{ whiteSpace: 'normal' }}>{(r.assignee ?? r.requester).name}</td>
-                    <td style={{ whiteSpace: 'normal', minWidth: 150 }}>
+                    <td>{(r.assignee ?? r.requester).name}</td>
+                    <td>
                       <Stage r={r} />
                     </td>
                     <td className="num">{r.scenarios}</td>
                     <td className="req-actions">
-                      <Actions r={r} quotes={canSeeQuotes(me, r.office.id)} manage={manage(r)} />
+                      <Actions r={r} quotes={canSeeQuotes(me, r.office.id)} manage={manage(r)} icons />
                     </td>
                   </tr>
                 ))}
@@ -386,24 +387,61 @@ function Who({ r }: { r: Row }) {
   );
 }
 
+const sameYear = (r: Row) => r.departureDate?.slice(0, 4) === r.returnDate?.slice(0, 4);
+
+/** Filas: two lines, each cut with "…" (full text on hover); "Solicita" only when it is not the responsible. */
+function RowWho({ r }: { r: Row }) {
+  const title = r.clientName ? `${r.clientName} — ${r.groupName}` : r.groupName;
+  const owner = (r.assignee ?? r.requester).id;
+  const detail = [
+    `${r.participants} alum.`,
+    `${r.chaperones} chap.`,
+    r.program,
+    r.requester.id !== owner ? `Solicita: ${r.requester.name}` : null,
+    r.budget &&
+      `${thousands(r.budget.amount)} ${r.budget.currency}${r.budget.basis === 'TOTAL' ? ' total' : '/alum.'}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <>
+      <strong className="req-cut" title={title}>
+        {title}
+      </strong>
+      <div className="muted req-cut" title={detail}>
+        {detail}
+      </div>
+    </>
+  );
+}
+
 /** Cotizar and Comparar both land on the request's scenarios (the comparison table lives there). */
 type Manage = ((run: typeof archiveRequest) => Promise<void>) | null;
 
-function Actions({ r, quotes, manage }: { r: Row; quotes: boolean; manage: Manage }) {
+/** Filas show each action as a small icon; the name stays as aria-label and tooltip. */
+const label = (icons: boolean | undefined, icon: string, text: string) =>
+  icons ? { children: icon, 'aria-label': text, title: text } : { children: text };
+
+function Actions({ r, quotes, manage, icons }: { r: Row; quotes: boolean; manage: Manage; icons?: boolean }) {
+  const L = (icon: string, text: string) => label(icons, icon, text);
   if (r.archivedAt)
     return (
       <span className="row" style={{ gap: 6, alignItems: 'center' }}>
-        <Link className="button secondary req-act" href={`/solicitudes/${r.id}`}>
-          Ver
-        </Link>
+        <Link className="button secondary req-act" href={`/solicitudes/${r.id}`} {...L('👁', 'Ver')} />
         {manage && (
           <>
-            <button type="button" className="secondary req-act" onClick={() => manage(unarchiveRequest)}>
-              Desarchivar
-            </button>
-            <button type="button" className="danger req-act" onClick={() => manage(purgeRequest)}>
-              Borrar
-            </button>
+            <button
+              type="button"
+              className="secondary req-act"
+              onClick={() => manage(unarchiveRequest)}
+              {...L('↺', 'Desarchivar')}
+            />
+            <button
+              type="button"
+              className="danger req-act"
+              onClick={() => manage(purgeRequest)}
+              {...L('🗑', 'Borrar')}
+            />
           </>
         )}
       </span>
@@ -412,27 +450,27 @@ function Actions({ r, quotes, manage }: { r: Row; quotes: boolean; manage: Manag
   return (
     <span className="row" style={{ gap: 6, alignItems: 'center' }}>
       {quotes && open && (
-        <Link className="button req-act" href={`/solicitudes/${r.id}#escenarios`}>
-          Cotizar
-        </Link>
+        <Link className="button req-act" href={`/solicitudes/${r.id}#escenarios`} {...L('✎', 'Cotizar')} />
       )}
       {r.scenarios > 1 && (
-        <Link className="button secondary req-act" href={`/solicitudes/${r.id}#escenarios`}>
-          Comparar
-        </Link>
+        <Link
+          className="button secondary req-act"
+          href={`/solicitudes/${r.id}#escenarios`}
+          {...L('⇄', 'Comparar')}
+        />
       )}
-      <Link className="button req-act" href={`/solicitudes/${r.id}#archivos`}>
-        Expediente
-      </Link>
+      <Link
+        className={`button req-act${icons ? ' secondary' : ''}`}
+        href={`/solicitudes/${r.id}#archivos`}
+        {...L('📁', 'Expediente')}
+      />
       {manage && (
         <button
           type="button"
           className="secondary req-act"
-          title="Archivar"
           onClick={() => manage(archiveRequest)}
-        >
-          Archivar
-        </button>
+          {...L('⌫', 'Archivar')}
+        />
       )}
     </span>
   );
@@ -461,23 +499,25 @@ function RequestCard({ r, quotes, manage }: { r: Row; quotes: boolean; manage: M
 function Stage({ r }: { r: Row }) {
   const n = Math.min(stepOf(r), 4);
   const closed = stepOf(r) === 6;
+  const name = stepName(r);
+  const chip = requestLabel(r.status, r.stage);
   return (
-    <>
-      <div className="row" style={{ justifyContent: 'space-between', gap: 6 }}>
-        <strong>{stepName(r)}</strong>
-        {!closed && <span className="muted">{n}/4</span>}
-      </div>
+    <span className="req-stage">
       {!closed && (
-        <div className="stage-bar" role="img" aria-label={`Etapa ${n} de 4`}>
+        <span className="stage-bar" role="img" aria-label={`Etapa ${n} de 4`}>
           {[1, 2, 3, 4].map((i) => (
             <span key={i} className={i <= n ? 'on' : undefined} />
           ))}
-        </div>
+        </span>
       )}
-      <span className={`badge st-${r.status === 'QUOTING' ? `q${r.stage}` : r.status.toLowerCase()}`}>
-        {requestLabel(r.status, r.stage)}
-      </span>
-    </>
+      <strong>{name}</strong>
+      {/* The chip only adds something when it differs from the step name (e.g. "En cotización"). */}
+      {!name.includes(chip) && (
+        <span className={`badge st-${r.status === 'QUOTING' ? `q${r.stage}` : r.status.toLowerCase()}`}>
+          {chip}
+        </span>
+      )}
+    </span>
   );
 }
 
