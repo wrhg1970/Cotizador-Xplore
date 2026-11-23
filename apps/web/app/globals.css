@@ -1661,6 +1661,39 @@ dialog.welcome ol {
   text-transform: uppercase;
   color: var(--muted);
 }
+/* Authorization at a glance in the header (Will, 2026-11-23). */
+.auth-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--ink);
+  border-radius: 12px;
+  font-size: 0.82rem;
+}
+.auth-strip .last {
+  flex: 1;
+  min-width: 240px;
+  color: var(--muted);
+}
+.auth-strip .row {
+  gap: 6px;
+}
+.auth-strip .row button {
+  padding: 4px 12px;
+  font-size: 0.78rem;
+}
+.auth-strip button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
 .quote-head .actions {
   align-items: center;
 }

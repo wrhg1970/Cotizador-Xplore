@@ -63,6 +63,7 @@ export function QuoteHeader({
   role,
   optionCount,
   eventCount,
+  authStrip,
   expiredAction,
   nextStep,
   onStage,
@@ -72,6 +73,8 @@ export function QuoteHeader({
   role: Role;
   optionCount: number;
   eventCount: number | null;
+  /** Authorization state, last step and the person's buttons, kept on top. */
+  authStrip: ReactNode;
   /** Button that renews the validity; null when this person can't. */
   expiredAction: ReactNode;
   nextStep: ReactNode;
@@ -109,6 +112,7 @@ export function QuoteHeader({
           </p>
         )}
       </div>
+      {authStrip}
       <p className="muted" style={{ margin: 0 }}>
         {optionCount} {optionCount === 1 ? 'opción' : 'opciones'} en la solicitud
         {eventCount !== null && ` · ${eventCount} eventos en la bitácora`}

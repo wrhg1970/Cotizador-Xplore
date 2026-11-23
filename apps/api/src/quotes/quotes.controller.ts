@@ -404,6 +404,7 @@ export function snapshotHash(v: FullVersion) {
     createdAt: _c,
     updatedAt: _u,
     reviews: _rw,
+    createdById: _cb,
     warnings: _w,
     sheet: _sh,
     volumePrices: _vp,
@@ -519,6 +520,8 @@ export function toDto(v: FullVersion) {
       comment: r.comment,
       at: r.createdAt.toISOString(),
     })),
+    /** Who built this version: with the assignee, a preparer for the signature rule (signatures.ts). */
+    createdById: v.createdById,
     createdAt: v.createdAt.toISOString(),
     updatedAt: v.updatedAt.toISOString(),
   };
