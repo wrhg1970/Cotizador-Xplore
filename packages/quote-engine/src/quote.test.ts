@@ -340,11 +340,11 @@ describe('Avión (Will, 2026-11-11)', () => {
   });
 });
 
-describe('chaperoneLabel (Will, 2026-11-18)', () => {
+describe('chaperoneLabel (Will, 2026-11-18/23)', () => {
   it('tells school and EE chaperone concepts apart, once', () => {
     expect(chaperoneLabel('PER_CHAPERONE', 'Seguro')).toBe('Seguro Escuela');
-    expect(chaperoneLabel('PER_STAFF', 'Kit')).toBe('Kit EE');
-    expect(chaperoneLabel('PER_STAFF', 'Kit EE')).toBe('Kit EE');
+    expect(chaperoneLabel('PER_STAFF', 'Kit')).toBe('Kit Chaperón');
+    expect(chaperoneLabel('PER_STAFF', 'Seguro chaperon')).toBe('Seguro chaperon');
     expect(chaperoneLabel('PER_CHAPERONE', 'Transfer escuela')).toBe('Transfer escuela');
     expect(chaperoneLabel('PER_PARTICIPANT', 'Kit EE')).toBe('Kit EE');
   });
