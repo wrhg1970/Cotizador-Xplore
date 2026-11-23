@@ -1317,21 +1317,26 @@ export class QuotesController {
    * Publishes the winning proposal as a WeTravel payment link (price and payment plan per participant).
    * One link per request: a second call returns 409 with the existing URL.
    */
-  /** What the group has paid through the WeTravel link, read live (nothing about payers is stored). */
-  @Get('requests/:id/wetravel/payments')
-  async wetravelPayments(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
+  /**
+   * Price, paid and balance per student of the sold proposal's WeTravel trip, read live (Will,
+   * 2026-11-23: "de WeTravel solo quiero el saldo del estudiante"). Nothing about families is stored.
+   */
+  @Get('requests/:id/wetravel/balances')
+  async wetravelBalances(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
     await this.request(this.prisma, id, user);
     const r = await this.prisma.travelRequest.findUniqueOrThrow({ where: { id } });
-    if (!r.wetravelLinkId) throw new NotFoundException('La solicitud no tiene liga de WeTravel');
-    // shortcut: the server's WeTravel key is EE's account; other agencies need their own key first (multi-agency step 5).
-    if (!this.wetravel || user.agencyId !== EE_AGENCY_ID)
-      throw new ServiceUnavailableException('WeTravel no está configurado en el servidor');
-    try {
-      return await this.wetravel.linkPayments(r.wetravelLinkId);
-    } catch (e) {
-      if (!(e instanceof WeTravelError)) throw e;
-      throw new BadGatewayException(e.message);
-    }
+    const won = r.wonVersionId
+      ? await this.prisma.quoteVersion.findUnique({ where: { id: r.wonVersionId } })
+      : null;
+    const linked = won?.wetravelTrip ? WeTravelTripLink.safeParse(won.wetravelTrip).data?.uuid : undefined;
+    if (!linked && !r.wetravelLinkId)
+      throw new NotFoundException(
+        'Liga el viaje de WeTravel en la propuesta vendida (pestaña Propuesta › Itinerario)',
+      );
+    return this.weTravelCall(user, async (wt) => {
+      const tripUuid = linked ?? (await wt.linkTrip(r.wetravelLinkId!));
+      return { tripUuid, ...(await wt.tripBalances(tripUuid)) };
+    });
   }
 
   /** Trips of EE's WeTravel account to link to a proposal; `q` (3+ letters) searches the title. */

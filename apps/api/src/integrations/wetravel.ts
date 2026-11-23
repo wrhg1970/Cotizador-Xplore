@@ -26,19 +26,29 @@ export interface PaymentLink {
   checkoutUrl: string;
 }
 
-/** Money collected for one payment link, per currency in minor units (cents), refunds already subtracted. */
-export interface LinkPayments {
-  /** e.g. { USD: 1250000 } = 12,500.00 USD */
-  collected: Record<string, number>;
-  payments: number;
-  payers: number;
-  lastPaymentAt: string | null;
+/** One WeTravel order (a family's purchase) of a trip; amounts in minor units (cents). */
+export interface OrderBalance {
+  /** Active travelers, e.g. "Sofía y Mateo Cantú"; the buyer's name when WeTravel lists none. */
+  students: string;
+  count: number;
+  payer: string;
+  price: number;
+  paid: number;
+  balance: number;
+}
+
+export interface TripBalances {
+  currency: string | null;
+  orders: OrderBalance[];
 }
 
 /** Seam for tests; null in the container means WeTravel is not configured. */
 export interface WeTravel {
   createPaymentLink(body: PaymentLinkBody): Promise<PaymentLink>;
-  linkPayments(linkUuid: string): Promise<LinkPayments>;
+  /** Price, paid and balance of every order of the trip (v2 bookings; read live, never stored). */
+  tripBalances(tripUuid: string): Promise<TripBalances>;
+  /** The trip a payment link created from the cotizador belongs to. */
+  linkTrip(linkUuid: string): Promise<string>;
   /** Upcoming, not archived trips of the account, by departure; `query` searches title or external id. */
   listTrips(query?: string): Promise<WeTravelTrip[]>;
   /** The trip's itinerary as proposal days (GET /trips/{uuid}/itinerary). */
@@ -120,32 +130,58 @@ export function itineraryDays(body: { sections?: ItinerarySection[] }) {
     });
 }
 
-interface Transaction {
-  amount?: number;
-  refunded_amount?: number;
+interface Participant {
+  first_name?: string;
+  last_name?: string;
+  cancelled?: boolean;
+}
+export interface WtOrder {
   currency?: string;
-  status?: string;
-  created_at?: string;
-  buyer?: { email?: string };
+  total_amount?: number;
+  paid_amount?: number;
+  already_paid?: number;
+  options?: { participants?: Participant[] }[];
 }
 
-/** Pure sum over WeTravel transactions (type payment): amount minus refunds, failed ones skipped. */
-export function sumPayments(txs: Transaction[]): LinkPayments {
-  const collected: Record<string, number> = {};
-  const payers = new Set<string>();
-  let payments = 0;
-  let last: string | null = null;
-  for (const t of txs) {
-    if (!t.currency || typeof t.amount !== 'number') continue;
-    if (t.status && /fail|declin|cancel|void/i.test(t.status)) continue;
-    const c = t.currency.toUpperCase();
-    collected[c] = (collected[c] ?? 0) + t.amount - (t.refunded_amount ?? 0);
-    payments++;
-    if (t.buyer?.email) payers.add(t.buyer.email.toLowerCase());
-    if (t.created_at && (!last || t.created_at > last)) last = t.created_at;
+const num = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? n : 0);
+
+/** "Ana Garza", or "Sofía y Mateo Cantú" when siblings share a last name. */
+export function studentNames(ps: Participant[]): string[] {
+  const names = ps
+    .filter((p) => !p.cancelled)
+    .map((p) => ({ first: (p.first_name ?? '').trim(), last: (p.last_name ?? '').trim() }))
+    .filter((p) => p.first || p.last);
+  const lasts = new Set(names.map((n) => n.last));
+  if (names.length > 1 && lasts.size === 1) {
+    const firsts = names.map((n) => n.first);
+    return [`${firsts.slice(0, -1).join(', ')} y ${firsts.at(-1)} ${names[0]!.last}`.trim()];
   }
-  return { collected, payments, payers: payers.size, lastPaymentAt: last };
+  return names.map((n) => `${n.first} ${n.last}`.trim());
 }
+
+/**
+ * Pure: one row per order. Paid is `already_paid` (all money registered, cash included) or
+ * `paid_amount`; balance = price − paid, never below 0, so the columns always add up.
+ * Orders whose travelers were all cancelled and owe nothing are left out.
+ */
+export function orderBalance(o: WtOrder, payer: string): OrderBalance | null {
+  const ps = (o.options ?? []).flatMap((op) => op.participants ?? []);
+  const names = studentNames(ps);
+  const active = ps.filter((p) => !p.cancelled).length;
+  const price = num(o.total_amount);
+  const paid = typeof o.already_paid === 'number' ? num(o.already_paid) : num(o.paid_amount);
+  const balance = Math.max(0, price - paid);
+  if (ps.length && !active && !balance) return null;
+  return {
+    students: (names.join(', ') || payer).slice(0, 300),
+    count: active,
+    payer: payer.slice(0, 200),
+    price,
+    paid,
+    balance,
+  };
+}
+
 export const WETRAVEL = Symbol('WETRAVEL');
 
 /** First error text in a WeTravel error body, one line, at most 200 chars; never the whole payload. */
@@ -284,30 +320,54 @@ export class HttpWeTravel implements WeTravel {
     return json;
   }
 
-  /**
-   * GET {base}/payment_links/{uuid} gives the link's trip uuid; POST /v2/transactions (the reference
-   * lists it under v2 and the v3 release says Transactions did not change) filtered by that trip and
-   * type `payment` gives what was collected. Amounts are integers in minor units.
-   */
-  async linkPayments(linkUuid: string): Promise<LinkPayments> {
+  async linkTrip(linkUuid: string): Promise<string> {
     const link = await this.call(
       `${this.baseUrl}/payment_links/${encodeURIComponent(linkUuid)}`,
       'leer la liga de pago',
     );
-    const trip = ((link.data ?? link) as { trip?: { uuid?: string } }).trip;
-    const tripUuid = trip?.uuid ?? linkUuid;
-    const transactions = `${new URL(this.baseUrl).origin}/v2/transactions`;
-    const all: Transaction[] = [];
-    // shortcut: at most 5 pages of 1000; a single school group never gets close.
-    for (let page = 1; page <= 5; page++) {
-      const res = await this.call(transactions, 'leer las transacciones', {
-        method: 'POST',
-        body: { page, per_page: 1000, filters: { trip_uuids: [tripUuid], transaction_type: 'payment' } },
-      });
-      all.push(...((res.data as Transaction[] | undefined) ?? []));
+    const uuid = ((link.data ?? link) as { trip?: { uuid?: string } }).trip?.uuid;
+    if (!uuid) throw new WeTravelError(502, 'WeTravel no dijo a qué viaje pertenece la liga');
+    return uuid;
+  }
+
+  /**
+   * Bookings are still Partner API v2 (the v3 release left them unchanged), so the paths hang from
+   * {origin}/v2 whatever WETRAVEL_API_URL says. GET …/trips/{uuid}/bookings lists orders (with buyer,
+   * no travelers); GET …/trips/{uuid}/bookings/{buyer_id} gives that buyer's full orders with travelers.
+   */
+  async tripBalances(tripUuid: string): Promise<TripBalances> {
+    const trip = `${new URL(this.baseUrl).origin}/v2/bookings/trips/${encodeURIComponent(tripUuid)}`;
+    const buyers = new Map<string, string>();
+    // shortcut: at most 10 pages of 100 orders; a school group never gets close.
+    for (let page = 1; page <= 10; page++) {
+      const res = await this.call(`${trip}/bookings?page=${page}`, 'leer las reservas');
+      for (const o of (res.data as Record<string, unknown>[] | undefined) ?? []) {
+        const buyer = o.buyer as { id?: unknown; full_name?: string } | undefined;
+        const id = String(buyer?.id ?? o.buyer_id ?? '');
+        if (id) buyers.set(id, buyer?.full_name?.trim() || 'Sin nombre');
+      }
       if (!(res.pagination as { has_next?: boolean } | undefined)?.has_next) break;
     }
-    return sumPayments(all);
+    const orders: OrderBalance[] = [];
+    let currency: string | null = null;
+    const ids = [...buyers.keys()];
+    // Five at a time: fast enough for 40 families without hammering WeTravel.
+    for (let i = 0; i < ids.length; i += 5) {
+      const pages = await Promise.all(
+        ids
+          .slice(i, i + 5)
+          .map((id) => this.call(`${trip}/bookings/${encodeURIComponent(id)}`, 'leer una reserva')),
+      );
+      pages.forEach((res, j) => {
+        for (const o of (res.orders as WtOrder[] | undefined) ?? []) {
+          currency ??= o.currency?.toUpperCase() ?? null;
+          const row = orderBalance(o, buyers.get(ids[i + j]!)!);
+          if (row) orders.push(row);
+        }
+      });
+    }
+    orders.sort((a, b) => a.students.localeCompare(b.students, 'es'));
+    return { currency, orders };
   }
 
   async listTrips(query?: string) {

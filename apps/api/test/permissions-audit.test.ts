@@ -97,7 +97,7 @@ describe('office isolation (IDOR/BOLA sweep)', () => {
       ['get', `/requests/${b.request}/team`],
       ['get', `/requests/${b.request}/attachments`],
       ['get', `/requests/${b.request}/attachments/${b.attachment}`],
-      ['get', `/requests/${b.request}/wetravel/payments`],
+      ['get', `/requests/${b.request}/wetravel/balances`],
       ['get', `/quotes/${b.version}`],
       ['get', `/quotes/${b.version}/proposal`],
       ['get', `/quotes/${b.version}/compare`],
