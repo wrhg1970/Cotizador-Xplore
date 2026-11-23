@@ -29,16 +29,13 @@ interface Row {
   /** Only for roles that see internal costs. */
   marginRate?: string | null;
   signatures: number;
+  signaturesNeeded: 1 | 2;
   preparedBy: string;
   canApprove: boolean;
 }
 
 const statusText = (v: Row) =>
-  v.status === 'APPROVED'
-    ? 'Aprobado'
-    : v.signatures
-      ? `Pendiente · ${v.signatures}ª firma dada`
-      : 'Pendiente';
+  v.status === 'APPROVED' ? 'Aprobado' : `Pendiente · Firmas ${v.signatures}/${v.signaturesNeeded}`;
 
 /** V2 "Bandeja central de aprobaciones": one row per scenario version in review or authorized. */
 export function ApprovalTray() {

@@ -168,12 +168,10 @@ function AdminPage() {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const rate = (k: string) => String(Number(f.get(k)) / 100);
-    const two = String(f.get('twoLevel') ?? '').trim();
     const body: ApprovalRules = {
       autoApprove: f.get('autoApprove') === 'on',
       autoMinMarginRate: rate('autoMin'),
       autoMaxGroupMxn: String(f.get('autoMax')).replace(/[,\s$]/g, ''),
-      twoLevelBelowMarginRate: two ? rate('twoLevel') : null,
     };
     await run('Reglas de autorización guardadas', () =>
       api('/settings/approval-rules', { method: 'PUT', body }),
@@ -624,8 +622,9 @@ function AdminPage() {
           <section className="card" aria-labelledby="reglas">
             <h2 id="reglas">Reglas de autorización</h2>
             <p className="cfg-help">
-              ⓘ Dentro de los límites se autoriza sola («Regla automática»); fuera, va al comité y con margen
-              bajo pide dos firmas. Margen = comisión ÷ precio del grupo.
+              ⓘ Dentro de los límites se autoriza sola («Regla automática»); fuera, la autoriza un
+              autorizador. Si firma quien la preparó o corrigió, se pide la firma de otro autorizador. Margen
+              = comisión ÷ precio del grupo.
             </p>
             <form onSubmit={saveRules} className="cfg-form">
               <label className="inline">
@@ -652,20 +651,6 @@ function AdminPage() {
               <label>
                 Total del grupo hasta (MXN)
                 <input name="autoMax" inputMode="decimal" required defaultValue={rules.autoMaxGroupMxn} />
-              </label>
-              <label>
-                Dos firmas con margen menor a (%)
-                <input
-                  name="twoLevel"
-                  type="number"
-                  min={0}
-                  max={99}
-                  step="0.01"
-                  placeholder="Sin segunda firma"
-                  defaultValue={
-                    rules.twoLevelBelowMarginRate === null ? '' : Number(rules.twoLevelBelowMarginRate) * 100
-                  }
-                />
               </label>
               <button>Guardar reglas</button>
             </form>

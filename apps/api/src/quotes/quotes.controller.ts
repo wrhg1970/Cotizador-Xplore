@@ -73,6 +73,15 @@ import { canView, canViewQuotes, canWorkQuotes, type RequestRef } from '../reque
 import { ZodPipe } from '../zod.pipe.js';
 import { quoteWorkbook } from './quote-xlsx.js';
 import { compareVersions } from './compare.js';
+import {
+  CORRECTION_PREFIX,
+  PREPARER_SIGNED,
+  isCorrecting,
+  preparerIds,
+  signatureSummary,
+  signaturesNeeded,
+  signersThisRound,
+} from './signatures.js';
 import { approvalRules } from '../settings/settings.js';
 import { agencyOfOffice, clientMailBrand, toBrand } from '../agency/brand.js';
 import { type AgencyBrand, type ApprovalRules } from '@ee/contracts';
@@ -285,11 +294,6 @@ export function autoApproval(rules: ApprovalRules, v: FullVersion): string | nul
   return `Autorizada por regla: margen ${pct(margin)} ≥ ${pct(min)} y total ${money(groupMxn)} MXN ≤ ${money(max)} MXN`;
 }
 
-export function needsTwoLevels(rules: ApprovalRules, v: FullVersion): boolean {
-  if (rules.twoLevelBelowMarginRate === null) return false;
-  return marginAndMxn(v).margin.lt(new D(rules.twoLevelBelowMarginRate));
-}
-
 export const REJECTED_PREFIX = 'Rechazada: ';
 export const REVOKED_PREFIX = 'Aprobación revocada: ';
 export const WITHDRAWN_COMMENT = 'Retirada de autorización para editar';
@@ -318,24 +322,10 @@ export async function assertOnlyApprovedScenario(tx: Tx, v: FullVersion) {
     });
 }
 
-/** Which authorization rule applies to a version, as shown to the approval committee. */
-export function policyFor(rules: ApprovalRules, v: FullVersion): string {
-  try {
-    if (needsTwoLevels(rules, v))
-      return `Doble firma (margen < ${pct(new D(rules.twoLevelBelowMarginRate!))})`;
-  } catch (e) {
-    if (!(e instanceof QuoteEngineError)) throw e;
-  }
-  return 'Una firma de «Autorizar viaje»';
-}
-
 /** Approvals given since the version last went back to the quoter, for the same calculation. */
 function approvalsThisRound(v: FullVersion) {
-  const lastReturn = v.reviews.findLastIndex((x) => x.decision === 'RETURNED');
   const hash = snapshotHash(v);
-  return v.reviews
-    .slice(lastReturn + 1)
-    .filter((x) => x.decision === 'APPROVED' && x.calculationHash === hash);
+  return signersThisRound(v).filter((x) => x.calculationHash === hash);
 }
 
 /** Live figures for the editor; frozen with a hash when the version goes to approval. */
@@ -524,6 +514,7 @@ export function toDto(v: FullVersion) {
     })),
     reviews: v.reviews.map((r) => ({
       decision: r.decision,
+      reviewerId: r.reviewerId,
       reviewer: r.reviewer?.name ?? 'Regla automática',
       comment: r.comment,
       at: r.createdAt.toISOString(),
@@ -618,6 +609,18 @@ export class QuotesController {
       );
   }
 
+  /** The approver who opened a correction of this version, while he still holds the role. */
+  private correcting(user: AuthUser, r: RequestRef, v: Parameters<typeof isCorrecting>[0]) {
+    return (
+      r.status === 'QUOTING' && hasOfficeRole(user, r.officeId, ['APPROVER']) && isCorrecting(v, user.id)
+    );
+  }
+
+  /** Edits a version: the quoter's people, or the approver correcting it. */
+  private assertEditor(user: AuthUser, r: RequestRef, v: Parameters<typeof isCorrecting>[0]) {
+    if (!this.correcting(user, r, v)) this.assertWork(user, r);
+  }
+
   private async latest(tx: Tx, scenarioId: string) {
     return tx.quoteVersion.findFirstOrThrow({
       where: { scenarioId },
@@ -629,8 +632,7 @@ export class QuotesController {
   /** US-047: one row per scenario with its latest version, for the comparison view. */
   @Get('requests/:id/scenarios')
   async list(@CurrentUser() user: AuthUser, @Param('id', uuid) id: string) {
-    await this.request(this.prisma, id, user);
-    const rules = await approvalRules(this.prisma, user.agencyId);
+    const r = await this.request(this.prisma, id, user);
     const scenarios = await this.prisma.quoteScenario.findMany({
       where: { requestId: id },
       include: {
@@ -648,7 +650,7 @@ export class QuotesController {
       versions: s.versions.map((v) => ({ id: v.id, number: v.number, status: v.status })),
       latest: toDto(s.versions[0]!),
       preparedBy: s.versions[0]!.createdBy.name,
-      policy: policyFor(rules, s.versions[0]!),
+      policy: signatureSummary(s.versions[0]!, preparerIds(s.versions[0]!, r.assigneeId)),
     }));
   }
 
@@ -925,10 +927,10 @@ export class QuotesController {
     return this.prisma.$transaction(async (tx) => {
       const v = await tx.quoteVersion.findUnique({
         where: { id },
-        include: { scenario: true, fxRates: true },
+        include: { scenario: true, fxRates: true, reviews: { orderBy: { createdAt: 'asc' } } },
       });
       if (!v) throw new NotFoundException('Cotización no encontrada');
-      this.assertWork(user, await this.request(tx, v.scenario.requestId, user));
+      this.assertEditor(user, await this.request(tx, v.scenario.requestId, user), v);
       if (!(EDITABLE as readonly string[]).includes(v.status))
         throw new ForbiddenException('Solo se editan versiones en borrador o devueltas');
       if (v.rowVersion !== body.rowVersion) throw conflict();
@@ -1098,7 +1100,7 @@ export class QuotesController {
       body.rowVersion,
       'quote.submitted_for_approval',
       async (v, r, tx) => {
-        this.assertWork(user, r);
+        this.assertEditor(user, r, v);
         if (!(EDITABLE as readonly string[]).includes(v.status))
           throw new ForbiddenException('Solo se envían a autorización versiones en borrador o devueltas');
         const dto = toDto(v);
@@ -1117,8 +1119,10 @@ export class QuotesController {
         await assertOnlyApprovedScenario(tx, v);
         auto = autoApproval(rules, v);
         // A rule approval is a formal policy exception (CLAUDE.md): recorded as its own review, audited.
-        return auto
-          ? { status: 'APPROVED', decision: 'APPROVED', comment: auto, reviewer: null }
+        if (auto) return { status: 'APPROVED', decision: 'APPROVED', comment: auto, reviewer: null };
+        // An approver who sends his own work signs it; another approver gives the second signature.
+        return hasOfficeRole(user, r.officeId, ['APPROVER'])
+          ? { status: 'IN_REVIEW', decision: 'APPROVED', comment: PREPARER_SIGNED }
           : { status: 'IN_REVIEW' };
       },
     );
@@ -1126,7 +1130,7 @@ export class QuotesController {
     return dto;
   }
 
-  /** US-071, US-073: an office approver who neither built nor quotes this version. */
+  /** US-071, US-073: one office approver's signature, or two when a signer prepared or corrected it. */
   @Post('quotes/:id/approve')
   async approve(
     @CurrentUser() user: AuthUser,
@@ -1134,7 +1138,6 @@ export class QuotesController {
     @Param('id', uuid) id: string,
     @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
   ) {
-    const rules = await approvalRules(this.prisma, user.agencyId);
     let final = true;
     const dto = await this.review(user, req, id, body.rowVersion, 'quote.approved', async (v, r, tx) => {
       this.assertReviewer(user, v, r);
@@ -1143,7 +1146,8 @@ export class QuotesController {
       const earlier = approvalsThisRound(v);
       if (earlier.some((x) => x.reviewerId === user.id))
         throw new ForbiddenException('Ya autorizaste esta versión; falta la firma de otra persona');
-      final = !needsTwoLevels(rules, v) || earlier.length >= 1;
+      const signers = [...earlier.map((x) => x.reviewerId), user.id];
+      final = signers.length >= signaturesNeeded(signers, preparerIds(v, r.assigneeId));
       return final
         ? { status: 'APPROVED', decision: 'APPROVED', comment: body.comment }
         : { status: 'IN_REVIEW', decision: 'APPROVED', comment: body.comment ?? 'Primera firma de dos' };
@@ -1162,7 +1166,8 @@ export class QuotesController {
   ) {
     const action = body.reject ? 'quote.rejected' : 'quote.rejected_for_changes';
     const dto = await this.review(user, req, id, body.rowVersion, action, (v, r) => {
-      this.assertReviewer(user, v, r);
+      // The approver correcting it hands it back to the quoter with his note.
+      if (!this.correcting(user, r, v)) this.assertReviewer(user, v, r);
       // shortcut: a rejection is a return whose comment starts with REJECTED_PREFIX; add a decision if it needs its own status.
       const comment = body.reject ? `${REJECTED_PREFIX}${body.comment}` : body.comment;
       return { status: 'RETURNED', decision: 'RETURNED', comment };
@@ -1190,6 +1195,62 @@ export class QuotesController {
     });
     void this.notifier.notify({ kind: 'RETURNED', versionId: id }, user.id);
     return dto;
+  }
+
+  /**
+   * The approver fixes a version himself (Will, 2026-11-23). In review, it goes back to editable;
+   * once approved, the approved one is frozen as superseded and a new version is opened from it.
+   * He edits until he signs and sends it ("Firmar y enviar") or returns it to the quoter; having
+   * corrected it, his signature then needs a second approver's.
+   */
+  @Post('quotes/:id/correct')
+  async correct(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Param('id', uuid) id: string,
+    @Body(new ZodPipe(ReviewQuote)) body: z.infer<typeof ReviewQuote>,
+  ) {
+    const comment = body.comment ? `${CORRECTION_PREFIX}: ${body.comment}` : CORRECTION_PREFIX;
+    const current = await this.prisma.quoteVersion.findUnique({ where: { id }, select: { status: true } });
+    if (current?.status !== 'APPROVED')
+      return this.review(user, req, id, body.rowVersion, 'quote.correction_started', (v, r) => {
+        this.assertReviewer(user, v, r);
+        return { status: 'RETURNED', decision: 'RETURNED', comment };
+      });
+    return this.prisma.$transaction(async (tx) => {
+      const v = await tx.quoteVersion.findUniqueOrThrow({ where: { id }, include: full });
+      const r = await this.request(tx, v.scenario.requestId, user);
+      this.assertReviewer(user, { ...v, status: 'IN_REVIEW' }, r);
+      if (r.status !== 'QUOTING')
+        throw new ForbiddenException('Solo se corrige con la solicitud en cotización');
+      const last = await this.latest(tx, v.scenarioId);
+      if (last.id !== id)
+        throw new ConflictException({ code: 'NOT_LATEST', message: 'Ya hay una versión más nueva' });
+      const { count } = await tx.quoteVersion.updateMany({
+        where: { id, rowVersion: body.rowVersion, status: 'APPROVED' },
+        data: { status: 'SUPERSEDED', rowVersion: { increment: 1 } },
+      });
+      if (!count) throw conflict();
+      const next = await copyVersion(tx, v, v.scenarioId, v.number + 1, user.id);
+      await tx.quoteReview.create({
+        data: {
+          versionId: next.id,
+          reviewerId: user.id,
+          decision: 'RETURNED',
+          comment,
+          calculationHash: snapshotHash(next),
+        },
+      });
+      await audit(tx, {
+        actorUserId: user.id,
+        action: 'quote.correction_started',
+        entityType: 'QuoteVersion',
+        entityId: next.id,
+        correlationId: req.correlationId,
+        diff: { from: id, status: { from: 'APPROVED', to: 'SUPERSEDED' }, number: next.number, comment },
+      });
+      return toDto(await tx.quoteVersion.findUniqueOrThrow({ where: { id: next.id }, include: full }));
+    });
   }
 
   /**
@@ -1443,8 +1504,6 @@ export class QuotesController {
   private assertReviewer(user: AuthUser, v: FullVersion, r: RequestRef) {
     if (!hasOfficeRole(user, r.officeId, ['APPROVER']))
       throw new ForbiddenException('Necesitas el privilegio "Autorizar viaje"');
-    if (v.createdById === user.id || r.assigneeId === user.id)
-      throw new ForbiddenException('No puedes autorizar una cotización que tú preparaste');
     if (v.status !== 'IN_REVIEW') throw new ForbiddenException('La versión no está en revisión');
   }
 

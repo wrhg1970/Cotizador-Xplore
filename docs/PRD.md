@@ -28,7 +28,7 @@ La información de solicitudes, versiones, costos y decisiones puede dispersarse
 ## 5. Personas y roles
 - **Solicitante/Asesor:** crea y consulta solicitudes de su oficina; ve estado y documentos autorizados.
 - **Cotizador:** asignado a solicitudes; crea escenarios, edita costes y prepara documentos.
-- **Aprobador:** revisa, aprueba o devuelve cotizaciones. No puede aprobar su propia cotización por defecto.
+- **Aprobador:** revisa, aprueba, corrige o devuelve cotizaciones. Si él la preparó o corrigió, su firma cuenta pero falta la de otro aprobador.
 - **Administrador de oficina:** asigna usuarios, consulta solicitudes de su oficina y gestiona parámetros permitidos.
 - **Administrador del sistema:** gestiona oficinas, roles, catálogos, reglas globales e integraciones.
 - **Auditor/Consulta (también Finanzas):** lectura de reportes, costos, Excel interno, bitácora y su CSV, sin crear ni editar. Para Finanzas con todas las oficinas, activar "Todas las oficinas" en la matriz de roles para Auditor.
@@ -77,8 +77,9 @@ El estado `QUOTE_APPROVED` aplica a la versión aprobada, no necesariamente al e
 
 ### F-04 Aprobaciones
 - Toda versión requiere aprobación antes de enviarse.
-- Aprobador puede aprobar o devolver con comentarios.
-- El creador/cotizador no aprueba su propia versión.
+- Aprobador puede aprobar, corregir o devolver con comentarios.
+- Excepción formal (Will, 2026-11-23): quien prepara o corrige una versión y tiene «Autorizar viaje» firma al enviarla, pero la aprobación final exige la firma de otro aprobador distinto. Nadie se autoriza solo lo que preparó.
+- «Corregir» una versión aprobada la congela (SUPERSEDED) y abre una versión nueva que vuelve a pasar por firmas.
 - Cualquier cambio material invalida aprobación.
 - Registrar usuario, fecha, versión, decisión, comentarios y hash/identificador de snapshot.
 
@@ -145,4 +146,4 @@ El estado `QUOTE_APPROVED` aplica a la versión aprobada, no necesariamente al e
 Cuatro alertas con umbral en días configurable en Administración (0 = apagada): solicitud enviada sin cotización en autorización (al cotizador asignado o, sin asignar, a los administradores de la oficina), cotización en autorización (a los autorizadores de la oficina que no la armaron), propuesta enviada sin respuesta (ejecutivo y cotizador) y pagos de los alumnos por vencer según el plan de la versión ganada (ejecutivo y cotizador). Se ven en Mi trabajo y llegan en un correo diario sin precios.
 
 ## Reglas de autorización (2026-10-28)
-Excepción formal a la aprobación manual, configurada solo por el administrador del sistema y auditada: si "Autorizar automáticamente" está activo, una versión que se manda a autorizar con margen efectivo (comisión del grupo ÷ precio del grupo) igual o mayor al mínimo y total del grupo en MXN igual o menor al tope queda autorizada sola, con una revisión "Regla automática" que dice qué regla aplicó. Versiones en otra moneda sin tipo de cambio a MXN nunca califican. Con margen menor al umbral de "dos firmas", la autorización necesita a dos autorizadores distintos (la primera firma deja la versión en revisión). Por defecto todo está apagado.
+Excepción formal a la aprobación manual, configurada solo por el administrador del sistema y auditada: si "Autorizar automáticamente" está activo, una versión que se manda a autorizar con margen efectivo (comisión del grupo ÷ precio del grupo) igual o mayor al mínimo y total del grupo en MXN igual o menor al tope queda autorizada sola, con una revisión "Regla automática" que dice qué regla aplicó. Versiones en otra moneda sin tipo de cambio a MXN nunca califican. La doble firma por margen se retiró el 2026-11-23: ahora la doble firma depende de quién preparó o corrigió la versión (F-04). Por defecto todo está apagado.

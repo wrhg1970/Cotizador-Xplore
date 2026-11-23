@@ -376,7 +376,7 @@ describe('authorization (US-071..076)', () => {
       .set('Cookie', c.quoter)
       .send({ rowVersion: s.body.rowVersion })
       .expect(403);
-    await act(c.quoter, v.id, 'approve', { rowVersion: s.body.rowVersion }).expect(403); // own work
+    await act(c.quoter, v.id, 'approve', { rowVersion: s.body.rowVersion }).expect(403); // quoter without the approver role
     await act(c.adminA, v.id, 'approve', { rowVersion: s.body.rowVersion }).expect(403); // no privilege
     const a = await act(c.approver, v.id, 'approve', { rowVersion: s.body.rowVersion, comment: 'OK' }).expect(
       201,
