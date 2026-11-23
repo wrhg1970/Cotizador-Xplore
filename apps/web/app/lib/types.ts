@@ -315,6 +315,9 @@ export interface ScenarioDto {
 export const isPicked = (s: ScenarioDto) =>
   s.versions.some((v) => v.status === 'APPROVED' || v.status === 'SENT');
 
+/** Tooltip on Duplicar while the scenario is approved (the API refuses it too). */
+export const DUP_LOCKED = 'Revoca la aprobación antes de duplicar';
+
 export const QUOTE_STATUS_LABEL: Record<QuoteVersionStatus, string> = {
   DRAFT: 'Borrador',
   IN_REVIEW: 'En revisión',
