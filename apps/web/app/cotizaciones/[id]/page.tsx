@@ -25,6 +25,7 @@ import {
   fmtDate,
   fmtDateTime,
   isAuthorized,
+  DUP_LOCKED,
   isPicked,
   PENDING_LEGEND,
   SHEET_BLOCKS,
@@ -116,6 +117,8 @@ export default function QuoteEditorPage() {
   const load = useCallback((v: QuoteDto) => {
     // Every save or step adds audit events: keep the timeline in step.
     api<TimelineData>(`/requests/${v.requestId}/timeline`).then(setTimeline, () => undefined);
+    // Scenario chips follow every step too: a revoked approval stops showing green (Will, 2026-11-23).
+    api<ScenarioDto[]>(`/requests/${v.requestId}/scenarios`).then(setScenarios, () => setScenarios([]));
     setQ(v);
     setDraft(v);
     setMarginPct(toPct(v.targetMarginRate));
@@ -131,7 +134,6 @@ export default function QuoteEditorPage() {
     api<QuoteDto>(`/quotes/${id}`).then(
       (v) => {
         load(v);
-        api<ScenarioDto[]>(`/requests/${v.requestId}/scenarios`).then(setScenarios, () => setScenarios([]));
         return api<TravelRequestDto>(`/requests/${v.requestId}`).then(setReq);
       },
       (e) => setError(errorText(e)),
@@ -277,6 +279,9 @@ export default function QuoteEditorPage() {
   const fileName = `${req?.folio ?? 'cotizacion'}-${q.scenarioName}-v${q.number}`.replace(/[^\w.-]+/g, '-');
   // Only one approved scenario per request: another approved or sent one blocks this one (the API refuses too).
   const pickedElsewhere = scenarios.find((s) => s.id !== q.scenarioId && isPicked(s));
+  const approvedHere = !!scenarios
+    .find((s) => s.id === q.scenarioId)
+    ?.versions.some((v) => v.status === 'APPROVED');
   const toApproval = () => {
     setFlowTab('autorizacion');
     document.getElementById('autorizacion')?.scrollIntoView({ behavior: 'smooth' });
@@ -472,8 +477,9 @@ export default function QuoteEditorPage() {
                   type="button"
                   className="ib"
                   onClick={() => void duplicatePlus5()}
-                  aria-label="Duplicar escenario (+5 estudiantes)"
-                  data-tip="Duplicar escenario (+5 estudiantes)"
+                  disabled={approvedHere}
+                  aria-label={approvedHere ? DUP_LOCKED : 'Duplicar escenario (+5 estudiantes)'}
+                  data-tip={approvedHere ? DUP_LOCKED : 'Duplicar escenario (+5 estudiantes)'}
                 >
                   <Icon name="copy" />
                 </button>

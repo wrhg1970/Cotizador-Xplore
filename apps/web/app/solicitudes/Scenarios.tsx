@@ -6,6 +6,7 @@ import { type FormEvent, Fragment, useCallback, useEffect, useState } from 'reac
 import { CurrencyCode } from '@ee/contracts';
 import { api, errorText } from '../lib/api';
 import {
+  DUP_LOCKED,
   isPicked,
   QUOTE_STATUS_LABEL,
   type QuoteDto,
@@ -326,6 +327,8 @@ function Comparison({
                         <button
                           type="button"
                           className="secondary"
+                          disabled={s.versions.some((x) => x.status === 'APPROVED')}
+                          title={s.versions.some((x) => x.status === 'APPROVED') ? DUP_LOCKED : undefined}
                           onClick={() => {
                             const name = window
                               .prompt('Nombre del nuevo escenario:', `${s.name} (copia)`)
