@@ -24,6 +24,7 @@ import {
   CHANNEL_LABEL,
   fmtDate,
   fmtDateTime,
+  QUOTE_STATUS_LABEL,
   isAuthorized,
   isPicked,
   PENDING_LEGEND,
@@ -88,6 +89,25 @@ const BLOCK_TABS: { category: BlockTab; title: string }[] = [
 
 /** Same marker as the API's signatures.ts: an approver opened a correction of this version. */
 const CORRECTION_PREFIX = 'En corrección por el autorizador';
+const PREPARER_SIGNED = 'Firma de quien la preparó';
+
+const reviewVerb = (r: QuoteDto['reviews'][number]) =>
+  r.decision === 'APPROVED' ? 'Autorizó' : r.comment?.startsWith(CORRECTION_PREFIX) ? 'Corrigió' : 'Devolvió';
+
+/** Same rule as the API's signatures.ts: two signatures once whoever prepared or corrected it signs. */
+function signatureCount(q: QuoteDto, assigneeId: string | undefined) {
+  const preparers = new Set([q.createdById, assigneeId]);
+  for (const r of q.reviews)
+    if (
+      r.comment === PREPARER_SIGNED ||
+      (r.decision === 'RETURNED' && r.comment?.startsWith(CORRECTION_PREFIX))
+    )
+      preparers.add(r.reviewerId ?? undefined);
+  const lastReturn = q.reviews.findLastIndex((r) => r.decision === 'RETURNED');
+  const signers = q.reviews.slice(lastReturn + 1).filter((r) => r.decision === 'APPROVED');
+  const needed = signers.some((r) => r.reviewerId && preparers.has(r.reviewerId)) ? 2 : 1;
+  return { given: Math.min(signers.length, needed), needed };
+}
 
 export default function QuoteEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -288,6 +308,61 @@ export default function QuoteEditorPage() {
     flowTab ??
     (q.status === 'APPROVED' && works ? 'envio' : q.deliveries.length > 0 ? 'expediente' : 'autorizacion');
   const approval = [...q.reviews].reverse().find((r) => r.decision === 'APPROVED');
+  const returnWithComment = () => {
+    const comment = window.prompt('Motivo de la devolución (obligatorio):')?.trim();
+    if (comment) void act('return', { comment });
+  };
+  const sig = signatureCount(q, req?.assignee?.id);
+  // Will (2026-11-23): the authorization state, last step and his buttons at the top, not at the bottom.
+  const authStrip = (
+    <div className="auth-strip" role="status" aria-label="Estado de autorización">
+      <strong>Autorización</strong>
+      <span className={`pill${q.status === 'RETURNED' ? ' warn' : q.status === 'APPROVED' ? ' ok' : ''}`}>
+        {QUOTE_STATUS_LABEL[q.status]}
+        {['IN_REVIEW', 'APPROVED'].includes(q.status) && ` · Firmas ${sig.given}/${sig.needed}`}
+      </span>
+      <span className="last">
+        {lastReview ? (
+          <>
+            {reviewVerb(lastReview)} · {lastReview.reviewer} · {fmtDateTime(lastReview.at)}
+            {lastReview.comment && <> — «{lastReview.comment}»</>}
+          </>
+        ) : (
+          'Sin movimientos de autorización'
+        )}
+        {q.reviews.length > 0 && (
+          <>
+            {' · '}
+            <button type="button" className="link" onClick={toApproval}>
+              Historial ({q.reviews.length})
+            </button>
+          </>
+        )}
+      </span>
+      <span className="row">
+        {(works || correcting) && !pickedElsewhere && ['DRAFT', 'RETURNED'].includes(q.status) && (
+          <button type="button" onClick={() => void act('submit')}>
+            {approver ? 'Firmar y enviar a autorización' : 'Enviar a autorización'}
+          </button>
+        )}
+        {approver && q.status === 'IN_REVIEW' && !pickedElsewhere && !signedByMe && (
+          <button type="button" onClick={() => void act('approve')}>
+            Aprobar
+          </button>
+        )}
+        {approver && ['IN_REVIEW', 'APPROVED'].includes(q.status) && (
+          <button type="button" className="secondary" onClick={() => void correct()}>
+            Corregir
+          </button>
+        )}
+        {approver && q.status === 'IN_REVIEW' && (
+          <button type="button" className="danger" onClick={returnWithComment}>
+            Devolver
+          </button>
+        )}
+      </span>
+    </div>
+  );
   const FLOW_LABEL: Record<FlowTab, string> = {
     autorizacion: 'Autorización',
     envio: 'Envío al colegio',
@@ -555,6 +630,7 @@ export default function QuoteEditorPage() {
         role={role}
         optionCount={optionCount}
         eventCount={eventCount}
+        authStrip={authStrip}
         onStage={(i) => {
           if (i === 0) router.push(`/solicitudes/${q.requestId}`);
           else if (i === 1) setTab('hoja');
@@ -1260,11 +1336,6 @@ export default function QuoteEditorPage() {
                   este no se puede enviar a autorización ni autorizar mientras aquel siga aprobado.
                 </p>
               )}
-              {(works || correcting) && !pickedElsewhere && ['DRAFT', 'RETURNED'].includes(q.status) && (
-                <button onClick={() => void act('submit')}>
-                  {approver ? 'Firmar y enviar a autorización' : 'Enviar a autorización'}
-                </button>
-              )}
               {correcting && (
                 <button
                   className="secondary"
@@ -1274,11 +1345,6 @@ export default function QuoteEditorPage() {
                   }}
                 >
                   Devolver al cotizador
-                </button>
-              )}
-              {approver && q.status === 'APPROVED' && (
-                <button className="secondary" onClick={() => void correct()}>
-                  Corregir
                 </button>
               )}
               {approver && q.status === 'APPROVED' && (
@@ -1295,25 +1361,6 @@ export default function QuoteEditorPage() {
                 >
                   Revocar aprobación
                 </button>
-              )}
-              {approver && q.status === 'IN_REVIEW' && (
-                <>
-                  {!pickedElsewhere && !signedByMe && (
-                    <button onClick={() => void act('approve')}>Autorizar viaje</button>
-                  )}
-                  <button className="secondary" onClick={() => void correct()}>
-                    Corregir
-                  </button>
-                  <button
-                    className="danger"
-                    onClick={() => {
-                      const comment = window.prompt('Motivo de la devolución (obligatorio):')?.trim();
-                      if (comment) void act('return', { comment });
-                    }}
-                  >
-                    Devolver con comentarios
-                  </button>
-                </>
               )}
               {works && (
                 <button
@@ -1339,12 +1386,7 @@ export default function QuoteEditorPage() {
               <ol className="timeline">
                 {q.reviews.map((r, i) => (
                   <li key={i}>
-                    {r.decision === 'APPROVED'
-                      ? 'Autorizó'
-                      : r.comment?.startsWith(CORRECTION_PREFIX)
-                        ? 'Corrigió'
-                        : 'Devolvió'}{' '}
-                    · {r.reviewer} <span className="muted">{fmtDateTime(r.at)}</span>
+                    {reviewVerb(r)} · {r.reviewer} <span className="muted">{fmtDateTime(r.at)}</span>
                     {r.comment && <p style={{ margin: '4px 0 0' }}>{r.comment}</p>}
                   </li>
                 ))}

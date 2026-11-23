@@ -76,12 +76,21 @@ test('approver corrects a quote, signs it and a second approver authorizes it', 
   await expect(aur.getByRole('button', { name: 'Devolver al cotizador' })).toBeVisible();
   await aur.getByRole('button', { name: 'Firmar y enviar a autorización' }).click();
   await expect(aur.locator('.badge')).toHaveText('En revisión');
-  await expect(aur.getByRole('button', { name: 'Autorizar viaje' })).toHaveCount(0); // already signed
+  await expect(aur.getByRole('button', { name: 'Aprobar', exact: true })).toHaveCount(0); // already signed
+  // Will, 2026-11-23: the state, signatures and last step sit in the header, no scrolling.
+  const strip = aur.getByRole('status', { name: 'Estado de autorización' });
+  await expect(strip).toContainText('En revisión · Firmas 1/2');
+  await expect(strip).toContainText('Autorizó · Aurora Autoriza');
 
   // The tray shows the missing signature; Beto gives it.
   const bet = await pageFor(beto.cookie);
   await bet.goto('/aprobaciones');
   await expect(bet.getByRole('row', { name: new RegExp(req.folio) })).toContainText('Firmas 1/2');
+  await bet.goto(`/cotizaciones/${version.id}`);
+  const betStrip = bet.getByRole('status', { name: 'Estado de autorización' });
+  await expect(betStrip.getByRole('button', { name: 'Aprobar', exact: true })).toBeVisible();
+  await expect(betStrip.getByRole('button', { name: 'Devolver' })).toBeVisible();
+  await bet.screenshot({ path: 'test-results/estado-arriba-autorizador.png' });
   await bet.goto(`/aprobaciones/${req.id}`);
   const betCard = bet.getByRole('region', { name: 'Opción 1 v1' });
   await expect(betCard).toContainText('Aurora Autoriza (la preparó). Falta la firma de otro autorizador');

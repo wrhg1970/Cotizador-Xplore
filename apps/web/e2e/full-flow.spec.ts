@@ -70,7 +70,7 @@ test('full flow: login, quote, authorize, send and win', async ({ browser, page 
   // 4. Approver authorizes.
   const apr = await as(browser, approver.cookie);
   await apr.goto(quoteUrl);
-  await apr.getByRole('button', { name: 'Autorizar viaje' }).click();
+  await apr.getByRole('button', { name: 'Aprobar', exact: true }).click();
   await expect(apr).toHaveURL(/\/solicitudes\//);
   await expect(apr.getByText('✓ Cotización aprobada')).toBeVisible();
 
