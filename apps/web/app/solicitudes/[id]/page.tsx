@@ -419,14 +419,10 @@ export default function RequestDetailPage() {
                   </dd>
                 </>
               )}
-              {r.wetravelUrl && (
-                <>
-                  <dt>Pagado en WeTravel</dt>
-                  <dd>
-                    <WeTravelPayments requestId={r.id} />
-                  </dd>
-                </>
-              )}
+              <dt>Saldos en WeTravel</dt>
+              <dd>
+                <WeTravelPayments requestId={r.id} />
+              </dd>
             </>
           )}
           {r.lostReason && (

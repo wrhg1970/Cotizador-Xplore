@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PaymentLinkBody, WeTravel } from '../src/integrations/wetravel.js';
 import {
   itineraryDays,
-  sumPayments,
+  orderBalance,
+  studentNames,
   toTrip,
   WeTravelError,
   wetravelReason,
@@ -18,10 +19,26 @@ class FakeWeTravel implements WeTravel {
     const uuid = `wt-${uniq()}`;
     return { uuid, checkoutUrl: `https://wetravel.example/checkout/${uuid}` };
   }
-  async linkPayments(uuid: string) {
-    if (this.fail) throw new WeTravelError(500, 'WeTravel respondió 500 al leer los pagos');
-    this.read.push(uuid);
-    return { collected: { MXN: 1000000 }, payments: 2, payers: 2, lastPaymentAt: '2026-11-01T10:00:00Z' };
+  async linkTrip(uuid: string) {
+    if (this.fail) throw new WeTravelError(400, 'WeTravel respondió 400 al leer la liga de pago');
+    return `trip-of-${uuid}`;
+  }
+  async tripBalances(tripUuid: string) {
+    if (this.fail) throw new WeTravelError(400, 'WeTravel respondió 400 al leer las reservas');
+    this.read.push(tripUuid);
+    return {
+      currency: 'USD',
+      orders: [
+        {
+          students: 'Ana Garza',
+          count: 1,
+          payer: 'Laura Garza',
+          price: 485000,
+          paid: 170000,
+          balance: 315000,
+        },
+      ],
+    };
   }
   read: string[] = [];
   queries: (string | undefined)[] = [];
@@ -178,49 +195,81 @@ describe('WeTravel not configured', () => {
   });
 });
 
-describe('payments read from WeTravel', () => {
-  it('sums payments minus refunds per currency and skips failed ones', () => {
+describe('student balances read from WeTravel', () => {
+  it('one row per order: active students, price, paid and balance that add up', () => {
     expect(
-      sumPayments([
-        {
-          amount: 500000,
-          currency: 'mxn',
-          status: 'processed',
-          buyer: { email: 'A@x.mx' },
-          created_at: '2026-11-01T00:00:00Z',
-        },
-        {
-          amount: 500000,
-          refunded_amount: 100000,
-          currency: 'MXN',
-          buyer: { email: 'a@x.mx' },
-          created_at: '2026-11-03T00:00:00Z',
-        },
-        { amount: 900000, currency: 'MXN', status: 'failed' },
-        { amount: 100, currency: 'USD' },
+      studentNames([
+        { first_name: 'Sofía', last_name: 'Cantú' },
+        { first_name: 'Mateo', last_name: 'Cantú' },
+        { first_name: 'Baja', last_name: 'Cantú', cancelled: true },
       ]),
+    ).toEqual(['Sofía y Mateo Cantú']);
+    expect(
+      studentNames([
+        { first_name: 'Ana', last_name: 'Garza' },
+        { first_name: 'Luis', last_name: 'Ríos' },
+      ]),
+    ).toEqual(['Ana Garza', 'Luis Ríos']);
+    expect(
+      orderBalance(
+        {
+          total_amount: 970000,
+          paid_amount: 200000,
+          already_paid: 240000,
+          options: [{ participants: [{ first_name: 'Ana', last_name: 'Garza' }] }],
+        },
+        'Laura Garza',
+      ),
     ).toEqual({
-      collected: { MXN: 900000, USD: 100 },
-      payments: 3,
-      payers: 1,
-      lastPaymentAt: '2026-11-03T00:00:00Z',
+      students: 'Ana Garza',
+      count: 1,
+      payer: 'Laura Garza',
+      price: 970000,
+      paid: 240000,
+      balance: 730000,
     });
+    // No already_paid: paid_amount; overpaid never shows a negative balance; no travelers: the buyer.
+    expect(orderBalance({ total_amount: 1000, paid_amount: 1500 }, 'Jorge')).toMatchObject({
+      students: 'Jorge',
+      paid: 1500,
+      balance: 0,
+    });
+    // Fully cancelled and settled orders are left out.
+    expect(
+      orderBalance(
+        { total_amount: 0, options: [{ participants: [{ first_name: 'X', cancelled: true }] }] },
+        'Y',
+      ),
+    ).toBeNull();
   });
 
-  it('shows the collected total to whoever sees the request, only once a link exists', async () => {
+  it('shows balances to whoever sees the request, from the linked trip or the payment link', async () => {
     const r = await wonRequest();
-    const pay = (cookie?: string) => {
-      const q = ctx.http().get(`/api/v1/requests/${r.id}/wetravel/payments`);
+    const get = (cookie?: string) => {
+      const q = ctx.http().get(`/api/v1/requests/${r.id}/wetravel/balances`);
       return cookie ? q.set('Cookie', cookie) : q;
     };
-    await pay(c.quoter).expect(404);
+    await get(c.quoter).expect(404);
     await link(c.quoter, r.version).expect(201);
-    const res = (await pay(c.quoter).expect(200)).body;
-    expect(res).toMatchObject({ collected: { MXN: 1000000 }, payments: 2 });
-    await pay(c.adminB).expect(404);
-    await pay().expect(401);
+    const res = (await get(c.quoter).expect(200)).body;
+    expect(res).toMatchObject({ currency: 'USD', orders: [{ students: 'Ana Garza', balance: 315000 }] });
+    expect(res.tripUuid).toMatch(/^trip-of-wt-/);
+    await prisma.quoteVersion.update({
+      where: { id: r.version },
+      data: {
+        wetravelTrip: {
+          uuid: '12345678',
+          title: 'Roma',
+          url: 'https://www.wetravel.com/trips/roma-12345678',
+        },
+      },
+    });
+    expect((await get(c.quoter).expect(200)).body.tripUuid).toBe('12345678');
+    expect(wt.read.at(-1)).toBe('12345678');
+    await get(c.adminB).expect(404);
+    await get().expect(401);
     wt.fail = true;
-    await pay(c.quoter).expect(502);
+    await get(c.quoter).expect(502);
     wt.fail = false;
   });
 });
