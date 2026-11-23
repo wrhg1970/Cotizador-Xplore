@@ -276,7 +276,14 @@ export interface QuoteDto {
   /** Price per student at 15/20/25/30/35 students; null like `totals`. */
   volumePrices: { participants: number; pricePerParticipant: string }[] | null;
   warnings: { code: string; message: string }[];
-  reviews: { decision: 'APPROVED' | 'RETURNED'; reviewer: string; comment: string | null; at: string }[];
+  reviews: {
+    decision: 'APPROVED' | 'RETURNED';
+    /** null when an Administración rule approved it. */
+    reviewerId: string | null;
+    reviewer: string;
+    comment: string | null;
+    at: string;
+  }[];
   deliveries: {
     recipients: string;
     channel: DeliveryChannel;

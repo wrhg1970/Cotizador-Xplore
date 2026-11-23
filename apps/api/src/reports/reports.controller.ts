@@ -20,6 +20,7 @@ import { canRecordOutcome } from '../requests/request-policy.js';
 import { ENV, type Env } from '../env.js';
 import { PRISMA } from '../prisma.service.js';
 import { engine } from '../quotes/quotes.controller.js';
+import { preparerIds, signaturesNeeded, signersThisRound } from '../quotes/signatures.js';
 import { groupMxn, reachedOf, shownVersion } from '../dashboard/dashboard.controller.js';
 import { ZodPipe } from '../zod.pipe.js';
 
@@ -80,7 +81,10 @@ export class ReportsController {
         lines: true,
         fxRates: true,
         createdBy: { select: { name: true } },
-        reviews: { orderBy: { createdAt: 'asc' }, select: { decision: true } },
+        reviews: {
+          orderBy: { createdAt: 'asc' },
+          select: { decision: true, reviewerId: true, comment: true },
+        },
         deliveries: {
           orderBy: { sentOn: 'desc' },
           take: 1,
@@ -120,7 +124,7 @@ export class ReportsController {
     return visible.map((v) => {
       const r = v.scenario.request;
       const t = calc(v);
-      const lastReturn = v.reviews.findLastIndex((x) => x.decision === 'RETURNED');
+      const signers = signersThisRound(v).map((x) => x.reviewerId);
       return {
         id: v.id,
         status: v.status,
@@ -154,8 +158,9 @@ export class ReportsController {
         ...(canSeeInternalCosts(user, r.officeId) && {
           marginRate: t && t.groupPrice.gt(0) ? t.groupMargin.div(t.groupPrice).toFixed(4) : null,
         }),
-        /** Signatures given since the last return; 1 while a two-signature version waits for the second. */
-        signatures: v.reviews.slice(lastReturn + 1).filter((x) => x.decision === 'APPROVED').length,
+        /** Signatures given since the last return, out of signaturesNeeded (2 once a preparer signed). */
+        signatures: signers.length,
+        signaturesNeeded: signaturesNeeded(signers, preparerIds(v, r.assigneeId)),
         currency: v.saleCurrency,
         preparedBy: v.createdBy.name,
         updatedAt: v.updatedAt.toISOString(),
@@ -170,12 +175,11 @@ export class ReportsController {
               ? 'HISTORY'
               : 'MANUAL',
         }),
-        // Same rule as QuotesController.assertReviewer, so the list only offers what will be accepted.
+        // Same rule as QuotesController.approve, so the list only offers what will be accepted.
         canApprove:
           v.status === 'IN_REVIEW' &&
           hasOfficeRole(user, r.officeId, ['APPROVER']) &&
-          v.createdById !== user.id &&
-          r.assigneeId !== user.id,
+          !signers.includes(user.id),
       };
     });
   }

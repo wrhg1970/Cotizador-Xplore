@@ -196,13 +196,15 @@ describe('global approvals and sent proposals', () => {
     const scenarios = (
       await api().get(`/api/v1/requests/${q.requestId}/scenarios`).set('Cookie', c.approver).expect(200)
     ).body as { preparedBy: string; policy: string }[];
-    expect(scenarios[0]).toMatchObject({ policy: 'Una firma de «Autorizar viaje»' });
+    expect(scenarios[0]).toMatchObject({
+      policy: 'Una firma de un autorizador; dos si firma quien la preparó o corrigió',
+    });
     expect(scenarios[0]!.preparedBy).toBeTruthy();
     await act(c.quoter, q.versionId, 'return', {
       rowVersion: q.rowVersion,
       comment: 'No',
       reject: true,
-    }).expect(403); // own work
+    }).expect(403); // not an approver
     const r = (
       await act(c.approver, q.versionId, 'return', {
         rowVersion: q.rowVersion,

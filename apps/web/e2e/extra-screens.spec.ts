@@ -73,7 +73,7 @@ test('approvals list, Kanban by stage and integrations status', async ({ browser
   await row.getByRole('link', { name: 'Dictaminar →' }).click();
   await expect(page.getByRole('heading', { name: /Comparador de diferencias/ })).toBeVisible();
   const card = page.getByRole('region', { name: 'Opción 1 v1' });
-  await expect(card).toContainText('Una firma de «Autorizar viaje»');
+  await expect(card).toContainText('Una firma de un autorizador');
   page.once('dialog', (d) => void d.accept('Rentabilidad verificada'));
   await card.getByRole('button', { name: 'Aprobar v1' }).click();
   await expect(page).toHaveURL(/\/solicitudes\//);

@@ -377,8 +377,8 @@ export const DEFAULT_ALERT_SETTINGS: AlertSettings = {
 
 const Rate01 = DecimalString.refine((r) => Number(r) >= 0 && Number(r) < 1, 'Entre 0 y 100%');
 /**
- * Authorization rules (Administración): auto-approve inside the limits, and require two different
- * approvers below a margin. Everything else follows the normal single approval.
+ * Authorization rules (Administración): auto-approve inside the limits. Everything else needs one
+ * approver's signature, or two when a signer prepared or corrected the quote (QuotesController.approve).
  */
 export const ApprovalRules = z.strictObject({
   autoApprove: z.boolean(),
@@ -386,8 +386,8 @@ export const ApprovalRules = z.strictObject({
   autoMinMarginRate: Rate01,
   /** Group total in MXN; versions in other currencies need their MXN rate to qualify. */
   autoMaxGroupMxn: DecimalString,
-  /** Below this margin two different approvers are needed; null turns it off. */
-  twoLevelBelowMarginRate: Rate01.nullable(),
+  /** Retired 2026-11-23 (two signatures now depend on who prepared the quote); kept so stored rules still parse. */
+  twoLevelBelowMarginRate: Rate01.nullable().optional(),
 });
 export type ApprovalRules = z.infer<typeof ApprovalRules>;
 /** Annual sales goal per office (V2 "Meta anual"), in MXN; key = office id. Offices without one have no goal. */
@@ -397,7 +397,6 @@ export const DEFAULT_APPROVAL_RULES: ApprovalRules = {
   autoApprove: false,
   autoMinMarginRate: '0.18',
   autoMaxGroupMxn: '500000',
-  twoLevelBelowMarginRate: null,
 };
 
 /** Registration + installments, per student; the schedule itself is computed by the engine. */

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_APPROVAL_RULES } from '@ee/contracts';
-import { autoApproval, full, needsTwoLevels, policyFor } from '../src/quotes/quotes.controller.js';
+import { autoApproval, full } from '../src/quotes/quotes.controller.js';
 import { loginAs, makeApp, makeOffice, makeUser, prisma, uniq } from './helpers.js';
 
 let ctx: Awaited<ReturnType<typeof makeApp>>;
@@ -98,15 +98,6 @@ describe('authorization rules', () => {
     expect(
       autoApproval(rules({ autoApprove: true, autoMinMarginRate: '0', autoMaxGroupMxn: '999999999' }), v),
     ).toBeNull();
-  });
-
-  it('asks for two approvers only below the margin', async () => {
-    const v = await version();
-    expect(needsTwoLevels(rules({ twoLevelBelowMarginRate: null }), v)).toBe(false);
-    expect(needsTwoLevels(rules({ twoLevelBelowMarginRate: '0.25' }), v)).toBe(true);
-    expect(needsTwoLevels(rules({ twoLevelBelowMarginRate: '0.15' }), v)).toBe(false);
-    expect(policyFor(rules({ twoLevelBelowMarginRate: '0.25' }), v)).toBe('Doble firma (margen < 25%)');
-    expect(policyFor(rules({ twoLevelBelowMarginRate: '0.15' }), v)).toBe('Una firma de «Autorizar viaje»');
   });
 
   it('only a system admin edits the rules; values are validated and audited', async () => {

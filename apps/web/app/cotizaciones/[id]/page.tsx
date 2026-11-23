@@ -86,6 +86,9 @@ const BLOCK_TABS: { category: BlockTab; title: string }[] = [
   ...SHEET_BLOCKS.slice(3),
 ];
 
+/** Same marker as the API's signatures.ts: an approver opened a correction of this version. */
+const CORRECTION_PREFIX = 'En corrección por el autorizador';
+
 export default function QuoteEditorPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -141,10 +144,17 @@ export default function QuoteEditorPage() {
 
   if (!q || !draft) return error ? <p className="error">{error}</p> : <p className="muted">Cargando…</p>;
 
+  // An approver who pressed "Corregir" edits it too, until he signs and sends it or hands it back.
+  const lastReview = q.reviews.at(-1);
+  const correcting =
+    ['DRAFT', 'RETURNED'].includes(q.status) &&
+    lastReview?.decision === 'RETURNED' &&
+    lastReview.reviewerId === me?.id &&
+    !!lastReview.comment?.startsWith(CORRECTION_PREFIX);
   const editable =
     ['DRAFT', 'RETURNED'].includes(q.status) &&
     req?.status === 'QUOTING' &&
-    (isOfficeAdmin(me, req.office.id) || me?.id === req.assignee?.id);
+    (isOfficeAdmin(me, req.office.id) || me?.id === req.assignee?.id || correcting);
   const set = (patch: Partial<QuoteDto>) => setDraft({ ...draft, ...patch });
   const setLine = (i: number, patch: Partial<QuoteLineDto>) =>
     set({ lines: draft.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
@@ -241,10 +251,29 @@ export default function QuoteEditorPage() {
     !!req &&
     !!me?.roles.some(
       (r) => r.role === 'SYSTEM_ADMIN' || (r.officeId === req.office.id && r.role === 'APPROVER'),
-    ) &&
-    me.id !== req.assignee?.id;
+    );
+  const lastReturn = q.reviews.findLastIndex((r) => r.decision === 'RETURNED');
+  const signedByMe = q.reviews
+    .slice(lastReturn + 1)
+    .some((r) => r.decision === 'APPROVED' && r.reviewerId === me?.id);
   const role: Role =
     me?.id === req?.assignee?.id ? 'quoter' : isAdmin ? 'admin' : approver ? 'approver' : 'viewer';
+  const correct = async () => {
+    const comment = window.prompt('Qué vas a corregir (opcional):')?.trim();
+    if (comment === undefined) return;
+    setError(null);
+    try {
+      const v = await api<QuoteDto>(`/quotes/${q.id}/correct`, {
+        method: 'POST',
+        body: { rowVersion: q.rowVersion, ...(comment ? { comment } : {}) },
+      });
+      // An approved one opens a new version; one in review stays the same version.
+      if (v.id !== q.id) return router.push(`/cotizaciones/${v.id}`);
+      load(v);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   const fileName = `${req?.folio ?? 'cotizacion'}-${q.scenarioName}-v${q.number}`.replace(/[^\w.-]+/g, '-');
   // Only one approved scenario per request: another approved or sent one blocks this one (the API refuses too).
   const pickedElsewhere = scenarios.find((s) => s.id !== q.scenarioId && isPicked(s));
@@ -1231,8 +1260,26 @@ export default function QuoteEditorPage() {
                   este no se puede enviar a autorización ni autorizar mientras aquel siga aprobado.
                 </p>
               )}
-              {works && !pickedElsewhere && ['DRAFT', 'RETURNED'].includes(q.status) && (
-                <button onClick={() => void act('submit')}>Enviar a autorización</button>
+              {(works || correcting) && !pickedElsewhere && ['DRAFT', 'RETURNED'].includes(q.status) && (
+                <button onClick={() => void act('submit')}>
+                  {approver ? 'Firmar y enviar a autorización' : 'Enviar a autorización'}
+                </button>
+              )}
+              {correcting && (
+                <button
+                  className="secondary"
+                  onClick={() => {
+                    const comment = window.prompt('Comentario para el cotizador (obligatorio):')?.trim();
+                    if (comment) void act('return', { comment });
+                  }}
+                >
+                  Devolver al cotizador
+                </button>
+              )}
+              {approver && q.status === 'APPROVED' && (
+                <button className="secondary" onClick={() => void correct()}>
+                  Corregir
+                </button>
               )}
               {approver && q.status === 'APPROVED' && (
                 <button
@@ -1251,7 +1298,12 @@ export default function QuoteEditorPage() {
               )}
               {approver && q.status === 'IN_REVIEW' && (
                 <>
-                  {!pickedElsewhere && <button onClick={() => void act('approve')}>Autorizar viaje</button>}
+                  {!pickedElsewhere && !signedByMe && (
+                    <button onClick={() => void act('approve')}>Autorizar viaje</button>
+                  )}
+                  <button className="secondary" onClick={() => void correct()}>
+                    Corregir
+                  </button>
                   <button
                     className="danger"
                     onClick={() => {
@@ -1287,8 +1339,12 @@ export default function QuoteEditorPage() {
               <ol className="timeline">
                 {q.reviews.map((r, i) => (
                   <li key={i}>
-                    {r.decision === 'APPROVED' ? 'Autorizó' : 'Devolvió'} · {r.reviewer}{' '}
-                    <span className="muted">{fmtDateTime(r.at)}</span>
+                    {r.decision === 'APPROVED'
+                      ? 'Autorizó'
+                      : r.comment?.startsWith(CORRECTION_PREFIX)
+                        ? 'Corrigió'
+                        : 'Devolvió'}{' '}
+                    · {r.reviewer} <span className="muted">{fmtDateTime(r.at)}</span>
                     {r.comment && <p style={{ margin: '4px 0 0' }}>{r.comment}</p>}
                   </li>
                 ))}

@@ -19,6 +19,7 @@ type Item = ScenarioDto & { preparedBy: string; policy: string };
 
 const FREQUENCY: Record<string, string> = { MONTHLY: 'mensual', BIWEEKLY: 'quincenal', WEEKLY: 'semanal' };
 const REJECTED_PREFIX = 'Rechazada: '; // same marker as the API's quotes controller
+const CORRECTION_PREFIX = 'En corrección por el autorizador'; // same marker as the API's signatures.ts
 const REVOKED_PREFIX = 'Aprobación revocada: ';
 
 /** Effective margin over price, after Finance's rounding; null while FX is missing. */
@@ -74,39 +75,38 @@ export default function DecisionPage() {
     void reload();
   }, [reload]);
 
-  // Same rule as the server (assertReviewer): office approver who neither quotes nor built it.
+  // Same rule as the server (assertReviewer): office approver; signing twice is refused by the API.
   const approver =
     !!req &&
     !!me?.roles.some(
       (r) => r.role === 'SYSTEM_ADMIN' || (r.officeId === req.office.id && r.role === 'APPROVER'),
-    ) &&
-    me.id !== req.assignee?.id;
+    );
+  /** Already signed in this round (since the last return), so no second signature from the same person. */
+  const signedByMe = (v: QuoteDto) => {
+    const last = v.reviews.findLastIndex((r) => r.decision === 'RETURNED');
+    return v.reviews.slice(last + 1).some((r) => r.decision === 'APPROVED' && r.reviewerId === me?.id);
+  };
 
-  async function decide(v: QuoteDto, kind: 'approve' | 'changes' | 'reject' | 'revoke') {
+  async function decide(v: QuoteDto, kind: 'approve' | 'return' | 'revoke' | 'correct') {
     const ask =
       kind === 'approve'
         ? 'Comentario para el registro (opcional):'
-        : kind === 'changes'
-          ? '¿Qué cambios necesita? (obligatorio)'
+        : kind === 'return'
+          ? 'Motivo de la devolución (obligatorio):'
           : kind === 'revoke'
             ? 'Motivo para revocar la aprobación (obligatorio):'
-            : 'Motivo del rechazo (obligatorio):';
+            : 'Qué vas a corregir (opcional):';
     const comment = window.prompt(ask)?.trim();
-    if (comment === undefined || (kind !== 'approve' && !comment)) return;
+    if (comment === undefined || ((kind === 'return' || kind === 'revoke') && !comment)) return;
     setError(null);
     setNotice(null);
     try {
-      const next = await api<QuoteDto>(
-        `/quotes/${v.id}/${kind === 'approve' || kind === 'revoke' ? kind : 'return'}`,
-        {
-          method: 'POST',
-          body: {
-            rowVersion: v.rowVersion,
-            ...(comment ? { comment } : {}),
-            ...(kind === 'reject' ? { reject: true } : {}),
-          },
-        },
-      );
+      const next = await api<QuoteDto>(`/quotes/${v.id}/${kind}`, {
+        method: 'POST',
+        body: { rowVersion: v.rowVersion, ...(comment ? { comment } : {}) },
+      });
+      // The approver edits it himself: same version in review, a new one if it was approved.
+      if (kind === 'correct') return router.push(`/cotizaciones/${next.id}`);
       // Fully approved (last signature): the request's ficha shows it on top (Will, 2026-11-10).
       if (kind === 'approve' && next.status === 'APPROVED') return router.push(`/solicitudes/${v.requestId}`);
       setNotice(
@@ -234,8 +234,8 @@ export default function DecisionPage() {
                 <div className="decision-head">
                   <div>
                     <div className="muted fine">
-                      Versión actual: v{v.number} · Elaboró: {s.preparedBy} ({req.office.name}) · Política
-                      aplicable: <strong>{s.policy}</strong>
+                      Versión actual: v{v.number} · Elaboró: {s.preparedBy} ({req.office.name}) ·{' '}
+                      <strong>{s.policy}</strong>
                     </div>
                     <h2>
                       <Link href={`/cotizaciones/${v.id}`}>{s.name}</Link>: {v.participants} participantes +{' '}
@@ -256,22 +256,27 @@ export default function DecisionPage() {
                     </div>
                   </div>
                   {approver && v.status === 'APPROVED' && (
-                    <button className="secondary" onClick={() => void decide(v, 'revoke')}>
-                      Revocar aprobación
-                    </button>
+                    <div className="row">
+                      <button className="changes" onClick={() => void decide(v, 'correct')}>
+                        Corregir
+                      </button>
+                      <button className="secondary" onClick={() => void decide(v, 'revoke')}>
+                        Revocar aprobación
+                      </button>
+                    </div>
                   )}
                   {approver && v.status === 'IN_REVIEW' && (
                     <div className="row">
-                      {!(pickedId && s.id !== pickedId) && (
+                      {!(pickedId && s.id !== pickedId) && !signedByMe(v) && (
                         <button className="approve" onClick={() => void decide(v, 'approve')}>
                           Aprobar v{v.number}
                         </button>
                       )}
-                      <button className="changes" onClick={() => void decide(v, 'changes')}>
-                        Solicitar cambios
+                      <button className="changes" onClick={() => void decide(v, 'correct')}>
+                        Corregir
                       </button>
-                      <button className="danger" onClick={() => void decide(v, 'reject')}>
-                        Rechazar
+                      <button className="danger" onClick={() => void decide(v, 'return')}>
+                        Devolver
                       </button>
                     </div>
                   )}
@@ -291,12 +296,16 @@ export default function DecisionPage() {
                             ? 'Rechazar'
                             : revoked
                               ? 'Revocar aprobación'
-                              : 'Solicitar cambios';
+                              : r.comment?.startsWith(CORRECTION_PREFIX)
+                                ? 'Corregir'
+                                : 'Devolver';
                       const comment = rejected
                         ? r.comment!.slice(REJECTED_PREFIX.length)
                         : revoked
                           ? r.comment!.slice(REVOKED_PREFIX.length)
-                          : r.comment;
+                          : r.comment?.startsWith(CORRECTION_PREFIX)
+                            ? r.comment.slice(CORRECTION_PREFIX.length).replace(/^: /, '')
+                            : r.comment;
                       return (
                         <li key={r.at}>
                           <span>
