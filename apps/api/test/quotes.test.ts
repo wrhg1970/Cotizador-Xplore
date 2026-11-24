@@ -429,14 +429,14 @@ describe('authorization (US-071..076)', () => {
     expect(ee.get('% Comisión (sobre el precio final)')).toBe(0.18);
     expect(ee.get('PRECIO FINAL (EUR)')).toBe(5129);
     expect(ee.get('Total del grupo')).toBe(51290);
-    expect(ee.get('Viáticos 16 días EE')).toBe(1600);
+    expect(ee.get('Viáticos 16 días Chaperón')).toBe(1600);
     expect(ee.get('SubTotal chaperones')).toBe(1700);
     expect(ee.get('Total chaperones')).toBe(1850);
     const lines = values('Conceptos');
     expect(lines).toContainEqual(['Por estudiante', 'Precio neto', 1, 3900, 'EUR', 3900, 'No', '', '']);
     expect(lines).toContainEqual([
       'Por chaperón EE',
-      'Viáticos 16 días EE',
+      'Viáticos 16 días Chaperón',
       16,
       50,
       'EUR',

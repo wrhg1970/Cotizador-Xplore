@@ -77,10 +77,10 @@ function headcount(q: QuoteInput, free: ReturnType<typeof gratuities>, l: QuoteI
 
 /**
  * Name shown where school and EE chaperone concepts sit together (hoja guardada, Excel):
- * "Seguro Escuela" / "Seguro EE" (Will, 2026-11-18). Stored descriptions stay as typed.
+ * "Seguro Escuela" / "Seguro Chaperón" (Will, 2026-11-18/23). Stored descriptions stay as typed.
  */
 export function chaperoneLabel(category: string, description: string) {
-  const who = category === 'PER_STAFF' ? 'EE' : category === 'PER_CHAPERONE' ? 'Escuela' : null;
+  const who = category === 'PER_STAFF' ? 'Chaperón' : category === 'PER_CHAPERONE' ? 'Escuela' : null;
   if (!who || plain(description).split(/\s+/).includes(plain(who))) return description;
   return `${description} ${who}`;
 }
