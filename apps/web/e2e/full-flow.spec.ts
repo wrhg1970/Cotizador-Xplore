@@ -54,7 +54,7 @@ test('full flow: login, quote, authorize, send and win', async ({ browser, page 
   await quo.goto(requestUrl);
   await quo.getByLabel('Nombre del escenario').fill('Opción 1');
   await quo.getByLabel('Moneda de venta').selectOption('EUR');
-  await quo.getByRole('button', { name: 'Nuevo escenario' }).click();
+  await quo.getByRole('button', { name: 'Crear escenario' }).click();
   await expect(quo).toHaveURL(/\/cotizaciones\//); // a new scenario opens its sheet
   await quo.getByLabel('Costo 1', { exact: true }).fill('4100');
   await quo.getByLabel('% Comisión (sobre el precio final)').fill('18');

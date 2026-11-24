@@ -30,6 +30,7 @@ export function Scenarios({
   const [items, setItems] = useState<ScenarioDto[] | null>(null);
   const [templates, setTemplates] = useState<QuoteTemplateDto[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const router = useRouter();
 
   const reload = useCallback(
@@ -79,14 +80,23 @@ export function Scenarios({
   }
 
   const picked = items?.find(isPicked);
+  // With no scenarios yet the form is the only thing to do, so it starts open.
+  const showForm = canWork && (adding || items?.length === 0);
 
   return (
     <section aria-labelledby="escenarios">
-      <h2 id="escenarios" style={{ marginTop: 0 }}>
-        Escenarios{items ? ` (${items.length})` : ''}
-      </h2>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 id="escenarios" style={{ margin: 0 }}>
+          Escenarios{items ? ` (${items.length})` : ''}
+        </h2>
+        {canWork && !!items?.length && (
+          <button type="button" aria-expanded={adding} onClick={() => setAdding(!adding)}>
+            {adding ? 'Cerrar' : '+ Nuevo escenario'}
+          </button>
+        )}
+      </div>
       {/* Above the comparison so a new option never means scrolling past every concept (Will, 2026-11-06). */}
-      {canWork && (
+      {showForm && (
         <form onSubmit={(e) => void create(e)} className="row scenario-new" aria-label="Nuevo escenario">
           <label>
             Nombre del escenario
@@ -121,7 +131,7 @@ export function Scenarios({
               </select>
             </label>
           )}
-          <button>Nuevo escenario</button>
+          <button>Crear escenario</button>
         </form>
       )}
       {error && (

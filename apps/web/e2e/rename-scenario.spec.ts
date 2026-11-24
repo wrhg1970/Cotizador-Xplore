@@ -30,7 +30,7 @@ test('renames the current scenario from its tab: Enter saves, Esc cancels', asyn
   const page = await ctx.newPage();
   await page.goto(`/solicitudes/${req.id}`);
   await page.getByLabel('Nombre del escenario').fill('Opción 1');
-  await page.getByRole('button', { name: 'Nuevo escenario' }).click();
+  await page.getByRole('button', { name: 'Crear escenario' }).click();
   await expect(page).toHaveURL(/\/cotizaciones\//);
 
   const bar = page.getByRole('navigation', { name: 'Escenarios de la solicitud' });

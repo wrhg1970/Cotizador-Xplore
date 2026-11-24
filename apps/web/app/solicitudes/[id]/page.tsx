@@ -27,11 +27,12 @@ interface Timeline {
   events: { action: string; actor: { id: string; name: string } | null; at: string }[];
   comments: { id: string; body: string; author: { id: string; name: string }; createdAt: string }[];
 }
-type Tab = 'escenarios' | 'equipo' | 'documentos' | 'bitacora';
+type Tab = 'escenarios' | 'datos' | 'equipo' | 'documentos' | 'bitacora';
 /** Old in-page anchors (#escenarios, #archivos…) keep working by opening the tab that holds them. */
 const HASH_TAB: Record<string, Tab> = {
   escenarios: 'escenarios',
   propuestas: 'escenarios',
+  datos: 'datos',
   equipo: 'equipo',
   archivos: 'documentos',
   documentos: 'documentos',
@@ -207,10 +208,36 @@ export default function RequestDetailPage() {
   const comments = tl?.comments.length ?? 0;
   const tabs: [Tab, string][] = [
     ...(r.status !== 'DRAFT' ? [['escenarios', quotes ? 'Escenarios' : 'Propuestas'] as [Tab, string]] : []),
+    ['datos', 'Datos del viaje'],
     ['equipo', 'Equipo'],
     ['documentos', 'Documentos'],
     ['bitacora', comments ? `Bitácora (${comments})` : 'Bitácora'],
   ];
+  const assignForm = (
+    <form
+      className="row"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void act('assign', { assigneeId: String(new FormData(e.currentTarget).get('assigneeId')) });
+      }}
+    >
+      <label>
+        Cotizador
+        <select name="assigneeId" required defaultValue={r.assignee?.id ?? ''}>
+          <option value="" disabled>
+            Selecciona…
+          </option>
+          {quoters.map((q) => (
+            <option key={q.id} value={q.id}>
+              {q.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button disabled={busy}>{r.assignee ? 'Reasignar' : 'Asignar'}</button>
+    </form>
+  );
+  const hasMore = (canAssign && !!r.assignee) || canArchive || canCancel;
   const current = tabs.some(([t]) => t === tab) ? tab! : tabs[0]![0];
   // Panels stay mounted (hidden) so forms keep what was typed when switching tabs.
   const panel = (t: Tab) => ({
@@ -222,17 +249,96 @@ export default function RequestDetailPage() {
 
   return (
     <div className="ficha">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h1 style={{ margin: 0 }}>
-          {r.folio} · {r.groupName}
-        </h1>
-        <span className={`badge st-${r.status === 'QUOTING' ? `q${r.stage}` : r.status.toLowerCase()}`}>
-          {requestLabel(r.status, r.stage)}
-          {archived ? ' · Archivada' : ''}
-        </span>
+      <div className="ficha-head">
+        <div className="row ficha-title">
+          <h1 style={{ margin: 0 }}>
+            {r.folio} · {r.groupName}
+          </h1>
+          <span className={`badge st-${r.status === 'QUOTING' ? `q${r.stage}` : r.status.toLowerCase()}`}>
+            {requestLabel(r.status, r.stage)}
+            {archived ? ' · Archivada' : ''}
+          </span>
+        </div>
+        <div className="row ficha-acts">
+          {canEdit && (
+            <Link className="button secondary" href={`/solicitudes/${r.id}/editar`}>
+              Editar
+            </Link>
+          )}
+          {canSubmit && (
+            <button disabled={busy} onClick={() => act('submit', {})}>
+              Enviar a cotización
+            </button>
+          )}
+          {/* The first assignment is the next step, so it stays in sight; reassigning goes under "Más". */}
+          {canAssign && !r.assignee && assignForm}
+          {hasMore && (
+            <details className="cfg-more ficha-more">
+              <summary className="button secondary">⋯ Más</summary>
+              <div className="card">
+                {canAssign && r.assignee && assignForm}
+                {canArchive && !archived && (
+                  <button className="secondary" disabled={busy} onClick={() => archiveAction(archiveRequest)}>
+                    Archivar
+                  </button>
+                )}
+                {canArchive && archived && (
+                  <>
+                    <button
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() => archiveAction(unarchiveRequest)}
+                    >
+                      Desarchivar
+                    </button>
+                    <button
+                      className="danger"
+                      disabled={busy}
+                      onClick={() => archiveAction(purgeRequest, true)}
+                    >
+                      Borrar definitivamente
+                    </button>
+                  </>
+                )}
+                {canCancel && (
+                  <button
+                    className="danger"
+                    disabled={busy}
+                    onClick={() => {
+                      const reason = window.prompt('Motivo de la cancelación (obligatorio):')?.trim();
+                      if (reason) void act('cancel', { reason });
+                    }}
+                  >
+                    Cancelar solicitud
+                  </button>
+                )}
+              </div>
+            </details>
+          )}
+        </div>
       </div>
-      <p className="muted" style={{ margin: '2px 0 6px' }}>
-        Responsable: {r.assignee?.name ?? 'sin asignar'} · Solicitante: {r.requester.name}
+      <p className="muted ficha-sum">
+        <span>
+          <b>
+            {r.city}, {r.countryCode}
+          </b>
+        </span>
+        <span>
+          <b>
+            {fmtDate(r.departureDate)} – {fmtDate(r.returnDate)}
+          </b>
+        </span>
+        <span>
+          <b>{r.participants}</b> part · {r.chaperones} chap · {r.staff} staff
+        </span>
+        <span>{r.office.name}</span>
+        <span>
+          Cotiza: <b>{r.assignee?.name ?? 'sin asignar'}</b>
+        </span>
+        <span>Solicita: {r.requester.name}</span>
+        <span>
+          Límite: <b>{fmtDate(r.dueDate)}</b>
+        </span>
       </p>
       {step !== null && (
         <ol className="stepper" aria-label="Avance de la solicitud">
@@ -262,113 +368,51 @@ export default function RequestDetailPage() {
         </p>
       )}
 
-      <div className="row" style={{ marginBottom: 16 }}>
-        {canEdit && (
-          <Link className="button secondary" href={`/solicitudes/${r.id}/editar`}>
-            Editar
-          </Link>
-        )}
-        {canSubmit && (
-          <button disabled={busy} onClick={() => act('submit', {})}>
-            Enviar a cotización
-          </button>
-        )}
-        {canAssign && (
-          <form
-            className="row"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void act('assign', { assigneeId: String(new FormData(e.currentTarget).get('assigneeId')) });
-            }}
-          >
-            <label>
-              Cotizador
-              <select name="assigneeId" required defaultValue={r.assignee?.id ?? ''}>
-                <option value="" disabled>
-                  Selecciona…
-                </option>
-                {quoters.map((q) => (
-                  <option key={q.id} value={q.id}>
-                    {q.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button disabled={busy}>{r.assignee ? 'Reasignar' : 'Asignar'}</button>
-          </form>
-        )}
-        {canRecordOutcome && (
-          <form
-            className="row"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void act('outcome', {
-                outcome: 'WON',
-                versionId: String(new FormData(e.currentTarget).get('versionId')),
-              });
-            }}
-          >
-            <label>
-              Propuesta vendida
-              {/* Remount once proposals load so the single sent option is preselected. */}
-              <select
-                key={sent.length}
-                name="versionId"
-                required
-                defaultValue={sent.length === 1 ? sent[0]!.versionId : ''}
-              >
-                <option value="" disabled>
-                  Selecciona…
-                </option>
-                {sent.map((p) => (
-                  <option key={p.versionId} value={p.versionId}>
-                    {p.scenarioName} · v{p.number}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button disabled={busy}>Vendida</button>
-            <button
-              type="button"
-              className="secondary"
-              disabled={busy}
-              onClick={() => {
-                const reason = window.prompt('¿Por qué no aceptó el cliente? (obligatorio)')?.trim();
-                if (reason) void act('outcome', { outcome: 'LOST', reason });
-              }}
+      {canRecordOutcome && (
+        <form
+          className="row"
+          style={{ marginBottom: 12 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void act('outcome', {
+              outcome: 'WON',
+              versionId: String(new FormData(e.currentTarget).get('versionId')),
+            });
+          }}
+        >
+          <label>
+            Propuesta vendida
+            {/* Remount once proposals load so the single sent option is preselected. */}
+            <select
+              key={sent.length}
+              name="versionId"
+              required
+              defaultValue={sent.length === 1 ? sent[0]!.versionId : ''}
             >
-              Perdida
-            </button>
-          </form>
-        )}
-        {canCancel && (
+              <option value="" disabled>
+                Selecciona…
+              </option>
+              {sent.map((p) => (
+                <option key={p.versionId} value={p.versionId}>
+                  {p.scenarioName} · v{p.number}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button disabled={busy}>Vendida</button>
           <button
-            className="danger"
+            type="button"
+            className="secondary"
             disabled={busy}
             onClick={() => {
-              const reason = window.prompt('Motivo de la cancelación (obligatorio):')?.trim();
-              if (reason) void act('cancel', { reason });
+              const reason = window.prompt('¿Por qué no aceptó el cliente? (obligatorio)')?.trim();
+              if (reason) void act('outcome', { outcome: 'LOST', reason });
             }}
           >
-            Cancelar solicitud
+            Perdida
           </button>
-        )}
-        {canArchive && !archived && (
-          <button className="secondary" disabled={busy} onClick={() => archiveAction(archiveRequest)}>
-            Archivar
-          </button>
-        )}
-        {canArchive && archived && (
-          <>
-            <button className="secondary" disabled={busy} onClick={() => archiveAction(unarchiveRequest)}>
-              Desarchivar
-            </button>
-            <button className="danger" disabled={busy} onClick={() => archiveAction(purgeRequest, true)}>
-              Borrar definitivamente
-            </button>
-          </>
-        )}
-      </div>
+        </form>
+      )}
 
       {quotes && ['QUOTING', 'SENT', 'WON', 'LOST'].includes(r.status) && (
         <ApprovedQuote
@@ -379,67 +423,69 @@ export default function RequestDetailPage() {
         />
       )}
 
-      <section className="card" aria-labelledby="datos">
-        <h2 id="datos" style={{ marginTop: 0 }}>
-          Datos
-        </h2>
-        <dl className="facts">
-          <RequestFactRows r={r} />
-          {r.status === 'WON' && (
-            <>
-              <dt>Propuesta vendida</dt>
-              <dd>{winner ? `${winner.scenarioName} · v${winner.number}` : 'Registrada'}</dd>
-              <dt>Liga de pago WeTravel</dt>
-              <dd>
-                {r.wetravelUrl ? (
-                  <a href={r.wetravelUrl} target="_blank" rel="noopener noreferrer">
-                    {r.wetravelUrl}
-                  </a>
-                ) : admin || me?.id === r.assignee?.id ? (
-                  <button type="button" className="secondary" disabled={busy} onClick={() => void wetravel()}>
-                    Crear liga de pago en WeTravel
-                  </button>
-                ) : (
-                  'Sin crear'
-                )}
-              </dd>
-              {(admin || me?.id === r.assignee?.id || me?.id === r.requester.id) && (
-                <>
-                  <dt>Recordatorio de pago</dt>
-                  <dd>
+      {(r.status === 'WON' || r.lostReason || r.cancelReason) && (
+        <section className="card" aria-label="Resultado">
+          <dl className="facts">
+            {r.status === 'WON' && (
+              <>
+                <dt>Propuesta vendida</dt>
+                <dd>{winner ? `${winner.scenarioName} · v${winner.number}` : 'Registrada'}</dd>
+                <dt>Liga de pago WeTravel</dt>
+                <dd>
+                  {r.wetravelUrl ? (
+                    <a href={r.wetravelUrl} target="_blank" rel="noopener noreferrer">
+                      {r.wetravelUrl}
+                    </a>
+                  ) : admin || me?.id === r.assignee?.id ? (
                     <button
                       type="button"
                       className="secondary"
                       disabled={busy}
-                      onClick={() => void paymentReminder()}
+                      onClick={() => void wetravel()}
                     >
-                      Enviar recordatorio de pago al colegio
-                    </button>{' '}
-                    <small className="muted">También sale solo, días antes de cada pago.</small>
-                  </dd>
-                </>
-              )}
-              <dt>Saldos en WeTravel</dt>
-              <dd>
-                <WeTravelPayments requestId={r.id} />
-              </dd>
-            </>
-          )}
-          {r.lostReason && (
-            <>
-              <dt>Motivo (perdida)</dt>
-              <dd>{r.lostReason}</dd>
-            </>
-          )}
-          {r.cancelReason && (
-            <>
-              <dt>Motivo de cancelación</dt>
-              <dd>{r.cancelReason}</dd>
-            </>
-          )}
-        </dl>
-        <RequestNotes r={r} />
-      </section>
+                      Crear liga de pago en WeTravel
+                    </button>
+                  ) : (
+                    'Sin crear'
+                  )}
+                </dd>
+                {(admin || me?.id === r.assignee?.id || me?.id === r.requester.id) && (
+                  <>
+                    <dt>Recordatorio de pago</dt>
+                    <dd>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => void paymentReminder()}
+                      >
+                        Enviar recordatorio de pago al colegio
+                      </button>{' '}
+                      <small className="muted">También sale solo, días antes de cada pago.</small>
+                    </dd>
+                  </>
+                )}
+                <dt>Saldos en WeTravel</dt>
+                <dd>
+                  <WeTravelPayments requestId={r.id} />
+                </dd>
+              </>
+            )}
+            {r.lostReason && (
+              <>
+                <dt>Motivo (perdida)</dt>
+                <dd>{r.lostReason}</dd>
+              </>
+            )}
+            {r.cancelReason && (
+              <>
+                <dt>Motivo de cancelación</dt>
+                <dd>{r.cancelReason}</dd>
+              </>
+            )}
+          </dl>
+        </section>
+      )}
 
       <div role="tablist" aria-label="Secciones de la solicitud" className="tabs">
         {tabs.map(([t, label], i) => (
@@ -482,6 +528,18 @@ export default function RequestDetailPage() {
           )}
         </div>
       )}
+
+      <div {...panel('datos')}>
+        <section className="card" aria-labelledby="datos">
+          <h2 id="datos" style={{ marginTop: 0 }}>
+            Datos
+          </h2>
+          <dl className="facts">
+            <RequestFactRows r={r} />
+          </dl>
+          <RequestNotes r={r} />
+        </section>
+      </div>
 
       <div {...panel('equipo')}>
         <div className="card">
