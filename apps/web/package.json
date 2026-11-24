@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@ee/db": "workspace:*",
-    "@playwright/test": "^1.64.1",
+    "@playwright/test": "^1.65.1",
     "@types/node": "^22.20.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0"
