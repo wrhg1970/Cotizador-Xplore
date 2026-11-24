@@ -4111,3 +4111,32 @@ article.proposal .pv-wt {
 .confirm-delete .row {
   margin-top: 8px;
 }
+/* Ficha de solicitud: key facts in one line, secondary actions under "⋯ Más" (Will, 2026-11-24, opción A). */
+.ficha-title {
+  align-items: center;
+  gap: 10px;
+}
+.ficha-acts {
+  align-items: center;
+  gap: 8px;
+}
+.ficha-sum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  margin: 4px 0 6px;
+  font-size: 0.82rem;
+}
+.ficha-sum b {
+  color: var(--text);
+  font-weight: 600;
+}
+.ficha-more > .card {
+  top: calc(100% + 6px);
+  min-width: 200px;
+  justify-items: stretch;
+}
+.ficha-more summary.button {
+  color: var(--text);
+  padding: 6px 12px;
+}

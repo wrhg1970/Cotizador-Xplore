@@ -52,6 +52,7 @@ test('advisor creates and submits; admin assigns; quoter sees it in Mis tareas',
   await expect(adv.locator('.badge')).toHaveText('Por asignar');
   const folio = (await adv.getByRole('heading', { level: 1 }).textContent())!.split(' · ')[0]!;
   expect(folio).toMatch(/^EE-\d{4}-/);
+  await adv.getByRole('tab', { name: 'Datos del viaje' }).click();
   await expect(adv.getByText('5,150.00 GBP por participante')).toBeVisible();
   await expect(adv.getByText('coord@colegio.example')).toBeVisible();
   await expect(adv.getByText('Seguro médico')).toBeVisible();

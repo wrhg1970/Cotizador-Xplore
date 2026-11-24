@@ -30,7 +30,7 @@ test('scenario comparison highlights differences and hides zero concepts', async
   const page = await ctx.newPage();
   await page.goto(`/solicitudes/${req.id}`);
   await page.getByLabel('Nombre del escenario').fill('Opción 1');
-  await page.getByRole('button', { name: 'Nuevo escenario' }).click();
+  await page.getByRole('button', { name: 'Crear escenario' }).click();
   await expect(page).toHaveURL(/\/cotizaciones\//);
   const costs: [string, number, string][] = [
     ['Conceptos por estudiante', 1, '2404'],

@@ -101,6 +101,7 @@ test('the request form keeps the trip specifications', async ({ browser }) => {
   await page.getByRole('button', { name: '+ Añadir campo' }).click();
   await page.getByRole('button', { name: 'Siguiente paso' }).click();
   await page.getByRole('button', { name: /Registrar solicitud/ }).click();
+  await page.getByRole('tab', { name: 'Datos del viaje' }).click();
   await expect(page.getByRole('heading', { name: 'Especificaciones del viaje' })).toBeVisible();
   await expect(page.getByText('Familias anfitrionas')).toBeVisible();
   await expect(page.getByText('Vuelos internacionales')).toBeVisible();
@@ -133,7 +134,7 @@ test('a hand-typed rate is saved for the missing currency and survives a reload'
   await page.goto(`/solicitudes/${req.id}`);
   await page.getByLabel('Nombre del escenario').fill('Opción 1');
   await page.getByLabel('Moneda de venta').selectOption('EUR');
-  await page.getByRole('button', { name: 'Nuevo escenario' }).click();
+  await page.getByRole('button', { name: 'Crear escenario' }).click();
   await expect(page).toHaveURL(/\/cotizaciones\//); // a new scenario opens its sheet
   await page.getByLabel('Moneda 1', { exact: true }).selectOption('USD');
   await page.getByLabel('Costo 1', { exact: true }).fill('1000');
