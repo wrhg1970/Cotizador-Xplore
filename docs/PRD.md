@@ -79,6 +79,7 @@ El estado `QUOTE_APPROVED` aplica a la versión aprobada, no necesariamente al e
 - Toda versión requiere aprobación antes de enviarse.
 - Aprobador puede aprobar, corregir o devolver con comentarios.
 - Excepción formal (Will, 2026-11-23): quien prepara o corrige una versión y tiene «Autorizar viaje» firma al enviarla, pero la aprobación final exige la firma de otro aprobador distinto. Nadie se autoriza solo lo que preparó.
+- Excepción formal (Will, 2026-11-24): el súper admin (administrador del sistema de Estudiantes Embajadores) completa el proceso él solo. Su «Firmar y aprobar» deja la versión aprobada aunque él la haya preparado o corregido, y su «Aprobar» basta en cualquier versión en revisión. Queda la revisión «Firma del súper admin» y la auditoría de siempre. Para todos los demás la regla anterior sigue igual.
 - «Corregir» una versión aprobada la congela (SUPERSEDED) y abre una versión nueva que vuelve a pasar por firmas.
 - Cualquier cambio material invalida aprobación.
 - Registrar usuario, fecha, versión, decisión, comentarios y hash/identificador de snapshot.

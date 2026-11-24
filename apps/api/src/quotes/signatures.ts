@@ -7,6 +7,8 @@ import type { QuoteReview } from '@ee/db';
 export const PREPARER_SIGNED = 'Firma de quien la preparó';
 /** An approver took a version in review (or a new copy of an approved one) to fix it himself; it stays editable for him until he returns or submits it. */
 export const CORRECTION_PREFIX = 'En corrección por el autorizador';
+/** Will (2026-11-24): the platform super admin's signature completes a version alone, even one he prepared or corrected. */
+export const SUPER_ADMIN_SIGNED = 'Firma del súper admin';
 
 type Review = Pick<QuoteReview, 'reviewerId' | 'decision' | 'comment'>;
 interface Signed {
@@ -32,9 +34,10 @@ export function signersThisRound<R extends Review>(v: { reviews: R[] }): R[] {
   return v.reviews.slice(lastReturn + 1).filter((x) => x.decision === 'APPROVED');
 }
 
-/** One signature, or two once a preparer is among the signers. */
-export function signaturesNeeded(signerIds: readonly (string | null)[], preparers: Set<string>): 1 | 2 {
-  return signerIds.some((id) => id !== null && preparers.has(id)) ? 2 : 1;
+/** One signature, or two once a preparer is among the signers; the super admin's always counts alone. */
+export function signaturesNeeded(signers: readonly Review[], preparers: Set<string>): 1 | 2 {
+  if (signers.some((s) => s.comment?.startsWith(SUPER_ADMIN_SIGNED))) return 1;
+  return signers.some((s) => s.reviewerId !== null && preparers.has(s.reviewerId)) ? 2 : 1;
 }
 
 /** True while this approver is correcting the version (he opened the correction and nobody moved it since). */
@@ -51,10 +54,7 @@ export function signatureSummary(
 ): string {
   const signers = signersThisRound(v);
   if (!signers.length) return 'Una firma de un autorizador; dos si firma quien la preparó o corrigió';
-  const needed = signaturesNeeded(
-    signers.map((s) => s.reviewerId),
-    preparers,
-  );
+  const needed = signaturesNeeded(signers, preparers);
   const names = signers.map((s) =>
     s.reviewerId === null
       ? 'regla de Administración'

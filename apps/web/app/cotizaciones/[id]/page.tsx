@@ -91,6 +91,7 @@ const BLOCK_TABS: { category: BlockTab; title: string }[] = [
 /** Same marker as the API's signatures.ts: an approver opened a correction of this version. */
 const CORRECTION_PREFIX = 'En corrección por el autorizador';
 const PREPARER_SIGNED = 'Firma de quien la preparó';
+const SUPER_ADMIN_SIGNED = 'Firma del súper admin';
 
 const reviewVerb = (r: QuoteDto['reviews'][number]) =>
   r.decision === 'APPROVED' ? 'Autorizó' : r.comment?.startsWith(CORRECTION_PREFIX) ? 'Corrigió' : 'Devolvió';
@@ -106,7 +107,11 @@ function signatureCount(q: QuoteDto, assigneeId: string | undefined) {
       preparers.add(r.reviewerId ?? undefined);
   const lastReturn = q.reviews.findLastIndex((r) => r.decision === 'RETURNED');
   const signers = q.reviews.slice(lastReturn + 1).filter((r) => r.decision === 'APPROVED');
-  const needed = signers.some((r) => r.reviewerId && preparers.has(r.reviewerId)) ? 2 : 1;
+  const needed =
+    !signers.some((r) => r.comment?.startsWith(SUPER_ADMIN_SIGNED)) &&
+    signers.some((r) => r.reviewerId && preparers.has(r.reviewerId))
+      ? 2
+      : 1;
   return { given: Math.min(signers.length, needed), needed };
 }
 
@@ -275,9 +280,10 @@ export default function QuoteEditorPage() {
       (r) => r.role === 'SYSTEM_ADMIN' || (r.officeId === req.office.id && r.role === 'APPROVER'),
     );
   const lastReturn = q.reviews.findLastIndex((r) => r.decision === 'RETURNED');
-  const signedByMe = q.reviews
-    .slice(lastReturn + 1)
-    .some((r) => r.decision === 'APPROVED' && r.reviewerId === me?.id);
+  // The super admin signs alone (API rule), so his earlier signature never blocks Aprobar.
+  const signedByMe =
+    !me?.platformAdmin &&
+    q.reviews.slice(lastReturn + 1).some((r) => r.decision === 'APPROVED' && r.reviewerId === me?.id);
   const role: Role =
     me?.id === req?.assignee?.id ? 'quoter' : isAdmin ? 'admin' : approver ? 'approver' : 'viewer';
   const correct = async () => {
@@ -347,7 +353,11 @@ export default function QuoteEditorPage() {
       <span className="row">
         {(works || correcting) && !pickedElsewhere && ['DRAFT', 'RETURNED'].includes(q.status) && (
           <button type="button" onClick={() => void act('submit')}>
-            {approver ? 'Firmar y enviar a autorización' : 'Enviar a autorización'}
+            {me?.platformAdmin
+              ? 'Firmar y aprobar'
+              : approver
+                ? 'Firmar y enviar a autorización'
+                : 'Enviar a autorización'}
           </button>
         )}
         {approver && q.status === 'IN_REVIEW' && !pickedElsewhere && !signedByMe && (
