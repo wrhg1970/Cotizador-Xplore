@@ -11,6 +11,7 @@ import {
   canSeeInternalCosts,
   exportScope,
   hasOfficeRole,
+  isPlatformAdmin,
   isSystemAdmin,
   officeScope,
   officesWithRole,
@@ -124,7 +125,8 @@ export class ReportsController {
     return visible.map((v) => {
       const r = v.scenario.request;
       const t = calc(v);
-      const signers = signersThisRound(v).map((x) => x.reviewerId);
+      const signed = signersThisRound(v);
+      const signers = signed.map((x) => x.reviewerId);
       return {
         id: v.id,
         status: v.status,
@@ -160,7 +162,7 @@ export class ReportsController {
         }),
         /** Signatures given since the last return, out of signaturesNeeded (2 once a preparer signed). */
         signatures: signers.length,
-        signaturesNeeded: signaturesNeeded(signers, preparerIds(v, r.assigneeId)),
+        signaturesNeeded: signaturesNeeded(signed, preparerIds(v, r.assigneeId)),
         currency: v.saleCurrency,
         preparedBy: v.createdBy.name,
         updatedAt: v.updatedAt.toISOString(),
@@ -179,7 +181,7 @@ export class ReportsController {
         canApprove:
           v.status === 'IN_REVIEW' &&
           hasOfficeRole(user, r.officeId, ['APPROVER']) &&
-          !signers.includes(user.id),
+          (isPlatformAdmin(user) || !signers.includes(user.id)),
       };
     });
   }

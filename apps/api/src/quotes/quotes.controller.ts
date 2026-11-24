@@ -68,7 +68,7 @@ import { parseEmails, proposalMail } from '../notify/client-mail.js';
 import { ENV, type Env } from '../env.js';
 import { hash as tokenHash } from './share.controller.js';
 import { PRISMA } from '../prisma.service.js';
-import { approvalLimitMxn, canExportInternalXlsx, hasOfficeRole } from '../auth/authz.js';
+import { approvalLimitMxn, canExportInternalXlsx, hasOfficeRole, isPlatformAdmin } from '../auth/authz.js';
 import { canView, canViewQuotes, canWorkQuotes, type RequestRef } from '../requests/request-policy.js';
 import { ZodPipe } from '../zod.pipe.js';
 import { quoteWorkbook } from './quote-xlsx.js';
@@ -80,6 +80,7 @@ import {
   preparerIds,
   signatureSummary,
   signaturesNeeded,
+  SUPER_ADMIN_SIGNED,
   signersThisRound,
 } from './signatures.js';
 import { approvalRules } from '../settings/settings.js';
@@ -1102,6 +1103,7 @@ export class QuotesController {
   ) {
     const rules = await approvalRules(this.prisma, user.agencyId);
     let auto: string | null = null;
+    let approvedAlone = false;
     const dto = await this.review(
       user,
       req,
@@ -1129,13 +1131,21 @@ export class QuotesController {
         auto = autoApproval(rules, v);
         // A rule approval is a formal policy exception (CLAUDE.md): recorded as its own review, audited.
         if (auto) return { status: 'APPROVED', decision: 'APPROVED', comment: auto, reviewer: null };
+        // Will (2026-11-24): the super admin completes the whole process alone; his signature is the approval.
+        if (isPlatformAdmin(user)) {
+          approvedAlone = true;
+          return { status: 'APPROVED', decision: 'APPROVED', comment: SUPER_ADMIN_SIGNED };
+        }
         // An approver who sends his own work signs it; another approver gives the second signature.
         return hasOfficeRole(user, r.officeId, ['APPROVER'])
           ? { status: 'IN_REVIEW', decision: 'APPROVED', comment: PREPARER_SIGNED }
           : { status: 'IN_REVIEW' };
       },
     );
-    void this.notifier.notify({ kind: auto ? 'APPROVED' : 'REVIEW_REQUESTED', versionId: id }, user.id);
+    void this.notifier.notify(
+      { kind: auto || approvedAlone ? 'APPROVED' : 'REVIEW_REQUESTED', versionId: id },
+      user.id,
+    );
     return dto;
   }
 
@@ -1153,12 +1163,17 @@ export class QuotesController {
       this.assertWithinLimit(user, v);
       await assertOnlyApprovedScenario(tx, v);
       const earlier = approvalsThisRound(v);
-      if (earlier.some((x) => x.reviewerId === user.id))
+      const sole = isPlatformAdmin(user);
+      if (!sole && earlier.some((x) => x.reviewerId === user.id))
         throw new ForbiddenException('Ya autorizaste esta versión; falta la firma de otra persona');
-      const signers = [...earlier.map((x) => x.reviewerId), user.id];
+      const comment = sole ? [SUPER_ADMIN_SIGNED, body.comment].filter(Boolean).join(': ') : body.comment;
+      const signers = [
+        ...earlier,
+        { reviewerId: user.id, decision: 'APPROVED' as const, comment: comment ?? null },
+      ];
       final = signers.length >= signaturesNeeded(signers, preparerIds(v, r.assigneeId));
       return final
-        ? { status: 'APPROVED', decision: 'APPROVED', comment: body.comment }
+        ? { status: 'APPROVED', decision: 'APPROVED', comment }
         : { status: 'IN_REVIEW', decision: 'APPROVED', comment: body.comment ?? 'Primera firma de dos' };
     });
     if (final) void this.notifier.notify({ kind: 'APPROVED', versionId: id }, user.id);

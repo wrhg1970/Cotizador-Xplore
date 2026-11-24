@@ -73,6 +73,7 @@ beforeAll(async () => {
     ['ana', ['APPROVER']],
     ['luis', ['APPROVER']],
     ['admin', ['OFFICE_ADMIN']],
+    ['superAdmin', ['SYSTEM_ADMIN', 'QUOTER']],
   ] as const) {
     const u = await makeUser(roles.map((role) => ({ officeId, role })));
     ids[key] = u.id;
@@ -195,5 +196,27 @@ describe('authorization signatures', () => {
       ).find((x) => x.id === v.id);
     expect(await row(c.ana!)).toMatchObject({ signatures: 1, signaturesNeeded: 2, canApprove: true });
     expect(await row(c.quoterApprover!)).toMatchObject({ canApprove: false });
+  });
+
+  it('the super admin prepares, signs and approves alone; his Aprobar always completes it', async () => {
+    const v = await ready('superAdmin');
+    const a = (await act(c.superAdmin!, v.id, 'submit', { rowVersion: v.rowVersion }).expect(201)).body as V;
+    expect(a.status).toBe('APPROVED');
+    expect(a.reviews).toEqual([expect.objectContaining({ comment: 'Firma del súper admin' })]);
+    // An approver who prepared it signed first: the super admin's signature completes it.
+    const w = await ready('quoterApprover');
+    const s = (await act(c.quoterApprover!, w.id, 'submit', { rowVersion: w.rowVersion }).expect(201))
+      .body as V;
+    const done = (await act(c.superAdmin!, w.id, 'approve', { rowVersion: s.rowVersion }).expect(201))
+      .body as V;
+    expect(done.status).toBe('APPROVED');
+  });
+
+  it('the super admin approves alone a version he corrected', async () => {
+    const v = await ready('quoter');
+    const s = (await act(c.quoter!, v.id, 'submit', { rowVersion: v.rowVersion }).expect(201)).body as V;
+    const k = (await act(c.superAdmin!, v.id, 'correct', { rowVersion: s.rowVersion }).expect(201)).body as V;
+    const a = (await act(c.superAdmin!, v.id, 'submit', { rowVersion: k.rowVersion }).expect(201)).body as V;
+    expect(a.status).toBe('APPROVED');
   });
 });
