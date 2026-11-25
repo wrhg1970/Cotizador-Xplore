@@ -81,6 +81,10 @@ test('Avión: added to the course or shown apart in its own currency', async ({ 
   await expect(box).toContainText('Curso');
   await expect(box).toContainText('3,000.00 CAD');
   await expect(box).toContainText('884.00 CAD');
+  // The live bar splits price and group total into course + plane (Will, 2026-11-25).
+  const bar = page.getByRole('region', { name: 'Totales del viaje' });
+  await expect(bar).toContainText('Curso 3,000.00 + Avión 884.00');
+  await expect(bar).toContainText('Curso 36,000.00 + Avión 10,608.00');
   await expect(page.getByRole('table', { name: 'Avión' })).toContainText('Costo aéreo del grupo');
   await expect(page.getByRole('table', { name: 'Avión' })).toContainText('Aeroméxico');
 
@@ -91,5 +95,6 @@ test('Avión: added to the course or shown apart in its own currency', async ({ 
   await expect(box).toContainText('Avión (aparte)');
   await expect(box).toContainText('650.00 USD');
   await expect(box).not.toContainText('3,884.00');
+  await expect(bar).not.toContainText('Curso 3,000.00');
   await ctx.close();
 });

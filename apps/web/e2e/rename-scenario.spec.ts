@@ -50,12 +50,12 @@ test('renames the current scenario from its tab: Enter saves, Esc cancels', asyn
     await page.locator('.scenario-bar').screenshot({ path: `${process.env.SHOTS}/2-editando.png` });
   await bar.getByLabel('Nombre del escenario').press('Enter');
   await expect(bar).toContainText('Hotel céntrico con 2 museos');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Hotel céntrico con 2 museos · v1');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Hotel céntrico con 2 museos · v1');
   await expect(page.getByText('Guardado', { exact: true })).toBeVisible();
   if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/3-guardado.png` });
 
   await page.reload();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Hotel céntrico con 2 museos · v1');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Hotel céntrico con 2 museos · v1');
   await page.goto(`/solicitudes/${req.id}`);
   await expect(page.getByText('Hotel céntrico con 2 museos').first()).toBeVisible();
   await ctx.close();

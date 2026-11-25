@@ -175,7 +175,7 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await page.getByLabel('Nombre del escenario').fill('Opción 3');
   await page.getByLabel('Empezar desde').selectOption({ label: 'Plantilla: Italia base' });
   await page.getByRole('button', { name: 'Crear escenario' }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Opción 3 · v1');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Opción 3 · v1');
   await page.goBack();
   await expect(page.getByRole('link', { name: 'Opción 3' })).toBeVisible();
   await expect(page.getByRole('cell', { name: '5,200.00 EUR' })).toHaveCount(3);

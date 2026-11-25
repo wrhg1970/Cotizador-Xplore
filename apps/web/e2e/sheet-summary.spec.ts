@@ -138,6 +138,9 @@ test('an approved version still switches concept tabs and folds blocks, with fie
   await ctx.addCookies([quoter.cookie]);
   const page = await ctx.newPage();
   await page.goto(`/cotizaciones/${v.id}`);
+  // Locked: the capture stays folded under the saved sheet until asked for.
+  await expect(page.locator('input[value="Precio neto"]')).toBeHidden();
+  await page.getByText(/Ver captura \(Grupo y precio y 2 conceptos\)/).click();
   await expect(page.locator('input[value="Precio neto"]')).toBeDisabled();
   const chaperonesTab = page.getByRole('tab', { name: /Chaperones EE/ });
   await chaperonesTab.click();

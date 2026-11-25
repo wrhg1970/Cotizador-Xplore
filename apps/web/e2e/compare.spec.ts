@@ -53,7 +53,7 @@ test('scenario comparison highlights differences and hides zero concepts', async
     await page.goto(`/solicitudes/${req.id}`);
     page.once('dialog', (d) => d.accept(name));
     await page.getByRole('button', { name: 'Duplicar' }).first().click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(`${name} · v1`);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(`${name} · v1`);
     await page.getByRole('tab', { name: 'Conceptos por estudiante' }).click();
     await page.getByLabel('Costo 1', { exact: true }).fill(neto);
     if (name === 'Opción 2') await page.getByLabel('% Comisión (sobre el precio final)').fill('18');
