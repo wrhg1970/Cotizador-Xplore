@@ -62,6 +62,10 @@ test('scenario comparison highlights differences and hides zero concepts', async
   }
   await page.goto(`/solicitudes/${req.id}`);
   const cmp = page.getByRole('table', { name: 'Comparar escenarios' });
+  // Groups start collapsed, with their subtotals only (Will, 2026-11-25).
+  await expect(cmp.getByRole('rowheader', { name: 'Precio neto' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Expandir todo' }).click();
+  await expect(page.getByRole('button', { name: 'Colapsar todo' })).toBeVisible();
   await expect(cmp.getByRole('row', { name: /^Precio neto/ })).toContainText('2,300.00−104.00');
   await expect(cmp.getByRole('row', { name: /^Precio \/ estudiante/ })).toContainText('3,099.00 EUR+109.00');
   await expect(cmp.getByRole('rowheader', { name: 'Transfer' })).toHaveCount(0);

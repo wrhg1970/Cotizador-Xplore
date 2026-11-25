@@ -323,6 +323,34 @@ export async function assertOnlyApprovedScenario(tx: Tx, v: FullVersion) {
     });
 }
 
+/**
+ * Once a scenario is approved, sent or sold, the others can't be opened, edited or duplicated
+ * until that approval is revoked (Will, 2026-11-25).
+ */
+export async function assertScenarioOpen(
+  db: Tx | PrismaClient,
+  requestId: string,
+  scenarioId: string | null, // null: a scenario about to be created
+) {
+  const picked = await db.quoteVersion.findFirst({
+    where: {
+      status: { in: ['APPROVED', 'SENT'] },
+      scenario: { requestId, ...(scenarioId ? { id: { not: scenarioId } } : {}) },
+    },
+    select: { scenario: { select: { name: true } } },
+  });
+  // A scenario that was itself approved or sent stays open (historic imports send every option).
+  const own =
+    picked &&
+    scenarioId &&
+    (await db.quoteVersion.count({ where: { scenarioId, status: { in: ['APPROVED', 'SENT'] } } }));
+  if (picked && !own)
+    throw new ConflictException({
+      code: 'SCENARIO_LOCKED',
+      message: `Ya está aprobado el escenario «${picked.scenario.name}»; solo se puede abrir ese. Revoca su aprobación para abrir, crear o duplicar otro.`,
+    });
+}
+
 /** Approvals given since the version last went back to the quoter, for the same calculation. */
 function approvalsThisRound(v: FullVersion) {
   const hash = snapshotHash(v);
@@ -670,6 +698,7 @@ export class QuotesController {
       const r = await tx.travelRequest.findUnique({ where: { id } });
       if (!r || !canViewQuotes(user, r)) throw new NotFoundException('Solicitud no encontrada');
       this.assertWork(user, r);
+      await assertScenarioOpen(tx, r.id, null);
       const template = body.templateId
         ? await tx.quoteTemplate.findFirst({
             where: { id: body.templateId, officeId: r.officeId, active: true },
@@ -754,6 +783,7 @@ export class QuotesController {
       if (!src) throw new NotFoundException('Escenario no encontrado');
       const r = await this.request(tx, src.requestId, user);
       this.assertWork(user, r);
+      await assertScenarioOpen(tx, r.id, id);
       // An approved scenario is copied only after its approval is revoked (Will, 2026-11-23).
       if (await tx.quoteVersion.count({ where: { scenarioId: id, status: 'APPROVED' } }))
         throw new ConflictException({
@@ -788,6 +818,7 @@ export class QuotesController {
       const scenario = await tx.quoteScenario.findUnique({ where: { id } });
       if (!scenario) throw new NotFoundException('Escenario no encontrado');
       this.assertWork(user, await this.request(tx, scenario.requestId, user));
+      await assertScenarioOpen(tx, scenario.requestId, id);
       const sent = await tx.quoteVersion.count({
         where: { scenarioId: id, OR: [{ status: 'SENT' }, { deliveries: { some: {} } }] },
       });
@@ -817,6 +848,7 @@ export class QuotesController {
       const scenario = await tx.quoteScenario.findUnique({ where: { id } });
       if (!scenario) throw new NotFoundException('Escenario no encontrado');
       this.assertWork(user, await this.request(tx, scenario.requestId, user));
+      await assertScenarioOpen(tx, scenario.requestId, id);
       const last = await this.latest(tx, id);
       if ((EDITABLE as readonly string[]).includes(last.status))
         throw new ConflictException({
@@ -906,6 +938,7 @@ export class QuotesController {
     });
     if (!v) throw new NotFoundException('Cotización no encontrada');
     await this.request(this.prisma, v.scenario.requestId, user);
+    await assertScenarioOpen(this.prisma, v.scenario.requestId, v.scenarioId);
     return toDto(v);
   }
 
@@ -915,6 +948,7 @@ export class QuotesController {
     const v = await this.prisma.quoteVersion.findUnique({ where: { id }, include: full });
     if (!v) throw new NotFoundException('Cotización no encontrada');
     const ref = await this.request(this.prisma, v.scenario.requestId, user);
+    await assertScenarioOpen(this.prisma, ref.id, v.scenarioId);
     if (!canExportInternalXlsx(user, ref.officeId))
       throw new ForbiddenException('Tu rol no tiene permiso para descargar el Excel interno');
     const r = await this.prisma.travelRequest.findUniqueOrThrow({ where: { id: ref.id } });
@@ -941,6 +975,7 @@ export class QuotesController {
       });
       if (!v) throw new NotFoundException('Cotización no encontrada');
       this.assertEditor(user, await this.request(tx, v.scenario.requestId, user), v);
+      await assertScenarioOpen(tx, v.scenario.requestId, v.scenarioId);
       if (!(EDITABLE as readonly string[]).includes(v.status))
         throw new ForbiddenException('Solo se editan versiones en borrador o devueltas');
       if (v.rowVersion !== body.rowVersion) throw conflict();

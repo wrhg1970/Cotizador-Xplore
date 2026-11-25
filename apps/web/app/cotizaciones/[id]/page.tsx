@@ -687,7 +687,9 @@ export default function QuoteEditorPage() {
         p={live}
         currency={draft.saleCurrency}
         label={`${q.scenarioName} (${draft.participants} est.${tripDays ? ` · ${tripDays} días` : ''})`}
-        options={scenarios.map((s) => ({ id: s.latest.id, name: s.name, active: s.id === q.scenarioId }))}
+        options={scenarios
+          .filter((s) => !pickedElsewhere || isPicked(s) || s.id === q.scenarioId)
+          .map((s) => ({ id: s.latest.id, name: s.name, active: s.id === q.scenarioId }))}
         dirty={dirty}
         saving={saving}
         error={error}

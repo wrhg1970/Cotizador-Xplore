@@ -89,7 +89,7 @@ export function Scenarios({
         <h2 id="escenarios" style={{ margin: 0 }}>
           Escenarios{items ? ` (${items.length})` : ''}
         </h2>
-        {canWork && !!items?.length && (
+        {canWork && !!items?.length && !picked && (
           <button type="button" aria-expanded={adding} onClick={() => setAdding(!adding)}>
             {adding ? 'Cerrar' : '+ Nuevo escenario'}
           </button>
@@ -141,8 +141,8 @@ export function Scenarios({
       )}
       {picked && (
         <p className="picked-note" role="status">
-          ✓ Escenario aprobado: <strong>{picked.name}</strong>. Solo puede haber uno por solicitud; los demás
-          no se pueden aprobar mientras siga aprobado.
+          ✓ Escenario aprobado: <strong>{picked.name}</strong>. Solo se puede abrir ese; para abrir, crear o
+          duplicar otro, revoca su aprobación.
         </p>
       )}
       {items?.length === 0 && <p className="muted">Aún no hay escenarios.</p>}
@@ -227,7 +227,8 @@ function Comparison({
 }) {
   const [hideZero, setHideZero] = useState(true);
   const [onlyDiff, setOnlyDiff] = useState(false);
-  const [closed, setClosed] = useState<Set<string>>(new Set());
+  // Groups start collapsed: only their subtotals show until opened (Will, 2026-11-25).
+  const [open, setOpen] = useState<Set<string>>(new Set());
   const ref = items.find((s) => s.id === pickedId) ?? items[0]!;
   const many = items.length > 1;
   const pk = (s: ScenarioDto) => (s.id === pickedId ? 'picked' : '');
@@ -247,7 +248,7 @@ function Comparison({
     items.some((s) => delta(get(s.latest), get(ref.latest)) !== null);
 
   const toggle = (key: string) =>
-    setClosed((c) => {
+    setOpen((c) => {
       const n = new Set(c);
       if (n.has(key)) n.delete(key);
       else n.add(key);
@@ -256,8 +257,8 @@ function Comparison({
   const section = (key: string, title: string, sub?: (v: QuoteDto) => number | null) => (
     <tr className="cmp-sec">
       <th scope="rowgroup">
-        <button type="button" className="link" aria-expanded={!closed.has(key)} onClick={() => toggle(key)}>
-          {closed.has(key) ? '▸' : '▾'} {title}
+        <button type="button" className="link" aria-expanded={open.has(key)} onClick={() => toggle(key)}>
+          {open.has(key) ? '▾' : '▸'} {title}
         </button>
       </th>
       {sub ? cells(sub) : items.map((s) => <td key={s.id} className={pk(s)} />)}
@@ -279,6 +280,8 @@ function Comparison({
       v.totals ? names.reduce((a, n) => a + (conceptTotal(v, b.category, n) ?? 0), 0) : null;
     return { ...b, names, zero, shown, get, subtotal };
   });
+  const keys = [...blocks.filter((b) => b.names.length).map((b) => b.category), 'summary'];
+  const allOpen = keys.every((k) => open.has(k));
 
   return (
     <div className="cmp">
@@ -299,6 +302,14 @@ function Comparison({
             diferencias
           </label>
         )}
+        <button
+          type="button"
+          className="secondary cmp-all"
+          aria-expanded={allOpen}
+          onClick={() => setOpen(new Set(allOpen ? [] : keys))}
+        >
+          {allOpen ? '▸ Colapsar todo' : '▾ Expandir todo'}
+        </button>
       </div>
       <div className="cmp-wrap">
         <table className="compare" aria-label="Comparar escenarios">
@@ -308,11 +319,17 @@ function Comparison({
               {items.map((s) => {
                 const v = s.latest;
                 const price = num(v.totals?.pricePerParticipant);
+                // Only the approved (or sent) scenario opens; the API refuses the others too.
+                const locked = !!pickedId && !isPicked(s);
                 return (
                   <th key={s.id} scope="col" className={pk(s)}>
-                    <Link href={`/cotizaciones/${v.id}`} className="cmp-name">
-                      {s.name}
-                    </Link>
+                    {locked ? (
+                      <span className="cmp-name">{s.name}</span>
+                    ) : (
+                      <Link href={`/cotizaciones/${v.id}`} className="cmp-name">
+                        {s.name}
+                      </Link>
+                    )}
                     <StatusChip
                       s={s}
                       picked={s.id === pickedId}
@@ -329,27 +346,31 @@ function Comparison({
                         ≈ {n0.format(Number(v.totals.pricePerParticipantMxn))} MXN / est.
                       </div>
                     )}
-                    <div className="cmp-acts">
-                      <Link href={`/cotizaciones/${v.id}`} className="button secondary">
-                        Abrir
-                      </Link>
-                      {canWork && (
-                        <button
-                          type="button"
-                          className="secondary"
-                          disabled={s.versions.some((x) => x.status === 'APPROVED')}
-                          title={s.versions.some((x) => x.status === 'APPROVED') ? DUP_LOCKED : undefined}
-                          onClick={() => {
-                            const name = window
-                              .prompt('Nombre del nuevo escenario:', `${s.name} (copia)`)
-                              ?.trim();
-                            if (name) void duplicate(s.id, name);
-                          }}
-                        >
-                          Duplicar
-                        </button>
-                      )}
-                    </div>
+                    {locked ? (
+                      <div className="cmp-lock">🔒 Bloqueado: ya hay uno aprobado</div>
+                    ) : (
+                      <div className="cmp-acts">
+                        <Link href={`/cotizaciones/${v.id}`} className="button secondary">
+                          Abrir
+                        </Link>
+                        {canWork && (
+                          <button
+                            type="button"
+                            className="secondary"
+                            disabled={s.versions.some((x) => x.status === 'APPROVED')}
+                            title={s.versions.some((x) => x.status === 'APPROVED') ? DUP_LOCKED : undefined}
+                            onClick={() => {
+                              const name = window
+                                .prompt('Nombre del nuevo escenario:', `${s.name} (copia)`)
+                                ?.trim();
+                              if (name) void duplicate(s.id, name);
+                            }}
+                          >
+                            Duplicar
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </th>
                 );
               })}
@@ -360,7 +381,7 @@ function Comparison({
               b.names.length && !(hideZero && b.zero.length === b.names.length) ? (
                 <Fragment key={b.category}>
                   {section(b.category, b.title, b.subtotal)}
-                  {!closed.has(b.category) && (
+                  {open.has(b.category) && (
                     <>
                       {b.shown.map((n) => (
                         <tr key={n}>
@@ -383,7 +404,7 @@ function Comparison({
               ) : null,
             )}
             {section('summary', 'Resumen por estudiante')}
-            {!closed.has('summary') &&
+            {open.has('summary') &&
               SUMMARY.filter(
                 (r) =>
                   r.strong ||

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
-import { QUOTE_STATUS_LABEL, type ScenarioDto } from '../../lib/types';
+import { isPicked, QUOTE_STATUS_LABEL, type ScenarioDto } from '../../lib/types';
 
 const PATHS = {
   plus: 'M12 5v14M5 12h14',
@@ -42,6 +42,8 @@ export function ScenarioBar({
   onRename?: (scenarioId: string, name: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
+  // Once one is approved or sent only that one opens (Will, 2026-11-25); the API refuses the rest.
+  const picked = scenarios.find(isPicked);
   const renamable = (s: ScenarioDto) =>
     !!onRename && s.id === currentId && !s.versions.some((v) => v.status === 'SENT');
 
@@ -85,6 +87,14 @@ export function ScenarioBar({
                   }}
                   onBlur={() => setEditing(null)}
                 />
+                {rest}
+              </span>
+            );
+          if (picked && !isPicked(s) && !active)
+            return (
+              <span key={s.id} className="sb-tab locked" title={`${s.name}: bloqueado, ya hay uno aprobado`}>
+                {letter}
+                <span className="nm">🔒 {s.name}</span>
                 {rest}
               </span>
             );
