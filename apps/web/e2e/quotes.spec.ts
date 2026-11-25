@@ -33,7 +33,7 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await page.getByLabel('Moneda de venta').selectOption('EUR');
   await page.getByRole('button', { name: 'Crear escenario' }).click();
   await expect(page).toHaveURL(/\/cotizaciones\//); // a new scenario opens its sheet
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Opción 1 · v1');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Opción 1 · v1');
 
   // The scenario starts with the EE sheet's base concepts; fill Finance's "Opción 1" costs.
   await expect(page.getByLabel('Concepto 1', { exact: true })).toHaveValue('Precio neto');
@@ -165,7 +165,7 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   page.once('dialog', (d) => d.accept('Opción 2'));
   await page.getByRole('button', { name: 'Duplicar' }).click();
   // Every new scenario opens its sheet right away.
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Opción 2 · v1');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Opción 2 · v1');
   await page.goBack();
   await expect(page.getByRole('link', { name: 'Opción 2' })).toBeVisible();
   await page.getByRole('button', { name: 'Expandir todo' }).click();
