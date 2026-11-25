@@ -2876,6 +2876,16 @@ table.compare thead th {
   justify-content: center;
   margin-top: 6px;
 }
+.cmp-lock {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.cmp-tools .cmp-all {
+  font-size: 12px;
+  padding: 3px 10px;
+  min-height: 0;
+}
 .cmp-acts .button,
 .cmp-acts button {
   padding: 2px 8px;
@@ -3074,6 +3084,10 @@ table.compare thead th.picked {
   text-decoration: none;
   font-size: 0.8rem;
   font-weight: 600;
+}
+.sb-tab.locked {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 .sb-tab .ltr {
   display: inline-grid;

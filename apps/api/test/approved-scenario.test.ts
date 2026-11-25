@@ -92,7 +92,7 @@ afterAll(async () => {
 
 describe('Aprobada step and one approved scenario per request', () => {
   let a: { id: string; rowVersion: number; scenarioId: string };
-  let b: { id: string; rowVersion: number };
+  let b: { id: string; rowVersion: number; scenarioId: string };
 
   it('moves from Por aprobar to Aprobada when a scenario is authorized', async () => {
     a = await submit(await ready('Opción A'));
@@ -117,8 +117,27 @@ describe('Aprobada step and one approved scenario per request', () => {
     const res = await act(c.approver, b.id, 'approve', { rowVersion: b.rowVersion }).expect(409);
     expect(res.body.code).toBe('SCENARIO_ALREADY_APPROVED');
     expect(res.body.message).toContain('Opción A');
-    const third = await ready('Opción C');
-    await act(c.quoter, third.id, 'submit', { rowVersion: third.rowVersion }).expect(409);
+    // The others can't be opened, edited, renamed, exported or duplicated, nor new ones created (Will, 2026-11-25).
+    const locked = await api().get(`/api/v1/quotes/${b.id}`).set('Cookie', c.quoter).expect(409);
+    expect(locked.body.code).toBe('SCENARIO_LOCKED');
+    expect(locked.body.message).toContain('Opción A');
+    await api().get(`/api/v1/quotes/${b.id}/export.xlsx`).set('Cookie', c.admin).expect(409);
+    await api()
+      .patch(`/api/v1/scenarios/${b.scenarioId}`)
+      .set('Cookie', c.quoter)
+      .send({ name: 'X' })
+      .expect(409);
+    await api()
+      .post(`/api/v1/scenarios/${b.scenarioId}/duplicate`)
+      .set('Cookie', c.quoter)
+      .send({ name: 'Copia B' })
+      .expect(409);
+    await api()
+      .post(`/api/v1/requests/${requestId}/scenarios`)
+      .set('Cookie', c.quoter)
+      .send({ name: 'Opción C', saleCurrency: 'EUR' })
+      .expect(409);
+    await api().get(`/api/v1/quotes/${a.id}`).set('Cookie', c.quoter).expect(200);
     // Nothing changed on the refused version.
     expect((await prisma.quoteVersion.findUniqueOrThrow({ where: { id: b.id } })).status).toBe('IN_REVIEW');
     // The approved one can't be duplicated until its approval is revoked.
@@ -145,13 +164,14 @@ describe('Aprobada step and one approved scenario per request', () => {
     });
     expect(log.diff).toMatchObject({ status: { from: 'IN_REVIEW', to: 'RETURNED' } });
     await act(c.quoter, b.id, 'withdraw', { rowVersion: w.body.rowVersion }).expect(403); // not in review anymore
-    b = (
-      await api()
-        .patch(`/api/v1/quotes/${b.id}`)
-        .set('Cookie', c.quoter)
-        .send({ targetMarginRate: '0.2', rowVersion: w.body.rowVersion })
-        .expect(200)
-    ).body;
+    // Still locked for editing while another scenario stays approved.
+    const edit = await api()
+      .patch(`/api/v1/quotes/${b.id}`)
+      .set('Cookie', c.quoter)
+      .send({ targetMarginRate: '0.2', rowVersion: w.body.rowVersion })
+      .expect(409);
+    expect(edit.body.code).toBe('SCENARIO_LOCKED');
+    b = w.body;
   });
 
   it('revokes an approval: reason required, only approvers, audited; then another scenario can win', async () => {
@@ -173,6 +193,7 @@ describe('Aprobada step and one approved scenario per request', () => {
     });
     expect(log.diff).toMatchObject({ status: { from: 'APPROVED', to: 'RETURNED' } });
     expect(await detailStage()).toBe(2);
+    await api().get(`/api/v1/quotes/${b.id}`).set('Cookie', c.quoter).expect(200);
     await api()
       .post(`/api/v1/scenarios/${a.scenarioId}/duplicate`)
       .set('Cookie', c.quoter)
@@ -210,6 +231,9 @@ describe('Aprobada step and one approved scenario per request', () => {
     const { status } = await prisma.travelRequest.findUniqueOrThrow({ where: { id: requestId } });
     // Back in QUOTING to check the rules on their own.
     await prisma.travelRequest.update({ where: { id: requestId }, data: { status: 'QUOTING' } });
+    // B was sent, so A is locked until B stops being the chosen one.
+    expect((await rename(c.quoter, sa, 'Hotel céntrico').expect(409)).body.code).toBe('SCENARIO_LOCKED');
+    await prisma.quoteVersion.update({ where: { id: b.id }, data: { status: 'RETURNED' } });
 
     await rename(c.quoter, sa, '').expect(400);
     await rename(c.quoter, sa, 'x'.repeat(151)).expect(400);
@@ -226,6 +250,7 @@ describe('Aprobada step and one approved scenario per request', () => {
     const sent = await rename(c.quoter, await scenarioOf(b.id), 'Otro nombre').expect(409);
     expect(sent.body.code).toBe('SCENARIO_SENT');
     await rename(c.quoter, '00000000-0000-4000-8000-000000000000', 'X').expect(404);
+    await prisma.quoteVersion.update({ where: { id: b.id }, data: { status: 'SENT' } });
     await prisma.travelRequest.update({ where: { id: requestId }, data: { status } });
   });
 });

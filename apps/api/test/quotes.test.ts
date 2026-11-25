@@ -326,6 +326,7 @@ describe('scenarios (US-029, US-030, US-031)', () => {
   });
 
   it('database rejects invalid margins and amounts even if the API were bypassed', async () => {
+    requestId = await newRequest(); // an approved scenario elsewhere would lock new ones
     const v = (await newScenario(c.quoter).expect(201)).body.latest;
     await expect(
       prisma.quoteVersion.update({ where: { id: v.id }, data: { targetMarginRate: 1 } }),
@@ -358,6 +359,7 @@ describe('authorization (US-071..076)', () => {
   }
 
   it('refuses incomplete versions', async () => {
+    requestId = await newRequest(); // an approved scenario elsewhere would lock new ones
     const v = (await newScenario(c.quoter).expect(201)).body.latest;
     const res = await act(c.quoter, v.id, 'submit', { rowVersion: 1 }).expect(400);
     expect(res.body.message).toContain('conceptos');
@@ -482,6 +484,7 @@ describe('authorization (US-071..076)', () => {
   });
 
   it('advisors read the shareable proposal without costs, flagged until authorized', async () => {
+    requestId = await newRequest(); // an approved scenario elsewhere would lock new ones
     const ready = await readyVersion();
     const comidas = {
       category: 'PER_PARTICIPANT',
@@ -521,6 +524,7 @@ describe('chaperone concepts and gratuities by ratio (Will, 2026-11-06)', () => 
   });
 
   it('copies the student seguro on save and frees only the course; older versions keep the old rule', async () => {
+    requestId = await newRequest(); // an approved scenario elsewhere would lock new ones
     const v = (await newScenario(c.quoter).expect(201)).body.latest;
     const res = await api()
       .patch(`/api/v1/quotes/${v.id}`)
@@ -570,6 +574,7 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
   };
 
   it('computes the schedule from the rounded price and shows it all in the proposal', async () => {
+    requestId = await newRequest(); // an approved scenario elsewhere would lock new ones
     const v = (await newScenario(c.quoter).expect(201)).body.latest;
     const res = await api()
       .patch(`/api/v1/quotes/${v.id}`)
@@ -635,6 +640,7 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
   });
 
   it('Avión adds its final price without % comisión, asks for its exchange rate and shows on the proposal', async () => {
+    requestId = await newRequest(); // an approved scenario elsewhere would lock new ones
     const v = (await newScenario(c.quoter).expect(201)).body.latest;
     const flight = {
       netCost: '300',
@@ -687,6 +693,7 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
   });
 
   it('volume prices reach the proposal only when ticked, and quote events reach the timeline', async () => {
+    requestId = await newRequest(); // an approved scenario elsewhere would lock new ones
     const v = (await newScenario(c.quoter).expect(201)).body.latest;
     const saved = await api()
       .patch(`/api/v1/quotes/${v.id}`)
@@ -713,6 +720,7 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
   });
 
   it('a registration that no longer fits the price warns and blocks approval', async () => {
+    requestId = await newRequest(); // an approved scenario elsewhere would lock new ones
     const v = (await newScenario(c.quoter).expect(201)).body.latest;
     const res = await api()
       .patch(`/api/v1/quotes/${v.id}`)
@@ -740,6 +748,7 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
   });
 
   it('hand-edited payments stay fixed, the rest is split, and an edit that overshoots blocks approval', async () => {
+    requestId = await newRequest(); // an approved scenario elsewhere would lock new ones
     const v = (await newScenario(c.quoter).expect(201)).body.latest;
     const overrides = [
       { number: 1, amount: '500.00' },
@@ -778,6 +787,7 @@ describe('payment plan, free places and itinerary (Sprint B)', () => {
   });
 
   it('templates: saved from a version, used for a new scenario, scoped to the office', async () => {
+    requestId = await newRequest(); // an approved scenario elsewhere would lock new ones
     const v = (await newScenario(c.quoter).expect(201)).body.latest;
     await api()
       .patch(`/api/v1/quotes/${v.id}`)

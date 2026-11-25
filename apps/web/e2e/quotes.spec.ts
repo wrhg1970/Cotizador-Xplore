@@ -168,6 +168,7 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Opción 2 · v1');
   await page.goBack();
   await expect(page.getByRole('link', { name: 'Opción 2' })).toBeVisible();
+  await page.getByRole('button', { name: 'Expandir todo' }).click();
   await expect(page.getByRole('cell', { name: '5,200.00 EUR' })).toHaveCount(2);
 
   // A new scenario from the template starts with its concepts and %.
@@ -178,6 +179,7 @@ test('quoter builds Finance sheet "Opción 1" and duplicates it', async ({ brows
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Opción 3 · v1');
   await page.goBack();
   await expect(page.getByRole('link', { name: 'Opción 3' })).toBeVisible();
+  await page.getByRole('button', { name: 'Expandir todo' }).click();
   await expect(page.getByRole('cell', { name: '5,200.00 EUR' })).toHaveCount(3);
 
   // Advisors never see internal costs.
