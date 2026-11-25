@@ -1500,37 +1500,11 @@ fieldset.editor {
   border-radius: 16px;
   box-shadow: 0 6px 18px rgb(0 0 0 / 0.14);
 }
-.totals-bar .active {
-  display: grid;
-}
-.totals-bar .active small {
-  font-size: 0.7rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  opacity: 0.85;
-}
 .totals-bar .hl {
   color: #ffa723;
 }
 .totals-bar .ok {
   color: #7ee2a8;
-}
-.totals-bar .options {
-  display: flex;
-  gap: 4px;
-}
-.totals-bar .options a {
-  color: #ffffff;
-  text-decoration: none;
-  font-weight: 700;
-  font-size: 0.85rem;
-  padding: 4px 10px;
-  border-radius: 8px;
-  background: rgb(255 255 255 / 0.12);
-}
-.totals-bar .options a[aria-current='page'] {
-  background: #ffffff;
-  color: #00457f;
 }
 .totals-bar dl {
   display: flex;
@@ -1552,6 +1526,11 @@ fieldset.editor {
   font-size: 1.4rem;
   line-height: 1.1;
   color: #ffa723;
+}
+.totals-bar dd.split {
+  font-size: 0.72rem;
+  font-weight: 400;
+  opacity: 0.85;
 }
 .totals-bar .reason {
   margin: 0;
@@ -1683,7 +1662,7 @@ dialog.welcome ol {
   }
 }
 
-/* Quote screen (V2 model): file header, SLA alert, 4-stage process, grouped tabs and panels. */
+/* Quote screen (V2 model): file header, SLA alert, stepper, grouped tabs and panels. */
 .quote-head {
   display: grid;
   gap: 12px;
@@ -1730,6 +1709,24 @@ dialog.welcome ol {
   text-decoration: underline;
   cursor: pointer;
 }
+.quote-head h1 a {
+  color: inherit;
+  text-decoration: none;
+}
+.quote-head .stepper {
+  margin: 4px 0 0;
+}
+/* Locked version: the saved sheet is enough; the read-only capture opens on demand. */
+.locked-fold > summary {
+  cursor: pointer;
+  margin: 12px 0;
+  padding: 8px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
 .quote-head .actions {
   align-items: center;
 }
@@ -1752,61 +1749,6 @@ button.warn {
   background: var(--surface);
 }
 .sla p {
-  margin: 0;
-}
-.process {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.process button {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  gap: 2px;
-  justify-items: start;
-  text-align: left;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: var(--subtle);
-  border: 1px solid var(--border);
-  color: var(--muted);
-  font-weight: 400;
-}
-.process strong {
-  font-size: 1.05rem;
-  color: var(--text);
-}
-.process small {
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.process span {
-  font-size: 0.85rem;
-}
-.process .done button {
-  border-color: var(--ok);
-  color: var(--ok);
-}
-.process .current button {
-  background: #00457f;
-  border-color: #00457f;
-  color: #d6e4f2;
-}
-.process .current strong,
-.process .current small {
-  color: #ffffff;
-}
-.next {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px 16px;
   margin: 0;
 }
 .pill {
@@ -2024,8 +1966,6 @@ ol.tl li.notes {
     border-radius: 16px 16px 0 0;
     padding: 8px 14px;
   }
-  .totals-bar .active,
-  .totals-bar .options,
   .totals-bar dl > div:not(.main) {
     display: none;
   }

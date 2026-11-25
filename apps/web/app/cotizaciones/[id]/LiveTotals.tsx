@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import {
   calculateQuote,
   D,
@@ -123,15 +122,24 @@ export function preview(d: QuoteDto, marginPct: string, targetPrice: string, byP
   }
 }
 
+/** Course and plane parts of the price per student and of the group total (plane is added without commission). */
+export function priceSplit(p: Extract<Preview, { ok: true }>) {
+  const flight = new D(p.flight?.added ? p.flight.price : '0');
+  const flightGroup = flight.mul(p.input.participants);
+  return {
+    course: money(new D(p.price).minus(flight)),
+    courseGroup: money(new D(p.group).minus(flightGroup)),
+    flightGroup: money(flightGroup),
+  };
+}
+
 /**
- * Active scenario bar, pinned to the top: live figures from the same engine, the request's other
- * options and, for whoever edits, the unsaved state and the save button.
+ * Active scenario bar, pinned to the top: live figures from the same engine and, for whoever edits,
+ * the unsaved state and the save button. The scenario chips live in the scenario bar above.
  */
 export function TotalsBar({
   p,
   currency,
-  label,
-  options,
   dirty,
   saving,
   error,
@@ -139,19 +147,15 @@ export function TotalsBar({
 }: {
   p: Preview;
   currency: string;
-  label: string;
-  options: { id: string; name: string; active: boolean }[];
   dirty: boolean;
   saving: boolean;
   error: string | null;
   onSave?: () => void;
 }) {
+  // Will (2026-11-25): with the plane added to the course, show what each part of the price is.
+  const split = p.ok && p.flight?.added ? priceSplit(p) : null;
   return (
     <div className="totals-bar" role="region" aria-label="Totales del viaje">
-      <div className="active">
-        <small>Escenario activo</small>
-        <strong>{label}</strong>
-      </div>
       {p.ok ? (
         <dl>
           <div>
@@ -169,10 +173,20 @@ export function TotalsBar({
             <dd>
               {thousands(p.price)} <small>{currency}</small>
             </dd>
+            {split && (
+              <dd className="split">
+                Curso {thousands(split.course)} + Avión {thousands(p.flight!.price)}
+              </dd>
+            )}
           </div>
           <div>
             <dt>Total del grupo</dt>
             <dd>{thousands(p.group)}</dd>
+            {split && (
+              <dd className="split">
+                Curso {thousands(split.courseGroup)} + Avión {thousands(split.flightGroup)}
+              </dd>
+            )}
           </div>
           {p.mxn && (
             <div>
@@ -185,15 +199,6 @@ export function TotalsBar({
         <p className="reason">{p.reason}</p>
       )}
       <div className="save">
-        {options.length > 1 && (
-          <nav aria-label="Opciones de la solicitud" className="options">
-            {options.map((o) => (
-              <Link key={o.id} href={`/cotizaciones/${o.id}`} aria-current={o.active ? 'page' : undefined}>
-                {o.name}
-              </Link>
-            ))}
-          </nav>
-        )}
         {onSave && (
           <>
             {error ? (

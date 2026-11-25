@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { CurrencyCode, LineCategory } from '@ee/contracts';
 import { FlightPanel } from './Flight';
 import { chaperoneMirrors, syncChaperoneLines } from '@ee/quote-engine';
@@ -14,7 +14,7 @@ import { ShareLinks } from './ShareLinks';
 import { VersionChanges } from './VersionChanges';
 import { SheetImport } from './SheetImport';
 import { SheetSummary } from './SheetSummary';
-import { QuoteHeader, type Role } from './QuoteHeader';
+import { QuoteHeader } from './QuoteHeader';
 import { Icon, ScenarioBar } from './ScenarioBar';
 import { PaymentPlan } from './PaymentPlan';
 import { Sensitivity, VolumeMatrix } from './VolumeRisk';
@@ -113,6 +113,17 @@ function signatureCount(q: QuoteDto, assigneeId: string | undefined) {
       ? 2
       : 1;
   return { given: Math.min(signers.length, needed), needed };
+}
+
+/** Locked versions show the saved sheet; the read-only capture below it stays folded (Will, 2026-11-25). */
+function LockedFold({ locked, lines, children }: { locked: boolean; lines: number; children: ReactNode }) {
+  if (!locked) return <>{children}</>;
+  return (
+    <details className="locked-fold">
+      <summary>Ver captura (Grupo y precio y {lines} conceptos) · solo lectura</summary>
+      {children}
+    </details>
+  );
 }
 
 export default function QuoteEditorPage() {
@@ -284,8 +295,6 @@ export default function QuoteEditorPage() {
   const signedByMe =
     !me?.platformAdmin &&
     q.reviews.slice(lastReturn + 1).some((r) => r.decision === 'APPROVED' && r.reviewerId === me?.id);
-  const role: Role =
-    me?.id === req?.assignee?.id ? 'quoter' : isAdmin ? 'admin' : approver ? 'approver' : 'viewer';
   const correct = async () => {
     const comment = window.prompt('Qué vas a corregir (opcional):')?.trim();
     if (comment === undefined) return;
@@ -374,6 +383,21 @@ export default function QuoteEditorPage() {
           <button type="button" className="danger" onClick={returnWithComment}>
             Devolver
           </button>
+        )}
+        {works && q.status === 'IN_REVIEW' && (
+          <button type="button" className="secondary" onClick={() => void act('withdraw')}>
+            Retirar de autorización y editar
+          </button>
+        )}
+        {works && q.status === 'APPROVED' && (
+          <button type="button" onClick={toApproval}>
+            Registrar envío al colegio →
+          </button>
+        )}
+        {q.status === 'SENT' && (
+          <Link className="button" href={`/solicitudes/${q.requestId}`}>
+            Registrar vendida o perdida →
+          </Link>
         )}
       </span>
     </div>
@@ -512,7 +536,6 @@ export default function QuoteEditorPage() {
     }
   }
 
-  const optionCount = Math.max(scenarios.length, 1);
   // Same count the timeline shows: a comment's audit event is not listed twice.
   const eventCount = timeline
     ? timeline.events.filter((e) => e.action !== 'request.commented').length + timeline.comments.length
@@ -643,15 +666,7 @@ export default function QuoteEditorPage() {
       <QuoteHeader
         q={q}
         req={req}
-        role={role}
-        optionCount={optionCount}
-        eventCount={eventCount}
         authStrip={authStrip}
-        onStage={(i) => {
-          if (i === 0) router.push(`/solicitudes/${q.requestId}`);
-          else if (i === 1) setTab('hoja');
-          else toApproval();
-        }}
         expiredAction={
           editable ? (
             <button type="button" className="secondary" onClick={renew}>
@@ -663,33 +678,11 @@ export default function QuoteEditorPage() {
             </button>
           ) : null
         }
-        nextStep={
-          <>
-            {q.status === 'SENT' ? (
-              <Link className="button" href={`/solicitudes/${q.requestId}`}>
-                Ir a la solicitud (vendida o perdida)
-              </Link>
-            ) : (
-              <button type="button" onClick={toApproval}>
-                {q.status === 'APPROVED' ? 'Ir a registrar el envío' : 'Ir al paso de autorización'}
-              </button>
-            )}
-            {works && q.status === 'IN_REVIEW' && (
-              <button type="button" className="secondary" onClick={() => void act('withdraw')}>
-                Retirar de autorización y editar
-              </button>
-            )}
-          </>
-        }
       />
 
       <TotalsBar
         p={live}
         currency={draft.saleCurrency}
-        label={`${q.scenarioName} (${draft.participants} est.${tripDays ? ` · ${tripDays} días` : ''})`}
-        options={scenarios
-          .filter((s) => !pickedElsewhere || isPicked(s) || s.id === q.scenarioId)
-          .map((s) => ({ id: s.latest.id, name: s.name, active: s.id === q.scenarioId }))}
         dirty={dirty}
         saving={saving}
         error={error}
@@ -794,482 +787,486 @@ export default function QuoteEditorPage() {
       <div className="editor">
         <div {...tabProps('hoja')}>
           {!editable && sheet}
-          <fieldset disabled={!editable} className="editor">
-            <section className="card compact" aria-labelledby="grupo">
-              <div className="section-head">
-                <h2 id="grupo">Grupo y precio</h2>
-                <span className="muted">
-                  {[req?.program, req && `${req.city}, ${req.countryCode}`, tripDays && `${tripDays} días`]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </span>
-                {live.ok && (
-                  <span className={goodPct ? 'pill ok' : 'pill warn'}>
-                    {goodPct
-                      ? `Rentabilidad óptima (≥${OPTIMAL_PCT}%)`
-                      : `Comisión por debajo de ${OPTIMAL_PCT}%`}
+          <LockedFold locked={!editable} lines={draft.lines.length}>
+            <fieldset disabled={!editable} className="editor">
+              <section className="card compact" aria-labelledby="grupo">
+                <div className="section-head">
+                  <h2 id="grupo">Grupo y precio</h2>
+                  <span className="muted">
+                    {[req?.program, req && `${req.city}, ${req.countryCode}`, tripDays && `${tripDays} días`]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </span>
-                )}
-              </div>
-              <div className="fields">
-                <label>
-                  Estudiantes
-                  <input
-                    type="number"
-                    min={1}
-                    value={draft.participants}
-                    onChange={(e) => set({ participants: Number(e.target.value) })}
-                  />
-                </label>
-                <label>
-                  Chaperones de la escuela
-                  <input
-                    type="number"
-                    min={0}
-                    value={draft.chaperones}
-                    onChange={(e) => set({ chaperones: Number(e.target.value) })}
-                  />
-                </label>
-                <label>
-                  Chaperones EE
-                  <input
-                    type="number"
-                    min={0}
-                    value={draft.staff}
-                    onChange={(e) => set({ staff: Number(e.target.value) })}
-                  />
-                </label>
-                <label>
-                  Moneda de venta
-                  <select
-                    value={draft.saleCurrency}
-                    onChange={(e) => set({ saleCurrency: e.target.value as CurrencyCode })}
-                  >
-                    {CurrencyCode.options.map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  % Comisión (sobre el precio final)
-                  <input
-                    type="number"
-                    min={0}
-                    max={99.9999}
-                    step="0.01"
-                    value={marginPct}
-                    onChange={(e) => {
-                      setMarginPct(e.target.value);
-                      setByPrice(false);
-                    }}
-                  />
-                </label>
-                <label>
-                  Precio final por estudiante
-                  <input
-                    type="number"
-                    min={1}
-                    step="1"
-                    value={targetPrice}
-                    title={
-                      byPrice
-                        ? 'Al guardar se calcula el % que da este precio'
-                        : 'O escribe el precio y se calcula el %'
-                    }
-                    onChange={(e) => {
-                      setTargetPrice(e.target.value);
-                      setByPrice(true);
-                    }}
-                  />
-                </label>
-                <label>
-                  Vigencia
-                  <input
-                    type="date"
-                    value={draft.validUntil ?? ''}
-                    onChange={(e) => set({ validUntil: e.target.value || null })}
-                  />
-                </label>
-              </div>
-            </section>
-          </fieldset>
-
-          <section aria-labelledby="conceptos">
-            <div className="section-head">
-              <h2 id="conceptos">Conceptos</h2>
-              <span className="muted">
-                En gastos por día, la cantidad son los días
-                {tripDays ? ` (este viaje: ${tripDays}, contando salida y regreso)` : ''}. El precio final se
-                redondea hacia arriba al número entero.
-              </span>
-            </div>
-            <div role="tablist" aria-label="Bloques de conceptos" className="tabs block-tabs">
-              {BLOCK_TABS.map((b, n) => (
-                <button
-                  key={b.category}
-                  id={`block-tab-${b.category}`}
-                  role="tab"
-                  aria-selected={block === b.category}
-                  aria-controls={`block-panel-${b.category}`}
-                  tabIndex={block === b.category ? 0 : -1}
-                  onClick={() => setBlock(b.category)}
-                  onKeyDown={(e) => {
-                    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-                    if (!step) return;
-                    const next = BLOCK_TABS[(n + step + BLOCK_TABS.length) % BLOCK_TABS.length]!;
-                    setBlock(next.category);
-                    document.getElementById(`block-tab-${next.category}`)?.focus();
-                  }}
-                >
-                  <span className="tab-name">{b.title}</span>
-                  <span className="tab-amount">
-                    {!live.ok
-                      ? '—'
-                      : b.category !== 'FLIGHT'
-                        ? `${thousands(live.byCategory[b.category])} ${draft.saleCurrency}`
-                        : live.flight
-                          ? `${thousands(live.flight.price)} ${live.flight.currency} / est.${live.flight.added ? '' : ' · aparte'}`
-                          : 'Sin avión'}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <div
-              id="block-panel-FLIGHT"
-              role="tabpanel"
-              aria-labelledby="block-tab-FLIGHT"
-              hidden={block !== 'FLIGHT'}
-              className="card compact block"
-            >
-              <div className="block-head">
-                <h3>✈ Avión</h3>
-                <span className="muted">
-                  Boleto por persona; puede ir en otra moneda y se convierte con los tipos de cambio de esta
-                  cotización.
-                </span>
-                {live.ok && live.flight && (
-                  <span className="num subtotal">
-                    {thousands(live.flight.price)} {live.flight.currency} / est.
-                  </span>
-                )}
-              </div>
-              <FlightPanel
-                draft={draft}
-                live={live}
-                editable={editable}
-                suppliers={suppliers}
-                onChange={(flight) => set({ flight })}
-              />
-            </div>
-            {SHEET_BLOCKS.map((b) => {
-              const rows = synced.map((l, i) => ({ l, i })).filter(({ l }) => l.category === b.category);
-              const used = new Set(rows.map(({ l }) => l.description));
-              const options = catalog.filter(
-                (c) => c.category === b.category && c.active && !used.has(c.label),
-              );
-              const rates = suppliers.flatMap((sup) =>
-                sup.rates
-                  .filter((r) => r.category === b.category && (!r.validUntil || r.validUntil >= today()))
-                  .map((r) => ({ ...r, supplier: sup.name })),
-              );
-              return (
-                <div
-                  key={b.category}
-                  id={`block-panel-${b.category}`}
-                  role="tabpanel"
-                  aria-labelledby={`block-tab-${b.category}`}
-                  hidden={block !== b.category}
-                  className="card compact block"
-                >
-                  <div className="block-head">
-                    <h3>
-                      <button
-                        type="button"
-                        className="fold"
-                        aria-expanded={!folded.includes(b.category)}
-                        onClick={() =>
-                          setFolded((f) =>
-                            f.includes(b.category) ? f.filter((c) => c !== b.category) : [...f, b.category],
-                          )
-                        }
-                      >
-                        <span aria-hidden="true" className="chevron">
-                          {folded.includes(b.category) ? '▸' : '▾'}
-                        </span>
-                        {b.title}
-                      </button>
-                    </h3>
-                    <span className="muted">
-                      {rows.length} {rows.length === 1 ? 'concepto' : 'conceptos'} · {b.hint}
+                  {live.ok && (
+                    <span className={goodPct ? 'pill ok' : 'pill warn'}>
+                      {goodPct
+                        ? `Rentabilidad óptima (≥${OPTIMAL_PCT}%)`
+                        : `Comisión por debajo de ${OPTIMAL_PCT}%`}
                     </span>
-                    {live.ok && (
-                      <span className="num subtotal">
-                        {thousands(live.byCategory[b.category])} {draft.saleCurrency}
-                      </span>
-                    )}
-                  </div>
-                  <fieldset disabled={!editable} className="editor">
-                    {rows.length > 0 && (
-                      <div className="table-wrap" hidden={folded.includes(b.category)}>
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Concepto</th>
-                              <th>Cantidad</th>
-                              <th>Costo unitario</th>
-                              <th>Moneda</th>
-                              <th>Interno</th>
-                              <th>Nota / detalle</th>
-                              <th className="num">Total {draft.saleCurrency}</th>
-                              <th />
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {rows.map(({ l, i }) => (
-                              <tr key={i}>
-                                <td className="wide">
-                                  <input
-                                    aria-label={`Concepto ${i + 1}`}
-                                    value={l.description}
-                                    maxLength={300}
-                                    onChange={(e) => setLine(i, { description: e.target.value })}
-                                  />
-                                </td>
-                                <td>
-                                  <input
-                                    aria-label={`Cantidad ${i + 1}`}
-                                    inputMode="decimal"
-                                    size={5}
-                                    value={l.quantity}
-                                    disabled={mirrors.has(i)}
-                                    title={mirrors.has(i) ? 'Igual que el del estudiante' : undefined}
-                                    onChange={(e) => setLine(i, { quantity: e.target.value.trim() })}
-                                  />
-                                  {(l.category === 'PER_CHAPERONE' || l.category === 'PER_STAFF') && (
-                                    <span className="muted">
-                                      {' '}
-                                      × {l.category === 'PER_STAFF' ? draft.staff : draft.chaperones}
-                                    </span>
-                                  )}
-                                </td>
-                                <td>
-                                  <input
-                                    aria-label={`Costo ${i + 1}`}
-                                    inputMode="decimal"
-                                    size={9}
-                                    value={l.unitCost}
-                                    disabled={mirrors.has(i)}
-                                    title={mirrors.has(i) ? 'Igual que el del estudiante' : undefined}
-                                    onChange={(e) => setLine(i, { unitCost: e.target.value.trim() })}
-                                  />
-                                </td>
-                                <td>
-                                  <select
-                                    aria-label={`Moneda ${i + 1}`}
-                                    value={l.currency}
-                                    disabled={mirrors.has(i)}
-                                    onChange={(e) => setLine(i, { currency: e.target.value as CurrencyCode })}
-                                  >
-                                    {CurrencyCode.options.map((c) => (
-                                      <option key={c}>{c}</option>
-                                    ))}
-                                  </select>
-                                </td>
-                                <td>
-                                  <input
-                                    type="checkbox"
-                                    aria-label={`Solo interno ${i + 1}`}
-                                    checked={l.internalOnly}
-                                    onChange={(e) => setLine(i, { internalOnly: e.target.checked })}
-                                  />
-                                </td>
-                                <td>
-                                  <input
-                                    aria-label={`Nota ${i + 1}`}
-                                    placeholder="+ nota…"
-                                    maxLength={300}
-                                    value={l.note ?? ''}
-                                    onChange={(e) => setLine(i, { note: e.target.value })}
-                                  />
-                                </td>
-                                <td className="num">{live.ok ? thousands(live.lineTotals[i]) : '—'}</td>
-                                <td>
-                                  <button
-                                    className="secondary small"
-                                    aria-label={`Quitar ${i + 1}`}
-                                    onClick={() => set({ lines: draft.lines.filter((_, j) => j !== i) })}
-                                  >
-                                    ✕
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                    <div className="row" style={{ marginTop: 8 }} hidden={folded.includes(b.category)}>
-                      {options.length > 0 && (
-                        <select
-                          aria-label={`Rubro del catálogo: ${b.title}`}
-                          value=""
-                          onChange={(e) => {
-                            const c = options.find((o) => o.id === e.target.value);
-                            if (!c) return;
-                            const qty = c.perTripDay && tripDays ? String(tripDays) : '1';
-                            set({
-                              lines: [
-                                ...draft.lines,
-                                {
-                                  ...blankLine(draft.saleCurrency, b.category, c.label, qty),
-                                  internalOnly: c.internalOnly,
-                                },
-                              ],
-                            });
-                          }}
-                        >
-                          <option value="">Agregar rubro del catálogo…</option>
-                          {options.map((o) => (
-                            <option key={o.id} value={o.id}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                      {rates.length > 0 && (
-                        <select
-                          aria-label={`Tarifa de proveedor: ${b.title}`}
-                          value=""
-                          onChange={(e) => {
-                            const r = rates.find((o) => o.id === e.target.value);
-                            if (!r) return;
-                            set({
-                              lines: [
-                                ...draft.lines,
-                                {
-                                  ...blankLine(r.currency, b.category, r.description),
-                                  unitCost: r.unitCost,
-                                  costSource: r.supplier,
-                                },
-                              ],
-                            });
-                          }}
-                        >
-                          <option value="">Agregar tarifa de proveedor…</option>
-                          {rates.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.supplier}: {r.description} ({thousands(r.unitCost)} {r.currency})
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                      <button
-                        className="secondary small"
-                        aria-label={`Agregar concepto: ${b.title}`}
-                        onClick={() =>
-                          set({ lines: [...draft.lines, blankLine(draft.saleCurrency, b.category)] })
-                        }
-                      >
-                        + Agregar otro concepto
-                      </button>
-                    </div>
-                  </fieldset>
+                  )}
                 </div>
-              );
-            })}
-          </section>
-
-          <fieldset disabled={!editable} className="editor">
-            <FreePlaces draft={draft} set={set} live={live} />
-            <section className="card compact" aria-labelledby="fx">
-              <div className="section-head">
-                <h2 id="fx">Tipos de cambio</h2>
-                <span className="muted">
-                  Unidades de {draft.saleCurrency} por 1 unidad de la otra moneda, con fecha y fuente.
-                </span>
-                <div className="row">
-                  <button className="secondary" onClick={() => addFx()}>
-                    Agregar tipo de cambio
-                  </button>
-                  <button className="secondary" onClick={applyOfficialRates}>
-                    Usar tipos de cambio oficiales
-                  </button>
-                </div>
-              </div>
-              {missingFx.length > 0 && (
-                <p className="error" style={{ margin: '0 0 8px' }}>
-                  Falta el tipo de cambio de {missingFx.map((c) => `${c} → ${draft.saleCurrency}`).join(', ')}{' '}
-                  para calcular.{' '}
-                  {missingFx.map((c) => (
-                    <button key={c} className="secondary small" onClick={() => addFx(c)}>
-                      Capturar {c}
-                    </button>
-                  ))}
-                </p>
-              )}
-              <div className="fields">
-                {draft.fxRates.map((f, i) => (
-                  <div className="fx-row" key={i}>
-                    <label>
-                      De
-                      <select
-                        value={f.fromCurrency}
-                        onChange={(e) => setFx(i, { fromCurrency: e.target.value as CurrencyCode })}
-                      >
-                        {CurrencyCode.options.map((c) => (
-                          <option key={c}>{c}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Tipo de cambio
-                      <input
-                        inputMode="decimal"
-                        value={f.rate}
-                        placeholder="0.00"
-                        onChange={(e) => setFx(i, { rate: e.target.value.trim() })}
-                      />
-                    </label>
-                    <label>
-                      Fecha
-                      <input
-                        type="date"
-                        value={f.rateDate}
-                        onChange={(e) => setFx(i, { rateDate: e.target.value })}
-                      />
-                    </label>
-                    <label>
-                      Fuente
-                      <input
-                        value={f.source}
-                        maxLength={150}
-                        placeholder="Banxico, banco, proveedor…"
-                        onChange={(e) => setFx(i, { source: e.target.value })}
-                      />
-                    </label>
-                    <button
-                      className="secondary small"
-                      aria-label={`Quitar tipo de cambio ${f.fromCurrency}`}
-                      onClick={() => set({ fxRates: draft.fxRates.filter((_, j) => j !== i) })}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-                {draft.saleCurrency !== 'MXN' && (
-                  <label className="fx-mxn">
-                    Tipo de cambio a MXN (aproximado)
+                <div className="fields">
+                  <label>
+                    Estudiantes
                     <input
-                      inputMode="decimal"
-                      value={draft.mxnRate ?? ''}
-                      placeholder="20.39"
-                      onChange={(e) => set({ mxnRate: e.target.value })}
+                      type="number"
+                      min={1}
+                      value={draft.participants}
+                      onChange={(e) => set({ participants: Number(e.target.value) })}
                     />
                   </label>
-                )}
+                  <label>
+                    Chaperones de la escuela
+                    <input
+                      type="number"
+                      min={0}
+                      value={draft.chaperones}
+                      onChange={(e) => set({ chaperones: Number(e.target.value) })}
+                    />
+                  </label>
+                  <label>
+                    Chaperones EE
+                    <input
+                      type="number"
+                      min={0}
+                      value={draft.staff}
+                      onChange={(e) => set({ staff: Number(e.target.value) })}
+                    />
+                  </label>
+                  <label>
+                    Moneda de venta
+                    <select
+                      value={draft.saleCurrency}
+                      onChange={(e) => set({ saleCurrency: e.target.value as CurrencyCode })}
+                    >
+                      {CurrencyCode.options.map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    % Comisión (sobre el precio final)
+                    <input
+                      type="number"
+                      min={0}
+                      max={99.9999}
+                      step="0.01"
+                      value={marginPct}
+                      onChange={(e) => {
+                        setMarginPct(e.target.value);
+                        setByPrice(false);
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Precio final por estudiante
+                    <input
+                      type="number"
+                      min={1}
+                      step="1"
+                      value={targetPrice}
+                      title={
+                        byPrice
+                          ? 'Al guardar se calcula el % que da este precio'
+                          : 'O escribe el precio y se calcula el %'
+                      }
+                      onChange={(e) => {
+                        setTargetPrice(e.target.value);
+                        setByPrice(true);
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Vigencia
+                    <input
+                      type="date"
+                      value={draft.validUntil ?? ''}
+                      onChange={(e) => set({ validUntil: e.target.value || null })}
+                    />
+                  </label>
+                </div>
+              </section>
+            </fieldset>
+
+            <section aria-labelledby="conceptos">
+              <div className="section-head">
+                <h2 id="conceptos">Conceptos</h2>
+                <span className="muted">
+                  En gastos por día, la cantidad son los días
+                  {tripDays ? ` (este viaje: ${tripDays}, contando salida y regreso)` : ''}. El precio final
+                  se redondea hacia arriba al número entero.
+                </span>
               </div>
+              <div role="tablist" aria-label="Bloques de conceptos" className="tabs block-tabs">
+                {BLOCK_TABS.map((b, n) => (
+                  <button
+                    key={b.category}
+                    id={`block-tab-${b.category}`}
+                    role="tab"
+                    aria-selected={block === b.category}
+                    aria-controls={`block-panel-${b.category}`}
+                    tabIndex={block === b.category ? 0 : -1}
+                    onClick={() => setBlock(b.category)}
+                    onKeyDown={(e) => {
+                      const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+                      if (!step) return;
+                      const next = BLOCK_TABS[(n + step + BLOCK_TABS.length) % BLOCK_TABS.length]!;
+                      setBlock(next.category);
+                      document.getElementById(`block-tab-${next.category}`)?.focus();
+                    }}
+                  >
+                    <span className="tab-name">{b.title}</span>
+                    <span className="tab-amount">
+                      {!live.ok
+                        ? '—'
+                        : b.category !== 'FLIGHT'
+                          ? `${thousands(live.byCategory[b.category])} ${draft.saleCurrency}`
+                          : live.flight
+                            ? `${thousands(live.flight.price)} ${live.flight.currency} / est.${live.flight.added ? '' : ' · aparte'}`
+                            : 'Sin avión'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div
+                id="block-panel-FLIGHT"
+                role="tabpanel"
+                aria-labelledby="block-tab-FLIGHT"
+                hidden={block !== 'FLIGHT'}
+                className="card compact block"
+              >
+                <div className="block-head">
+                  <h3>✈ Avión</h3>
+                  <span className="muted">
+                    Boleto por persona; puede ir en otra moneda y se convierte con los tipos de cambio de esta
+                    cotización.
+                  </span>
+                  {live.ok && live.flight && (
+                    <span className="num subtotal">
+                      {thousands(live.flight.price)} {live.flight.currency} / est.
+                    </span>
+                  )}
+                </div>
+                <FlightPanel
+                  draft={draft}
+                  live={live}
+                  editable={editable}
+                  suppliers={suppliers}
+                  onChange={(flight) => set({ flight })}
+                />
+              </div>
+              {SHEET_BLOCKS.map((b) => {
+                const rows = synced.map((l, i) => ({ l, i })).filter(({ l }) => l.category === b.category);
+                const used = new Set(rows.map(({ l }) => l.description));
+                const options = catalog.filter(
+                  (c) => c.category === b.category && c.active && !used.has(c.label),
+                );
+                const rates = suppliers.flatMap((sup) =>
+                  sup.rates
+                    .filter((r) => r.category === b.category && (!r.validUntil || r.validUntil >= today()))
+                    .map((r) => ({ ...r, supplier: sup.name })),
+                );
+                return (
+                  <div
+                    key={b.category}
+                    id={`block-panel-${b.category}`}
+                    role="tabpanel"
+                    aria-labelledby={`block-tab-${b.category}`}
+                    hidden={block !== b.category}
+                    className="card compact block"
+                  >
+                    <div className="block-head">
+                      <h3>
+                        <button
+                          type="button"
+                          className="fold"
+                          aria-expanded={!folded.includes(b.category)}
+                          onClick={() =>
+                            setFolded((f) =>
+                              f.includes(b.category) ? f.filter((c) => c !== b.category) : [...f, b.category],
+                            )
+                          }
+                        >
+                          <span aria-hidden="true" className="chevron">
+                            {folded.includes(b.category) ? '▸' : '▾'}
+                          </span>
+                          {b.title}
+                        </button>
+                      </h3>
+                      <span className="muted">
+                        {rows.length} {rows.length === 1 ? 'concepto' : 'conceptos'} · {b.hint}
+                      </span>
+                      {live.ok && (
+                        <span className="num subtotal">
+                          {thousands(live.byCategory[b.category])} {draft.saleCurrency}
+                        </span>
+                      )}
+                    </div>
+                    <fieldset disabled={!editable} className="editor">
+                      {rows.length > 0 && (
+                        <div className="table-wrap" hidden={folded.includes(b.category)}>
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Concepto</th>
+                                <th>Cantidad</th>
+                                <th>Costo unitario</th>
+                                <th>Moneda</th>
+                                <th>Interno</th>
+                                <th>Nota / detalle</th>
+                                <th className="num">Total {draft.saleCurrency}</th>
+                                <th />
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map(({ l, i }) => (
+                                <tr key={i}>
+                                  <td className="wide">
+                                    <input
+                                      aria-label={`Concepto ${i + 1}`}
+                                      value={l.description}
+                                      maxLength={300}
+                                      onChange={(e) => setLine(i, { description: e.target.value })}
+                                    />
+                                  </td>
+                                  <td>
+                                    <input
+                                      aria-label={`Cantidad ${i + 1}`}
+                                      inputMode="decimal"
+                                      size={5}
+                                      value={l.quantity}
+                                      disabled={mirrors.has(i)}
+                                      title={mirrors.has(i) ? 'Igual que el del estudiante' : undefined}
+                                      onChange={(e) => setLine(i, { quantity: e.target.value.trim() })}
+                                    />
+                                    {(l.category === 'PER_CHAPERONE' || l.category === 'PER_STAFF') && (
+                                      <span className="muted">
+                                        {' '}
+                                        × {l.category === 'PER_STAFF' ? draft.staff : draft.chaperones}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <input
+                                      aria-label={`Costo ${i + 1}`}
+                                      inputMode="decimal"
+                                      size={9}
+                                      value={l.unitCost}
+                                      disabled={mirrors.has(i)}
+                                      title={mirrors.has(i) ? 'Igual que el del estudiante' : undefined}
+                                      onChange={(e) => setLine(i, { unitCost: e.target.value.trim() })}
+                                    />
+                                  </td>
+                                  <td>
+                                    <select
+                                      aria-label={`Moneda ${i + 1}`}
+                                      value={l.currency}
+                                      disabled={mirrors.has(i)}
+                                      onChange={(e) =>
+                                        setLine(i, { currency: e.target.value as CurrencyCode })
+                                      }
+                                    >
+                                      {CurrencyCode.options.map((c) => (
+                                        <option key={c}>{c}</option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="checkbox"
+                                      aria-label={`Solo interno ${i + 1}`}
+                                      checked={l.internalOnly}
+                                      onChange={(e) => setLine(i, { internalOnly: e.target.checked })}
+                                    />
+                                  </td>
+                                  <td>
+                                    <input
+                                      aria-label={`Nota ${i + 1}`}
+                                      placeholder="+ nota…"
+                                      maxLength={300}
+                                      value={l.note ?? ''}
+                                      onChange={(e) => setLine(i, { note: e.target.value })}
+                                    />
+                                  </td>
+                                  <td className="num">{live.ok ? thousands(live.lineTotals[i]) : '—'}</td>
+                                  <td>
+                                    <button
+                                      className="secondary small"
+                                      aria-label={`Quitar ${i + 1}`}
+                                      onClick={() => set({ lines: draft.lines.filter((_, j) => j !== i) })}
+                                    >
+                                      ✕
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                      <div className="row" style={{ marginTop: 8 }} hidden={folded.includes(b.category)}>
+                        {options.length > 0 && (
+                          <select
+                            aria-label={`Rubro del catálogo: ${b.title}`}
+                            value=""
+                            onChange={(e) => {
+                              const c = options.find((o) => o.id === e.target.value);
+                              if (!c) return;
+                              const qty = c.perTripDay && tripDays ? String(tripDays) : '1';
+                              set({
+                                lines: [
+                                  ...draft.lines,
+                                  {
+                                    ...blankLine(draft.saleCurrency, b.category, c.label, qty),
+                                    internalOnly: c.internalOnly,
+                                  },
+                                ],
+                              });
+                            }}
+                          >
+                            <option value="">Agregar rubro del catálogo…</option>
+                            {options.map((o) => (
+                              <option key={o.id} value={o.id}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {rates.length > 0 && (
+                          <select
+                            aria-label={`Tarifa de proveedor: ${b.title}`}
+                            value=""
+                            onChange={(e) => {
+                              const r = rates.find((o) => o.id === e.target.value);
+                              if (!r) return;
+                              set({
+                                lines: [
+                                  ...draft.lines,
+                                  {
+                                    ...blankLine(r.currency, b.category, r.description),
+                                    unitCost: r.unitCost,
+                                    costSource: r.supplier,
+                                  },
+                                ],
+                              });
+                            }}
+                          >
+                            <option value="">Agregar tarifa de proveedor…</option>
+                            {rates.map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {r.supplier}: {r.description} ({thousands(r.unitCost)} {r.currency})
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        <button
+                          className="secondary small"
+                          aria-label={`Agregar concepto: ${b.title}`}
+                          onClick={() =>
+                            set({ lines: [...draft.lines, blankLine(draft.saleCurrency, b.category)] })
+                          }
+                        >
+                          + Agregar otro concepto
+                        </button>
+                      </div>
+                    </fieldset>
+                  </div>
+                );
+              })}
             </section>
-          </fieldset>
+
+            <fieldset disabled={!editable} className="editor">
+              <FreePlaces draft={draft} set={set} live={live} />
+              <section className="card compact" aria-labelledby="fx">
+                <div className="section-head">
+                  <h2 id="fx">Tipos de cambio</h2>
+                  <span className="muted">
+                    Unidades de {draft.saleCurrency} por 1 unidad de la otra moneda, con fecha y fuente.
+                  </span>
+                  <div className="row">
+                    <button className="secondary" onClick={() => addFx()}>
+                      Agregar tipo de cambio
+                    </button>
+                    <button className="secondary" onClick={applyOfficialRates}>
+                      Usar tipos de cambio oficiales
+                    </button>
+                  </div>
+                </div>
+                {missingFx.length > 0 && (
+                  <p className="error" style={{ margin: '0 0 8px' }}>
+                    Falta el tipo de cambio de{' '}
+                    {missingFx.map((c) => `${c} → ${draft.saleCurrency}`).join(', ')} para calcular.{' '}
+                    {missingFx.map((c) => (
+                      <button key={c} className="secondary small" onClick={() => addFx(c)}>
+                        Capturar {c}
+                      </button>
+                    ))}
+                  </p>
+                )}
+                <div className="fields">
+                  {draft.fxRates.map((f, i) => (
+                    <div className="fx-row" key={i}>
+                      <label>
+                        De
+                        <select
+                          value={f.fromCurrency}
+                          onChange={(e) => setFx(i, { fromCurrency: e.target.value as CurrencyCode })}
+                        >
+                          {CurrencyCode.options.map((c) => (
+                            <option key={c}>{c}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Tipo de cambio
+                        <input
+                          inputMode="decimal"
+                          value={f.rate}
+                          placeholder="0.00"
+                          onChange={(e) => setFx(i, { rate: e.target.value.trim() })}
+                        />
+                      </label>
+                      <label>
+                        Fecha
+                        <input
+                          type="date"
+                          value={f.rateDate}
+                          onChange={(e) => setFx(i, { rateDate: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        Fuente
+                        <input
+                          value={f.source}
+                          maxLength={150}
+                          placeholder="Banxico, banco, proveedor…"
+                          onChange={(e) => setFx(i, { source: e.target.value })}
+                        />
+                      </label>
+                      <button
+                        className="secondary small"
+                        aria-label={`Quitar tipo de cambio ${f.fromCurrency}`}
+                        onClick={() => set({ fxRates: draft.fxRates.filter((_, j) => j !== i) })}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  {draft.saleCurrency !== 'MXN' && (
+                    <label className="fx-mxn">
+                      Tipo de cambio a MXN (aproximado)
+                      <input
+                        inputMode="decimal"
+                        value={draft.mxnRate ?? ''}
+                        placeholder="20.39"
+                        onChange={(e) => set({ mxnRate: e.target.value })}
+                      />
+                    </label>
+                  )}
+                </div>
+              </section>
+            </fieldset>
+          </LockedFold>
           {editable && sheet}
         </div>
 
